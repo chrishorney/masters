@@ -337,15 +337,28 @@ class ScoringService:
                                     "hole": int(hole_num)
                                 })
         
-        # All 6 make weekend bonus (after cut, rounds 3-4 only)
-        if round_id >= 3 and not entry.weekend_bonus_forfeited:
+        # All 6 make weekend bonus (Saturday only, round 3)
+        # Only applies if all 6 ORIGINAL players made the cut (not rebuy players)
+        if round_id == 3 and not entry.weekend_bonus_forfeited:
+            # Use original 6 players, not rebuy players
+            original_player_ids = [
+                entry.player1_id,
+                entry.player2_id,
+                entry.player3_id,
+                entry.player4_id,
+                entry.player5_id,
+                entry.player6_id,
+            ]
+            
             all_made_cut = True
-            for player_id in player_ids:
+            for player_id in original_player_ids:
                 status = self.get_player_status(leaderboard_data, str(player_id))
+                # Check if player made the cut (not cut, wd, or dq)
                 if status in ["cut", "wd", "dq"]:
                     all_made_cut = False
                     break
             
+            # Only award if all 6 original players made cut and bonus hasn't been earned yet
             if all_made_cut and not entry.weekend_bonus_earned:
                 bonuses.append({
                     "player_id": None,  # Team bonus
