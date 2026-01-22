@@ -1,0 +1,4 @@
+curl --request GET \
+	--url 'https://live-golf-data.p.rapidapi.com/scorecard?orgId=1&tournId=475&year=2024&playerId=47504' \
+	--header 'x-rapidapi-host: live-golf-data.p.rapidapi.com' \
+	--header 'x-rapidapi-key: xxxx

@@ -1,0 +1,4 @@
+curl --request GET \
+	--url 'https://live-golf-data.p.rapidapi.com/players?lastName=Morikawa&firstName=Collin&playerId=50525' \
+	--header 'x-rapidapi-host: live-golf-data.p.rapidapi.com' \
+	--header 'x-rapidapi-key: xxxxx

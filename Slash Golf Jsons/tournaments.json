@@ -1,0 +1,1325 @@
+{
+    "orgId": "1",
+    "year": "2024",
+    "tournId": "475",
+    "name": "Valspar Championship",
+    "purse": 8400000,
+    "fedexCupPoints": 500,
+    "date": {
+      "start": "2024-03-21T00:00:00",
+      "end": "2024-03-24T00:00:00",
+      "weekNumber": "12"
+    },
+    "format": "stroke",
+    "status": "Official",
+    "currentRound": 4,
+    "timeZone": "America/New_York",
+    "courses": [
+      {
+        "courseId": "665",
+        "courseName": "Innisbrook Resort (Copperhead Course)",
+        "host": "Yes",
+        "location": {
+          "country": "USA",
+          "state": "Florida",
+          "city": "Palm Harbor"
+        },
+        "parFrontNine": "36",
+        "parBackNine": "35",
+        "parTotal": "71",
+        "holes": [
+          {
+            "holeId": 1,
+            "par": "5"
+          },
+          {
+            "holeId": 2,
+            "par": "4"
+          },
+          {
+            "holeId": 3,
+            "par": "4"
+          },
+          {
+            "holeId": 4,
+            "par": "3"
+          },
+          {
+            "holeId": 5,
+            "par": "5"
+          },
+          {
+            "holeId": 6,
+            "par": "4"
+          },
+          {
+            "holeId": 7,
+            "par": "4"
+          },
+          {
+            "holeId": 8,
+            "par": "3"
+          },
+          {
+            "holeId": 9,
+            "par": "4"
+          },
+          {
+            "holeId": 10,
+            "par": "4"
+          },
+          {
+            "holeId": 11,
+            "par": "5"
+          },
+          {
+            "holeId": 12,
+            "par": "4"
+          },
+          {
+            "holeId": 13,
+            "par": "3"
+          },
+          {
+            "holeId": 14,
+            "par": "5"
+          },
+          {
+            "holeId": 15,
+            "par": "3"
+          },
+          {
+            "holeId": 16,
+            "par": "4"
+          },
+          {
+            "holeId": 17,
+            "par": "3"
+          },
+          {
+            "holeId": 18,
+            "par": "4"
+          }
+        ]
+      }
+    ],
+    "players": [
+      {
+        "lastName": "Malnati",
+        "firstName": "Peter",
+        "playerId": "34466",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Young",
+        "firstName": "Cameron",
+        "playerId": "57366",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Phillips",
+        "firstName": "Chandler",
+        "playerId": "57900",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Hughes",
+        "firstName": "Mackenzie",
+        "playerId": "35506",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Schauffele",
+        "firstName": "Xander",
+        "playerId": "48081",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Yuan",
+        "firstName": "Carl",
+        "playerId": "55454",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Moore",
+        "firstName": "Ryan",
+        "playerId": "26596",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Hadwin",
+        "firstName": "Adam",
+        "playerId": "33399",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Bezuidenhout",
+        "firstName": "Christiaan",
+        "playerId": "45522",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Lee",
+        "firstName": "K.H.",
+        "playerId": "32791",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Glover",
+        "firstName": "Lucas",
+        "playerId": "25900",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Horschel",
+        "firstName": "Billy",
+        "playerId": "29420",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Moore",
+        "firstName": "Taylor",
+        "playerId": "49947",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Reavie",
+        "firstName": "Chez",
+        "playerId": "26476",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Stallings",
+        "firstName": "Scott",
+        "playerId": "30692",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Roy",
+        "firstName": "Kevin",
+        "playerId": "39335",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Novak",
+        "firstName": "Andrew",
+        "playerId": "51997",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Bhatia",
+        "firstName": "Akshay",
+        "playerId": "56630",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Baddeley",
+        "firstName": "Aaron",
+        "playerId": "22371",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Schmid",
+        "firstName": "Matti",
+        "playerId": "48867",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Griffin",
+        "firstName": "Ben",
+        "playerId": "54591",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Detry",
+        "firstName": "Thomas",
+        "playerId": "33653",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Wallace",
+        "firstName": "Matt",
+        "playerId": "48887",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Bramlett",
+        "firstName": "Joseph",
+        "playerId": "34255",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Mitchell",
+        "firstName": "Keith",
+        "playerId": "39546",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Meissner",
+        "firstName": "Mac",
+        "playerId": "59143",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Wu",
+        "firstName": "Dylan",
+        "playerId": "54783",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Biondi",
+        "firstName": "Fred",
+        "playerId": "55930",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Streelman",
+        "firstName": "Kevin",
+        "playerId": "27214",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Hodges",
+        "firstName": "Lee",
+        "playerId": "54628",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Champ",
+        "firstName": "Cameron",
+        "playerId": "52372",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Power",
+        "firstName": "Seamus",
+        "playerId": "28252",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Ryder",
+        "firstName": "Sam",
+        "playerId": "37275",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "MacIntyre",
+        "firstName": "Robert",
+        "playerId": "52215",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Cink",
+        "firstName": "Stewart",
+        "playerId": "20229",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Greyserman",
+        "firstName": "Max",
+        "playerId": "51977",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Suh",
+        "firstName": "Justin",
+        "playerId": "50493",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Hisatsune",
+        "firstName": "Ryo",
+        "playerId": "51287",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Schenk",
+        "firstName": "Adam",
+        "playerId": "47347",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Cole",
+        "firstName": "Eric",
+        "playerId": "47591",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Shelton",
+        "firstName": "Robby",
+        "playerId": "46441",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Kim",
+        "firstName": "Michael",
+        "playerId": "39975",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Whitney",
+        "firstName": "Tom",
+        "playerId": "48319",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Todd",
+        "firstName": "Brendon",
+        "playerId": "30927",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "McNealy",
+        "firstName": "Maverick",
+        "playerId": "46442",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Valimaki",
+        "firstName": "Sami",
+        "playerId": "52666",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Sigg",
+        "firstName": "Greyson",
+        "playerId": "51890",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Dougherty",
+        "firstName": "Kevin",
+        "playerId": "47663",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Kuchar",
+        "firstName": "Matt",
+        "playerId": "23108",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Dahmen",
+        "firstName": "Joel",
+        "playerId": "34076",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Sloan",
+        "firstName": "Roger",
+        "playerId": "33486",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Campillo",
+        "firstName": "Jorge",
+        "playerId": "32367",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Svensson",
+        "firstName": "Adam",
+        "playerId": "40115",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Palmer",
+        "firstName": "Ryan",
+        "playerId": "23320",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Björk",
+        "firstName": "Alexander",
+        "playerId": "34310",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Young",
+        "firstName": "Carson",
+        "playerId": "52513",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Simpson",
+        "firstName": "Webb",
+        "playerId": "29221",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Whaley",
+        "firstName": "Vince",
+        "playerId": "51894",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Xiong",
+        "firstName": "Norman",
+        "playerId": "54328",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Hoey",
+        "firstName": "Rico",
+        "playerId": "51696",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Kim",
+        "firstName": "S.H.",
+        "playerId": "50188",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Gotterup",
+        "firstName": "Chris",
+        "playerId": "59095",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Buckley",
+        "firstName": "Hayden",
+        "playerId": "55708",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Taylor",
+        "firstName": "Nick",
+        "playerId": "25493",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Thomas",
+        "firstName": "Justin",
+        "playerId": "33448",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Stevens",
+        "firstName": "Sam",
+        "playerId": "55893",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Hall",
+        "firstName": "Harry",
+        "playerId": "57975",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Kim",
+        "firstName": "Chan",
+        "playerId": "34587",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Coody",
+        "firstName": "Parker",
+        "playerId": "59442",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Martin",
+        "firstName": "Ben",
+        "playerId": "33413",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Ghim",
+        "firstName": "Doug",
+        "playerId": "52375",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Brehm",
+        "firstName": "Ryan",
+        "playerId": "28420",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Tarren",
+        "firstName": "Callum",
+        "playerId": "48699",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Springer",
+        "firstName": "Hayden",
+        "playerId": "50484",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Burgoon",
+        "firstName": "Bronson",
+        "playerId": "29268",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Tosti",
+        "firstName": "Alejandro",
+        "playerId": "38991",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Skinns",
+        "firstName": "David",
+        "playerId": "27139",
+        "courseId": "665",
+        "status": "complete",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Crowe",
+        "firstName": "Trace",
+        "playerId": "52514",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Castillo",
+        "firstName": "Ricky",
+        "playerId": "59440",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Stanger",
+        "firstName": "Jimmy",
+        "playerId": "51600",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Putnam",
+        "firstName": "Andrew",
+        "playerId": "34256",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Spieth",
+        "firstName": "Jordan",
+        "playerId": "34046",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Hoffman",
+        "firstName": "Charley",
+        "playerId": "12716",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "McCormick",
+        "firstName": "Ryan",
+        "playerId": "46113",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Vegas",
+        "firstName": "Jhonattan",
+        "playerId": "27064",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Silverman",
+        "firstName": "Ben",
+        "playerId": "39327",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Snedeker",
+        "firstName": "Brandt",
+        "playerId": "27649",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Molinari",
+        "firstName": "Francesco",
+        "playerId": "25198",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Yu",
+        "firstName": "Kevin",
+        "playerId": "45242",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Burns",
+        "firstName": "Sam",
+        "playerId": "47504",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Bradley",
+        "firstName": "Keegan",
+        "playerId": "33141",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Harmeling",
+        "firstName": "Evan",
+        "playerId": "37428",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Alexander",
+        "firstName": "Tyson",
+        "playerId": "33408",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Campos",
+        "firstName": "Rafael",
+        "playerId": "32070",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Cauley",
+        "firstName": "Bud",
+        "playerId": "34021",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Pendrith",
+        "firstName": "Taylor",
+        "playerId": "40250",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Ramey",
+        "firstName": "Chad",
+        "playerId": "47983",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Rodgers",
+        "firstName": "Patrick",
+        "playerId": "36699",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Montgomery",
+        "firstName": "Taylor",
+        "playerId": "55789",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Hossler",
+        "firstName": "Beau",
+        "playerId": "35461",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Straka",
+        "firstName": "Sepp",
+        "playerId": "49960",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Garnett",
+        "firstName": "Brice",
+        "playerId": "29535",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Blair",
+        "firstName": "Zac",
+        "playerId": "40058",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Riley",
+        "firstName": "Davis",
+        "playerId": "47995",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Echavarria",
+        "firstName": "Nico",
+        "playerId": "51349",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Tway",
+        "firstName": "Kevin",
+        "playerId": "32333",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Harman",
+        "firstName": "Brian",
+        "playerId": "27644",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Thompson",
+        "firstName": "Davis",
+        "playerId": "58168",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Rai",
+        "firstName": "Aaron",
+        "playerId": "46414",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Pereda",
+        "firstName": "Raul",
+        "playerId": "47806",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Perez",
+        "firstName": "Victor",
+        "playerId": "47679",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Cook",
+        "firstName": "Austin",
+        "playerId": "46435",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Woodland",
+        "firstName": "Gary",
+        "playerId": "31323",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "NeSmith",
+        "firstName": "Matt",
+        "playerId": "36871",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Fox",
+        "firstName": "Ryan",
+        "playerId": "29936",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Duncan",
+        "firstName": "Tyler",
+        "playerId": "45609",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Olesen",
+        "firstName": "Thorbjørn",
+        "playerId": "33968",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Donald",
+        "firstName": "Luke",
+        "playerId": "23983",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Johnson",
+        "firstName": "Zach",
+        "playerId": "24024",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Gutschewski",
+        "firstName": "Scott",
+        "playerId": "24980",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Aylwin",
+        "firstName": "Kevin",
+        "playerId": "45527",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Hadley",
+        "firstName": "Chesson",
+        "playerId": "34563",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Hardy",
+        "firstName": "Nick",
+        "playerId": "47988",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Gabrelcik",
+        "firstName": "Nick",
+        "playerId": "64576",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": true
+      },
+      {
+        "lastName": "Werenski",
+        "firstName": "Richy",
+        "playerId": "47128",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Finau",
+        "firstName": "Tony",
+        "playerId": "29725",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Spaun",
+        "firstName": "J.J.",
+        "playerId": "39324",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Merritt",
+        "firstName": "Troy",
+        "playerId": "32640",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Furr",
+        "firstName": "Wilson",
+        "playerId": "56149",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Fishburn",
+        "firstName": "Patrick",
+        "playerId": "54576",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Bridgeman",
+        "firstName": "Jacob",
+        "playerId": "60004",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Smalley",
+        "firstName": "Alex",
+        "playerId": "46340",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Endycott",
+        "firstName": "Harrison",
+        "playerId": "47079",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Kohles",
+        "firstName": "Ben",
+        "playerId": "36884",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Lee",
+        "firstName": "Min Woo",
+        "playerId": "37378",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Teater",
+        "firstName": "Josh",
+        "playerId": "27330",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Lindheim",
+        "firstName": "Nicholas",
+        "playerId": "37278",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Dumont de Chassart",
+        "firstName": "Adrien",
+        "playerId": "50497",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Taylor",
+        "firstName": "Ben",
+        "playerId": "48119",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Koch",
+        "firstName": "Greg",
+        "playerId": "59871",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Berger",
+        "firstName": "Daniel",
+        "playerId": "40026",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Highsmith",
+        "firstName": "Joe",
+        "playerId": "60067",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Lipsky",
+        "firstName": "David",
+        "playerId": "36326",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Im",
+        "firstName": "Sungjae",
+        "playerId": "39971",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Barjon",
+        "firstName": "Paul",
+        "playerId": "37212",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Kisner",
+        "firstName": "Kevin",
+        "playerId": "29478",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Hale, Jr.",
+        "firstName": "Blaine",
+        "playerId": "60767",
+        "courseId": "665",
+        "status": "cut",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Villegas",
+        "firstName": "Camilo",
+        "playerId": "27770",
+        "courseId": "665",
+        "status": "wd",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Lower",
+        "firstName": "Justin",
+        "playerId": "40162",
+        "courseId": "665",
+        "status": "wd",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Barnes",
+        "firstName": "Erik",
+        "playerId": "34374",
+        "courseId": "665",
+        "status": "wd",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Bradshaw",
+        "firstName": "David",
+        "playerId": "24671",
+        "courseId": "665",
+        "status": "wd",
+        "isAmateur": false
+      },
+      {
+        "lastName": "Coody",
+        "firstName": "Pierceson",
+        "playerId": "59836",
+        "courseId": "665",
+        "status": "wd",
+        "isAmateur": false
+      }
+    ],
+    "timestamp": "2024-03-24T22:35:04.490000"
+  }

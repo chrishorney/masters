@@ -1,0 +1,218 @@
+[
+    {
+      "orgId": "1",
+      "tournId": "475",
+      "year": "2024",
+      "playerId": "47504",
+      "lastName": "Burns",
+      "firstName": "Sam",
+      "roundId": 1,
+      "startingHole": 10,
+      "roundComplete": true,
+      "courseId": "665",
+      "currentHole": 9,
+      "currentRoundScore": "E",
+      "holes": {
+        "1": {
+          "holeId": 1,
+          "holeScore": 4,
+          "par": 5
+        },
+        "2": {
+          "holeId": 2,
+          "holeScore": 3,
+          "par": 4
+        },
+        "3": {
+          "holeId": 3,
+          "holeScore": 3,
+          "par": 4
+        },
+        "4": {
+          "holeId": 4,
+          "holeScore": 3,
+          "par": 3
+        },
+        "5": {
+          "holeId": 5,
+          "holeScore": 7,
+          "par": 5
+        },
+        "6": {
+          "holeId": 6,
+          "holeScore": 4,
+          "par": 4
+        },
+        "7": {
+          "holeId": 7,
+          "holeScore": 5,
+          "par": 4
+        },
+        "8": {
+          "holeId": 8,
+          "holeScore": 3,
+          "par": 3
+        },
+        "9": {
+          "holeId": 9,
+          "holeScore": 4,
+          "par": 4
+        },
+        "10": {
+          "holeId": 10,
+          "holeScore": 3,
+          "par": 4
+        },
+        "11": {
+          "holeId": 11,
+          "holeScore": 6,
+          "par": 5
+        },
+        "12": {
+          "holeId": 12,
+          "holeScore": 3,
+          "par": 4
+        },
+        "13": {
+          "holeId": 13,
+          "holeScore": 3,
+          "par": 3
+        },
+        "14": {
+          "holeId": 14,
+          "holeScore": 4,
+          "par": 5
+        },
+        "15": {
+          "holeId": 15,
+          "holeScore": 3,
+          "par": 3
+        },
+        "16": {
+          "holeId": 16,
+          "holeScore": 6,
+          "par": 4
+        },
+        "17": {
+          "holeId": 17,
+          "holeScore": 3,
+          "par": 3
+        },
+        "18": {
+          "holeId": 18,
+          "holeScore": 4,
+          "par": 4
+        }
+      },
+      "totalShots": 71,
+      "timestamp": "2024-03-22T05:54:46.087000"
+    },
+    {
+      "orgId": "1",
+      "tournId": "475",
+      "year": "2024",
+      "playerId": "47504",
+      "lastName": "Burns",
+      "firstName": "Sam",
+      "roundId": 2,
+      "startingHole": 1,
+      "roundComplete": true,
+      "courseId": "665",
+      "currentHole": 18,
+      "currentRoundScore": "+1",
+      "holes": {
+        "1": {
+          "holeId": 1,
+          "holeScore": 4,
+          "par": 5
+        },
+        "2": {
+          "holeId": 2,
+          "holeScore": 4,
+          "par": 4
+        },
+        "3": {
+          "holeId": 3,
+          "holeScore": 4,
+          "par": 4
+        },
+        "4": {
+          "holeId": 4,
+          "holeScore": 3,
+          "par": 3
+        },
+        "5": {
+          "holeId": 5,
+          "holeScore": 6,
+          "par": 5
+        },
+        "6": {
+          "holeId": 6,
+          "holeScore": 3,
+          "par": 4
+        },
+        "7": {
+          "holeId": 7,
+          "holeScore": 4,
+          "par": 4
+        },
+        "8": {
+          "holeId": 8,
+          "holeScore": 5,
+          "par": 3
+        },
+        "9": {
+          "holeId": 9,
+          "holeScore": 3,
+          "par": 4
+        },
+        "10": {
+          "holeId": 10,
+          "holeScore": 5,
+          "par": 4
+        },
+        "11": {
+          "holeId": 11,
+          "holeScore": 6,
+          "par": 5
+        },
+        "12": {
+          "holeId": 12,
+          "holeScore": 3,
+          "par": 4
+        },
+        "13": {
+          "holeId": 13,
+          "holeScore": 2,
+          "par": 3
+        },
+        "14": {
+          "holeId": 14,
+          "holeScore": 5,
+          "par": 5
+        },
+        "15": {
+          "holeId": 15,
+          "holeScore": 3,
+          "par": 3
+        },
+        "16": {
+          "holeId": 16,
+          "holeScore": 4,
+          "par": 4
+        },
+        "17": {
+          "holeId": 17,
+          "holeScore": 3,
+          "par": 3
+        },
+        "18": {
+          "holeId": 18,
+          "holeScore": 5,
+          "par": 4
+        }
+      },
+      "totalShots": 72,
+      "timestamp": "2024-03-22T22:25:52.148000"
+    }
+  ]
