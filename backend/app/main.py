@@ -33,7 +33,11 @@ async def startup_event():
     """Initialize database on startup."""
     # Create tables (in production, use migrations)
     if settings.environment == "development":
-        Base.metadata.create_all(bind=engine)
+        try:
+            Base.metadata.create_all(bind=engine)
+            logging.info("Database connection successful")
+        except Exception as e:
+            logging.warning(f"Database connection failed: {e}. App will continue but database features may not work.")
     logging.info("Application started")
 
 
