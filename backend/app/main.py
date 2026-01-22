@@ -58,10 +58,6 @@ async def root():
     }
 
 
-# Import and include routers (will be added in later phases)
-# from app.api.public import leaderboard, entries
-# from app.api.admin import auth, imports
-# app.include_router(leaderboard.router, prefix=settings.api_prefix, tags=["public"])
-# app.include_router(entries.router, prefix=settings.api_prefix, tags=["public"])
-# app.include_router(auth.router, prefix=f"{settings.api_prefix}/admin", tags=["admin"])
-# app.include_router(imports.router, prefix=f"{settings.api_prefix}/admin", tags=["admin"])
+# Import and include routers
+from app.api.public import tournament
+app.include_router(tournament.router, prefix=settings.api_prefix, tags=["tournament"])
