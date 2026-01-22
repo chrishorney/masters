@@ -98,6 +98,8 @@ INFO  [alembic.runtime.migration] Running upgrade  -> fd7c075d609b, Initial data
 DATABASE_URL=your_supabase_connection_string
 SLASH_GOLF_API_KEY=your_rapidapi_key
 SLASH_GOLF_API_HOST=live-golf-data.p.rapidapi.com
+JWT_SECRET_KEY=your_random_secret_key
+CORS_ORIGINS=https://masters-4vofh12ze-chrishorney-gmailcoms-projects.vercel.app,http://localhost:5173,http://localhost:3000
 API_PREFIX=/api
 ENVIRONMENT=production
 LOG_LEVEL=INFO
@@ -107,6 +109,8 @@ LOG_LEVEL=INFO
    - Use the connection string from Step 1.2
    - Get your RapidAPI key from https://rapidapi.com
    - Make sure `DATABASE_URL` is the connection pooling URL
+   - Generate `JWT_SECRET_KEY` with: `openssl rand -hex 32`
+   - Update `CORS_ORIGINS` with your actual Vercel frontend URL after Step 3
 
 ### 2.5 Deploy
 1. Railway will automatically deploy when you push to main
@@ -156,6 +160,7 @@ https://masters-production.up.railway.app
    VITE_API_URL=https://masters-production.up.railway.app
    ```
    (This is your Railway backend URL from Step 2.5)
+3. **Important**: After adding, Vercel will automatically redeploy. Wait for the new deployment to complete.
 
 ### 3.5 Deploy
 1. Click **"Deploy"**
@@ -175,6 +180,34 @@ https://masters-4vofh12ze-chrishorney-gmailcoms-projects.vercel.app
 5. Test admin page: `https://masters-4vofh12ze-chrishorney-gmailcoms-projects.vercel.app/admin`
 
 ✅ **Step 3 Complete** - Frontend is live!
+
+### 3.7 Troubleshooting: Frontend Not Loading Data
+
+If your frontend loads but shows no data, check:
+
+1. **Vercel Environment Variable**:
+   - Go to Vercel → Your Project → Settings → Environment Variables
+   - Verify `VITE_API_URL` is set to: `https://masters-production.up.railway.app`
+   - If missing or wrong, add/update it and redeploy
+
+2. **Backend CORS Configuration**:
+   - Go to Railway → Your Service → Variables
+   - Check `CORS_ORIGINS` includes your Vercel URL:
+     ```
+     https://masters-4vofh12ze-chrishorney-gmailcoms-projects.vercel.app,http://localhost:5173,http://localhost:3000
+     ```
+   - If missing, add it and Railway will restart
+
+3. **Browser Console**:
+   - Open browser DevTools (F12) → Console tab
+   - Look for CORS errors or API connection errors
+   - Check Network tab to see if API calls are failing
+
+4. **Test API Directly**:
+   ```bash
+   curl https://masters-production.up.railway.app/api/health
+   ```
+   Should return: `{"status":"healthy",...}`
 
 ---
 
