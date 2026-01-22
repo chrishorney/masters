@@ -57,8 +57,8 @@ export function ImportSection({ tournamentId }: ImportSectionProps) {
   return (
     <div className="space-y-6">
       {/* Import Type Selection */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-2xl font-semibold text-gray-900 mb-4">Import Type</h2>
+      <div className="bg-white rounded-lg shadow-md p-4 md:p-6">
+        <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-4">Import Type</h2>
         <div className="flex space-x-4">
           <label className="flex items-center">
             <input
@@ -84,8 +84,8 @@ export function ImportSection({ tournamentId }: ImportSectionProps) {
       </div>
 
       {/* File Upload */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-2xl font-semibold text-gray-900 mb-4">
+      <div className="bg-white rounded-lg shadow-md p-4 md:p-6">
+        <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-4">
           {importType === 'entries' ? 'Import Entries' : 'Import Rebuys'}
         </h2>
         
@@ -135,18 +135,18 @@ export function ImportSection({ tournamentId }: ImportSectionProps) {
                 <span>✓</span>
                 <span className="font-medium">Import Successful</span>
               </div>
-              <div className="grid grid-cols-3 gap-4 text-sm">
+              <div className="grid grid-cols-3 gap-2 md:gap-4 text-sm">
                 <div>
-                  <div className="text-gray-500">Imported</div>
-                  <div className="text-2xl font-bold text-gray-900">{result.imported || 0}</div>
+                  <div className="text-gray-500 text-xs md:text-sm">Imported</div>
+                  <div className="text-xl md:text-2xl font-bold text-gray-900">{result.imported || 0}</div>
                 </div>
                 <div>
-                  <div className="text-gray-500">Skipped</div>
-                  <div className="text-2xl font-bold text-gray-600">{result.skipped || 0}</div>
+                  <div className="text-gray-500 text-xs md:text-sm">Skipped</div>
+                  <div className="text-xl md:text-2xl font-bold text-gray-600">{result.skipped || 0}</div>
                 </div>
                 <div>
-                  <div className="text-gray-500">Errors</div>
-                  <div className="text-2xl font-bold text-red-600">{result.errors?.length || 0}</div>
+                  <div className="text-gray-500 text-xs md:text-sm">Errors</div>
+                  <div className="text-xl md:text-2xl font-bold text-red-600">{result.errors?.length || 0}</div>
                 </div>
               </div>
 

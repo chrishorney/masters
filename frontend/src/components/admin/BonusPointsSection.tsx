@@ -65,8 +65,8 @@ export function BonusPointsSection({ tournamentId }: BonusPointsSectionProps) {
   return (
     <div className="space-y-6">
       {/* Add Bonus Point */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-2xl font-semibold text-gray-900 mb-4">Add Manual Bonus Point</h2>
+      <div className="bg-white rounded-lg shadow-md p-4 md:p-6">
+        <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-4">Add Manual Bonus Point</h2>
         
         <div className="space-y-4">
           {/* Round Selection */}

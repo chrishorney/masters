@@ -30,10 +30,10 @@ export function HomePage() {
     <div className="max-w-4xl mx-auto">
       {/* Hero Section */}
       <div className="text-center mb-12">
-        <h1 className="text-5xl font-bold text-gray-900 mb-4">
+        <h1 className="text-3xl md:text-5xl font-bold text-gray-900 mb-4">
           Welcome to the 13th Annual
         </h1>
-        <h2 className="text-4xl font-bold text-green-600 mb-6">
+        <h2 className="text-2xl md:text-4xl font-bold text-green-600 mb-6">
           Eldorado Masters Pool
         </h2>
         {tournament && (

@@ -150,9 +150,9 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
   return (
     <div className="space-y-6">
       {/* Tournament Info */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-2xl font-semibold text-gray-900 mb-4">Tournament Information</h2>
-        <dl className="grid grid-cols-2 gap-4">
+      <div className="bg-white rounded-lg shadow-md p-4 md:p-6">
+        <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-4">Tournament Information</h2>
+        <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <dt className="text-sm font-medium text-gray-500">Name</dt>
             <dd className="mt-1 text-sm text-gray-900">{tournament.name}</dd>
@@ -173,8 +173,8 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
       </div>
 
       {/* Actions */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-2xl font-semibold text-gray-900 mb-4">Tournament Actions</h2>
+      <div className="bg-white rounded-lg shadow-md p-4 md:p-6">
+        <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-4">Tournament Actions</h2>
         
         <div className="space-y-4">
           {/* Sync Tournament */}
@@ -186,7 +186,7 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
             <button
               onClick={handleSync}
               disabled={syncing}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
             >
               {syncing ? 'Syncing...' : 'Sync Tournament Data'}
             </button>
@@ -201,7 +201,7 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
             <button
               onClick={handleCalculateScores}
               disabled={calculating}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full md:w-auto px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
             >
               {calculating ? 'Calculating...' : 'Calculate Scores'}
             </button>
@@ -216,7 +216,7 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
             <button
               onClick={handleRunJobOnce}
               disabled={calculating || backgroundJobRunning}
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full md:w-auto px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
             >
               {calculating ? 'Running...' : 'Sync & Calculate'}
             </button>
@@ -331,7 +331,7 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
                 <button
                   onClick={handleStartBackgroundJob}
                   disabled={calculating || checkingStatus}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="w-full md:w-auto px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
                 >
                   {calculating ? 'Starting...' : 'Start Automatic Sync'}
                 </button>
@@ -339,7 +339,7 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
                 <button
                   onClick={handleStopBackgroundJob}
                   disabled={calculating}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="w-full md:w-auto px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
                 >
                   {calculating ? 'Stopping...' : 'Stop Automatic Sync'}
                 </button>

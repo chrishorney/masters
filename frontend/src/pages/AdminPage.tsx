@@ -33,10 +33,10 @@ export function AdminPage() {
   return (
     <div className="max-w-6xl mx-auto">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
+      <div className="mb-6 md:mb-8">
+        <h1 className="text-2xl md:text-4xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
         {tournament && (
-          <p className="text-gray-600">
+          <p className="text-gray-600 text-sm md:text-base">
             Managing: {tournament.name} • Round {tournament.current_round}
           </p>
         )}
@@ -44,10 +44,11 @@ export function AdminPage() {
 
       {/* Tabs */}
       <div className="border-b border-gray-200 mb-6">
-        <nav className="-mb-px flex space-x-8">
+        {/* Desktop Tabs */}
+        <nav className="hidden md:flex -mb-px space-x-8">
           <button
             onClick={() => setActiveTab('import')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+            className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
               activeTab === 'import'
                 ? 'border-green-500 text-green-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -57,7 +58,7 @@ export function AdminPage() {
           </button>
           <button
             onClick={() => setActiveTab('bonus')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+            className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
               activeTab === 'bonus'
                 ? 'border-green-500 text-green-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -67,7 +68,7 @@ export function AdminPage() {
           </button>
           <button
             onClick={() => setActiveTab('tournament')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+            className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
               activeTab === 'tournament'
                 ? 'border-green-500 text-green-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -76,6 +77,19 @@ export function AdminPage() {
             Tournament Management
           </button>
         </nav>
+
+        {/* Mobile Tabs - Dropdown */}
+        <div className="md:hidden">
+          <select
+            value={activeTab}
+            onChange={(e) => setActiveTab(e.target.value as 'import' | 'bonus' | 'tournament')}
+            className="w-full py-3 px-4 border border-gray-300 rounded-lg bg-white text-gray-900 font-medium focus:ring-2 focus:ring-green-500 focus:border-green-500"
+          >
+            <option value="import">SmartSheet Imports</option>
+            <option value="bonus">Bonus Points</option>
+            <option value="tournament">Tournament Management</option>
+          </select>
+        </div>
       </div>
 
       {/* Tab Content */}

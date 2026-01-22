@@ -61,14 +61,14 @@ export function EntryDetailPage() {
     <div className="max-w-6xl mx-auto">
       {/* Header */}
       <div className="mb-6">
-        <Link to="/leaderboard" className="text-green-600 hover:text-green-700 underline mb-4 inline-block">
+        <Link to="/leaderboard" className="text-green-600 hover:text-green-700 underline mb-4 inline-block text-sm md:text-base">
           ← Back to Leaderboard
         </Link>
-        <h1 className="text-4xl font-bold text-gray-900 mb-2">
+        <h1 className="text-2xl md:text-4xl font-bold text-gray-900 mb-2">
           {entry.participant.name}'s Entry
         </h1>
         {tournament && (
-          <p className="text-gray-600">
+          <p className="text-gray-600 text-sm md:text-base">
             {tournament.name} • Round {tournament.current_round}
           </p>
         )}
@@ -91,9 +91,9 @@ export function EntryDetailPage() {
       </div>
 
       {/* Selected Players */}
-      <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-        <h2 className="text-2xl font-semibold text-gray-900 mb-4">Selected Players</h2>
-        <div className="grid md:grid-cols-2 gap-4">
+      <div className="bg-white rounded-lg shadow-md p-4 md:p-6 mb-8">
+        <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-4">Selected Players</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[
             entry.player1_id,
             entry.player2_id,
@@ -140,9 +140,10 @@ export function EntryDetailPage() {
       </div>
 
       {/* Daily Scores */}
-      <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-        <h2 className="text-2xl font-semibold text-gray-900 mb-4">Round-by-Round Scores</h2>
-        <div className="overflow-x-auto">
+      <div className="bg-white rounded-lg shadow-md p-4 md:p-6 mb-8">
+        <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-4">Round-by-Round Scores</h2>
+        <div className="overflow-x-auto -mx-4 md:mx-0">
+          <div className="inline-block min-w-full px-4 md:px-0">
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
@@ -179,13 +180,14 @@ export function EntryDetailPage() {
               </tr>
             </tfoot>
           </table>
+          </div>
         </div>
       </div>
 
       {/* Bonus Points Breakdown */}
       {bonus_points.length > 0 && (
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-4">Bonus Points Breakdown</h2>
+        <div className="bg-white rounded-lg shadow-md p-4 md:p-6">
+          <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-4">Bonus Points Breakdown</h2>
           <div className="space-y-2">
             {bonus_points.map((bp: any) => (
               <div key={bp.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
