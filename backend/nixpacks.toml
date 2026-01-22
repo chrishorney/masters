@@ -11,8 +11,8 @@ cmds = [
 
 [phases.build]
 cmds = [
-  "source /opt/venv/bin/activate && alembic upgrade head || true"
+  "echo 'Skipping migrations during build - will run at startup'"
 ]
 
 [start]
-cmd = "source /opt/venv/bin/activate && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+cmd = "source /opt/venv/bin/activate && alembic upgrade head || true && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
