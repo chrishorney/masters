@@ -92,6 +92,30 @@ export const adminApi = {
     })
     return response.data
   },
+
+  /** Start background job for automatic sync */
+  startBackgroundJob: async (tournamentId: number, intervalSeconds: number = 300): Promise<{ message: string; status: string }> => {
+    const response = await api.post('/admin/jobs/start', null, {
+      params: { tournament_id: tournamentId, interval_seconds: intervalSeconds },
+    })
+    return response.data
+  },
+
+  /** Stop background job */
+  stopBackgroundJob: async (tournamentId: number): Promise<{ message: string; status: string }> => {
+    const response = await api.post('/admin/jobs/stop', null, {
+      params: { tournament_id: tournamentId },
+    })
+    return response.data
+  },
+
+  /** Get background job status */
+  getBackgroundJobStatus: async (tournamentId: number): Promise<{ running: boolean; status: string }> => {
+    const response = await api.get('/admin/jobs/status', {
+      params: { tournament_id: tournamentId },
+    })
+    return response.data
+  },
 }
 
 export default api

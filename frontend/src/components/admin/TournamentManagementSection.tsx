@@ -1,7 +1,7 @@
 /** Tournament management section */
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useCalculateScores } from '../../hooks/useTournament'
-import { tournamentApi } from '../../services/api'
+import { tournamentApi, adminApi } from '../../services/api'
 import api from '../../services/api'
 import type { Tournament } from '../../types'
 
@@ -13,8 +13,30 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
   const [syncing, setSyncing] = useState(false)
   const [calculating, setCalculating] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [backgroundJobRunning, setBackgroundJobRunning] = useState(false)
+  const [checkingStatus, setCheckingStatus] = useState(true)
+  const [intervalSeconds, setIntervalSeconds] = useState(300) // Default 5 minutes
   
   const calculateScores = useCalculateScores()
+
+  // Check background job status on mount and periodically
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const status = await adminApi.getBackgroundJobStatus(tournament.id)
+        setBackgroundJobRunning(status.running)
+      } catch (error) {
+        console.error('Failed to check background job status:', error)
+      } finally {
+        setCheckingStatus(false)
+      }
+    }
+
+    checkStatus()
+    // Check status every 10 seconds
+    const interval = setInterval(checkStatus, 10000)
+    return () => clearInterval(interval)
+  }, [tournament.id])
 
   const handleSync = async () => {
     setSyncing(true)
@@ -67,6 +89,45 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
       setMessage({ 
         type: 'error', 
         text: error.response?.data?.detail || 'Failed to run job' 
+      })
+    } finally {
+      setCalculating(false)
+    }
+  }
+
+  const handleStartBackgroundJob = async () => {
+    setCalculating(true)
+    setMessage(null)
+
+    try {
+      await adminApi.startBackgroundJob(tournament.id, intervalSeconds)
+      setBackgroundJobRunning(true)
+      setMessage({ 
+        type: 'success', 
+        text: `Automatic sync started! Will sync every ${intervalSeconds} seconds (${Math.round(intervalSeconds / 60)} minutes).` 
+      })
+    } catch (error: any) {
+      setMessage({ 
+        type: 'error', 
+        text: error.response?.data?.detail || 'Failed to start background job' 
+      })
+    } finally {
+      setCalculating(false)
+    }
+  }
+
+  const handleStopBackgroundJob = async () => {
+    setCalculating(true)
+    setMessage(null)
+
+    try {
+      await adminApi.stopBackgroundJob(tournament.id)
+      setBackgroundJobRunning(false)
+      setMessage({ type: 'success', text: 'Automatic sync stopped.' })
+    } catch (error: any) {
+      setMessage({ 
+        type: 'error', 
+        text: error.response?.data?.detail || 'Failed to stop background job' 
       })
     } finally {
       setCalculating(false)
@@ -134,18 +195,100 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
           </div>
 
           {/* Run Job Once */}
-          <div>
+          <div className="border-b border-gray-200 pb-4">
             <h3 className="font-medium text-gray-900 mb-2">Sync & Calculate (One-Time)</h3>
             <p className="text-sm text-gray-600 mb-3">
               Sync tournament data and calculate scores in one action
             </p>
             <button
               onClick={handleRunJobOnce}
-              disabled={calculating}
+              disabled={calculating || backgroundJobRunning}
               className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {calculating ? 'Running...' : 'Sync & Calculate'}
             </button>
+          </div>
+
+          {/* Automatic Background Sync */}
+          <div>
+            <h3 className="font-medium text-gray-900 mb-2">Automatic Background Sync</h3>
+            <p className="text-sm text-gray-600 mb-3">
+              Automatically sync tournament data and calculate scores at regular intervals. 
+              <span className="font-semibold text-orange-600"> Use with caution to avoid exceeding API rate limits.</span>
+            </p>
+            
+            {/* Status Indicator */}
+            <div className="mb-4 p-3 rounded-lg bg-gray-50 border border-gray-200">
+              <div className="flex items-center gap-2">
+                <div className={`w-3 h-3 rounded-full ${backgroundJobRunning ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
+                <span className="text-sm font-medium text-gray-700">
+                  Status: {backgroundJobRunning ? 'Running' : 'Stopped'}
+                </span>
+                {checkingStatus && (
+                  <span className="text-xs text-gray-500">(checking...)</span>
+                )}
+              </div>
+              {backgroundJobRunning && (
+                <p className="text-xs text-gray-600 mt-1">
+                  Syncing every {intervalSeconds} seconds ({Math.round(intervalSeconds / 60)} minutes)
+                </p>
+              )}
+            </div>
+
+            {/* Interval Configuration */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Sync Interval (seconds)
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="60"
+                  max="3600"
+                  step="60"
+                  value={intervalSeconds}
+                  onChange={(e) => setIntervalSeconds(parseInt(e.target.value) || 300)}
+                  disabled={backgroundJobRunning}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed w-32"
+                />
+                <span className="text-sm text-gray-600">
+                  ({Math.round(intervalSeconds / 60)} minutes)
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Recommended: 300+ seconds (5+ minutes) to avoid rate limits. Minimum: 60 seconds.
+              </p>
+            </div>
+
+            {/* Start/Stop Buttons */}
+            <div className="flex gap-2">
+              {!backgroundJobRunning ? (
+                <button
+                  onClick={handleStartBackgroundJob}
+                  disabled={calculating || checkingStatus}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {calculating ? 'Starting...' : 'Start Automatic Sync'}
+                </button>
+              ) : (
+                <button
+                  onClick={handleStopBackgroundJob}
+                  disabled={calculating}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {calculating ? 'Stopping...' : 'Stop Automatic Sync'}
+                </button>
+              )}
+            </div>
+
+            {/* Rate Limit Warning */}
+            <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-xs text-yellow-800">
+                <strong>⚠️ Rate Limit Warning:</strong> Each sync makes multiple API calls. 
+                With a {Math.round(intervalSeconds / 60)}-minute interval, you'll make approximately {Math.round((24 * 60) / (intervalSeconds / 60))} syncs per day. 
+                Monitor your RapidAPI usage to avoid exceeding limits.
+              </p>
+            </div>
           </div>
         </div>
       </div>
