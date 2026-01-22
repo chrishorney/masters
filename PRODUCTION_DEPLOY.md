@@ -20,7 +20,8 @@ Before starting, ensure you have:
 - API Docs: `https://masters-production.up.railway.app/docs`
 
 **Frontend (Vercel):**
-- URL: (Will be added after Step 3 deployment)
+- URL: `https://masters-4vofh12ze-chrishorney-gmailcoms-projects.vercel.app`
+- Admin Page: `https://masters-4vofh12ze-chrishorney-gmailcoms-projects.vercel.app/admin`
 
 **Database (Supabase):**
 - Connection: (See Step 1.2 for connection string)
@@ -161,11 +162,17 @@ https://masters-production.up.railway.app
 2. Wait 1-2 minutes
 3. Vercel will give you a URL like: `https://your-app.vercel.app`
 
+**Frontend URL (Production):**
+```
+https://masters-4vofh12ze-chrishorney-gmailcoms-projects.vercel.app
+```
+
 ### 3.6 Test Frontend
-1. Visit your Vercel URL
+1. Visit your Vercel URL: `https://masters-4vofh12ze-chrishorney-gmailcoms-projects.vercel.app`
 2. Should see the home page
 3. Check leaderboard page
 4. Verify it connects to backend
+5. Test admin page: `https://masters-4vofh12ze-chrishorney-gmailcoms-projects.vercel.app/admin`
 
 ✅ **Step 3 Complete** - Frontend is live!
 
