@@ -26,7 +26,7 @@ def main():
         sync_results = sync_service.sync_tournament_data(
             org_id="1",  # PGA Tour
             tourn_id="002",  # The American Express
-            year=2025  # Current year
+            year=2026  # Current year (2026 tournament is in progress)
         )
         
         if sync_results.get("errors"):
