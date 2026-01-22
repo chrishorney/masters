@@ -12,6 +12,19 @@ Before starting, ensure you have:
 - [ ] Domain name (optional but recommended)
 - [ ] Slash Golf API key (RapidAPI)
 
+## Quick Reference - Production URLs
+
+**Backend (Railway):**
+- URL: `https://masters-production.up.railway.app`
+- Health Check: `https://masters-production.up.railway.app/api/health`
+- API Docs: `https://masters-production.up.railway.app/docs`
+
+**Frontend (Vercel):**
+- URL: (Will be added after Step 3 deployment)
+
+**Database (Supabase):**
+- Connection: (See Step 1.2 for connection string)
+
 ## Step 1: Database Setup (Supabase) - 5 minutes
 
 ### 1.1 Create Supabase Project
@@ -107,6 +120,11 @@ LOG_LEVEL=INFO
 
 ✅ **Step 2 Complete** - Backend is live!
 
+**Backend URL (Production):**
+```
+https://masters-production.up.railway.app
+```
+
 **Save your backend URL** - you'll need it for the frontend!
 
 ---
@@ -134,9 +152,9 @@ LOG_LEVEL=INFO
 1. In project settings, go to **Environment Variables**
 2. Add:
    ```
-   VITE_API_URL=https://your-backend-url.railway.app
+   VITE_API_URL=https://masters-production.up.railway.app
    ```
-   (Use your actual Railway backend URL from Step 2.5)
+   (This is your Railway backend URL from Step 2.5)
 
 ### 3.5 Deploy
 1. Click **"Deploy"**
