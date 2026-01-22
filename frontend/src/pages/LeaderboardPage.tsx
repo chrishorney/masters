@@ -2,6 +2,7 @@
 import { useCurrentTournament, useLeaderboard, useCalculateScores } from '../hooks/useTournament'
 import { LoadingSpinner } from '../components/LoadingSpinner'
 import { ErrorMessage } from '../components/ErrorMessage'
+import { UpdateIndicator } from '../components/UpdateIndicator'
 import type { LeaderboardEntry } from '../types'
 
 export function LeaderboardPage() {
@@ -10,7 +11,8 @@ export function LeaderboardPage() {
     data: leaderboardData, 
     isLoading: leaderboardLoading, 
     error: leaderboardError,
-    refetch 
+    refetch,
+    isRefetching
   } = useLeaderboard(tournament?.id)
   
   const calculateScores = useCalculateScores()
@@ -103,11 +105,12 @@ export function LeaderboardPage() {
       </div>
 
       {/* Last Updated */}
-      {leaderboardData.last_updated && (
-        <div className="mt-4 text-sm text-gray-500 text-center">
-          Last updated: {new Date(leaderboardData.last_updated).toLocaleString()}
-        </div>
-      )}
+      <div className="mt-4 flex justify-center">
+        <UpdateIndicator 
+          lastUpdated={leaderboardData.last_updated}
+          isRefetching={isRefetching}
+        />
+      </div>
     </div>
   )
 }
@@ -131,7 +134,7 @@ function LeaderboardRow({ entry, rank }: { entry: LeaderboardEntry; rank: number
   const totalBonusPoints = entry.daily_scores.reduce((sum, score) => sum + score.bonus_points, 0)
 
   return (
-    <tr className="hover:bg-gray-50 transition-colors">
+    <tr className="hover:bg-gray-50 transition-all duration-300 ease-in-out">
       <td className="px-6 py-4 whitespace-nowrap">
         <div className={`text-lg ${getRankColor(rank)}`}>
           {getRankBadge(rank)}
