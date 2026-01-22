@@ -130,9 +130,13 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
     setMessage(null)
 
     try {
-      await adminApi.stopBackgroundJob(tournament.id)
+      const result = await adminApi.stopBackgroundJob(tournament.id)
       setBackgroundJobRunning(false)
-      setMessage({ type: 'success', text: 'Automatic sync stopped.' })
+      setActiveHours('')
+      setMessage({ 
+        type: 'success', 
+        text: result.message || 'Automatic sync stopped permanently. It will not restart automatically.' 
+      })
     } catch (error: any) {
       setMessage({ 
         type: 'error', 
@@ -340,6 +344,15 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
                   {calculating ? 'Stopping...' : 'Stop Automatic Sync'}
                 </button>
               )}
+            </div>
+
+            {/* Stop Override Warning */}
+            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-xs text-blue-800">
+                <strong>🛑 Stop Override:</strong> Clicking "Stop" is a permanent override. 
+                The sync will NOT automatically restart when active hours begin again. 
+                You must manually click "Start" to resume automatic syncing.
+              </p>
             </div>
 
             {/* Rate Limit Warning */}

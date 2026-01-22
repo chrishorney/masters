@@ -52,7 +52,12 @@ class BackgroundJobService:
         )
     
     async def stop(self):
-        """Stop the background job."""
+        """
+        Stop the background job.
+        
+        This is a hard stop - the job will not restart automatically.
+        It must be explicitly started again via the start() method.
+        """
         self.running = False
         if self._task:
             self._task.cancel()
@@ -60,7 +65,7 @@ class BackgroundJobService:
                 await self._task
             except asyncio.CancelledError:
                 pass
-        logger.info("Stopped background job")
+        logger.info("Background job stopped permanently (will not auto-restart)")
     
     def _is_within_active_hours(self, current_hour: int, start_hour: int, stop_hour: int) -> bool:
         """

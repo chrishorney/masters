@@ -60,16 +60,23 @@ async def stop_background_job(
     tournament_id: int = Query(..., description="Tournament ID"),
     db: Session = Depends(get_db)
 ):
-    """Stop background job."""
+    """
+    Stop background job.
+    
+    IMPORTANT: This is a hard override. Once stopped, the job will NOT automatically
+    restart, even when active hours begin again. The job must be manually started
+    again via the /jobs/start endpoint.
+    """
     if tournament_id not in _job_services:
         raise HTTPException(status_code=404, detail="Background job not found")
     
     job_service = _job_services[tournament_id]
     await job_service.stop()
+    # Remove from running jobs - this prevents any automatic restart
     del _job_services[tournament_id]
     
     return {
-        "message": "Background job stopped",
+        "message": "Background job stopped permanently. It will not restart automatically.",
         "tournament_id": tournament_id,
         "status": "stopped"
     }
