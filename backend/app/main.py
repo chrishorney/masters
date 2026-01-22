@@ -31,13 +31,14 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
     """Initialize database on startup."""
-    # Create tables (in production, use migrations)
-    if settings.environment == "development":
-        try:
-            Base.metadata.create_all(bind=engine)
-            logging.info("Database connection successful")
-        except Exception as e:
-            logging.warning(f"Database connection failed: {e}. App will continue but database features may not work.")
+    # Verify database connection
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        logging.info("Database connection verified")
+    except Exception as e:
+        logging.warning(f"Database connection failed: {e}. App will continue but database features may not work.")
     logging.info("Application started")
 
 

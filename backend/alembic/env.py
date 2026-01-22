@@ -12,11 +12,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.config import settings
 from app.database import Base
 
+# Import all models so Alembic can detect them for autogenerate
+from app.models import (  # noqa: F401
+    Tournament,
+    Participant,
+    Player,
+    Entry,
+    ScoreSnapshot,
+    DailyScore,
+    BonusPoint,
+)
+
 # this is the Alembic Config object
 config = context.config
 
 # Override sqlalchemy.url with our settings
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# Directly set in attributes to avoid ConfigParser interpolation issues with % in URL
+config.attributes["sqlalchemy.url"] = settings.database_url
 
 # Interpret the config file for Python logging.
 if config.config_file_name is not None:
@@ -28,7 +40,7 @@ target_metadata = Base.metadata
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode."""
-    url = config.get_main_option("sqlalchemy.url")
+    url = config.attributes.get("sqlalchemy.url") or config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -42,9 +54,10 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
+    # Use our database URL directly instead of config to avoid interpolation issues
+    from sqlalchemy import create_engine
+    connectable = create_engine(
+        settings.database_url,
         poolclass=pool.NullPool,
     )
 
