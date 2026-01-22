@@ -2,6 +2,7 @@
 Railway entry point - imports the FastAPI app from app.main
 This allows Railway to auto-detect and start the FastAPI application.
 """
+import os
 from app.main import app
 
 # Railway will detect this as a FastAPI app and use uvicorn automatically
