@@ -13,9 +13,14 @@ from app.services.import_service import ImportService
 @pytest.fixture
 def db():
     """Database session."""
+    from app.database import Base
     db = SessionLocal()
     try:
+        # Create all tables for testing
+        Base.metadata.create_all(bind=db.bind)
         yield db
+        # Clean up
+        Base.metadata.drop_all(bind=db.bind)
     finally:
         db.close()
 
