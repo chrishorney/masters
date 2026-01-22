@@ -116,6 +116,9 @@ export function LeaderboardPage() {
 }
 
 function LeaderboardRow({ entry, rank }: { entry: LeaderboardEntry; rank: number }) {
+  const navigate = (entryId: number) => {
+    window.location.href = `/entry/${entryId}`
+  }
   const getRankBadge = (rank: number) => {
     if (rank === 1) return '🥇'
     if (rank === 2) return '🥈'
@@ -134,14 +137,17 @@ function LeaderboardRow({ entry, rank }: { entry: LeaderboardEntry; rank: number
   const totalBonusPoints = entry.daily_scores.reduce((sum, score) => sum + score.bonus_points, 0)
 
   return (
-    <tr className="hover:bg-gray-50 transition-all duration-300 ease-in-out">
+    <tr 
+      className="hover:bg-gray-50 transition-all duration-300 ease-in-out cursor-pointer"
+      onClick={() => navigate(entry.entry.id)}
+    >
       <td className="px-6 py-4 whitespace-nowrap">
         <div className={`text-lg ${getRankColor(rank)}`}>
           {getRankBadge(rank)}
         </div>
       </td>
       <td className="px-6 py-4">
-        <div className="font-medium text-gray-900">
+        <div className="font-medium text-gray-900 hover:text-green-600 transition-colors">
           {entry.entry.participant?.name || 'Unknown'}
         </div>
         {entry.entry.weekend_bonus_forfeited && (

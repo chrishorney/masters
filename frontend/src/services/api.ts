@@ -60,6 +60,15 @@ export const scoresApi = {
   },
 }
 
+// Entry endpoints
+export const entryApi = {
+  /** Get entry details */
+  getEntryDetails: async (entryId: number): Promise<any> => {
+    const response = await api.get(`/entry/${entryId}`)
+    return response.data
+  },
+}
+
 // Admin endpoints (for player search, etc.)
 export const adminApi = {
   /** Search players by name */

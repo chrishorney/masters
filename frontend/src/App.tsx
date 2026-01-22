@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { HomePage } from './pages/HomePage'
 import { LeaderboardPage } from './pages/LeaderboardPage'
+import { EntryDetailPage } from './pages/EntryDetailPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,6 +22,7 @@ function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/leaderboard" element={<LeaderboardPage />} />
+            <Route path="/entry/:entryId" element={<EntryDetailPage />} />
           </Routes>
         </Layout>
       </BrowserRouter>
