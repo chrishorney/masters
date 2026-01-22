@@ -240,6 +240,25 @@ class ScoringService:
             # Replace original players with rebuy players
             player_ids = [rebuy_map.get(str(pid), str(pid)) for pid in player_ids]
         
+        # Get manually added bonus points (GIR, Fairways) from database
+        from app.models import BonusPoint
+        manual_bonuses = self.db.query(BonusPoint).filter(
+            BonusPoint.entry_id == entry.id,
+            BonusPoint.round_id == round_id,
+            BonusPoint.bonus_type.in_(["gir_leader", "fairways_leader"])
+        ).all()
+        
+        # Add manual bonuses to the list
+        for manual_bonus in manual_bonuses:
+            # Check if this player is in the entry's lineup (original or rebuy)
+            player_id_str = str(manual_bonus.player_id)
+            if player_id_str in [str(pid) for pid in player_ids]:
+                bonuses.append({
+                    "player_id": player_id_str,
+                    "bonus_type": manual_bonus.bonus_type,
+                    "points": float(manual_bonus.points)
+                })
+        
         rows = leaderboard_data.get("leaderboardRows", [])
         
         # Find leaders in various categories
@@ -383,21 +402,35 @@ class ScoringService:
             self.db.commit()
             self.db.refresh(existing_score)
             
-            # Update bonus points records
+            # Update bonus points records (but preserve manual ones like GIR/fairways)
+            # Delete auto-calculated bonuses, keep manual ones
+            from sqlalchemy import not_
             self.db.query(BonusPoint).filter(
                 BonusPoint.entry_id == entry.id,
-                BonusPoint.round_id == round_id
+                BonusPoint.round_id == round_id,
+                not_(BonusPoint.bonus_type.in_(["gir_leader", "fairways_leader"]))  # Keep manual bonuses
             ).delete()
             
+            # Add auto-calculated bonuses (not manual ones)
             for bonus in bonuses:
-                bonus_point = BonusPoint(
-                    entry_id=entry.id,
-                    round_id=round_id,
-                    bonus_type=bonus["bonus_type"],
-                    points=bonus["points"],
-                    player_id=bonus.get("player_id")
-                )
-                self.db.add(bonus_point)
+                if bonus["bonus_type"] not in ["gir_leader", "fairways_leader"]:
+                    # Check if it doesn't already exist
+                    existing = self.db.query(BonusPoint).filter(
+                        BonusPoint.entry_id == entry.id,
+                        BonusPoint.round_id == round_id,
+                        BonusPoint.bonus_type == bonus["bonus_type"],
+                        BonusPoint.player_id == bonus.get("player_id")
+                    ).first()
+                    
+                    if not existing:
+                        bonus_point = BonusPoint(
+                            entry_id=entry.id,
+                            round_id=round_id,
+                            bonus_type=bonus["bonus_type"],
+                            points=bonus["points"],
+                            player_id=bonus.get("player_id")
+                        )
+                        self.db.add(bonus_point)
             
             self.db.commit()
             return existing_score
@@ -419,16 +452,26 @@ class ScoringService:
             self.db.commit()
             self.db.refresh(daily_score)
             
-            # Create bonus point records
+            # Create bonus point records (only auto-calculated ones, manual ones already exist)
             for bonus in bonuses:
-                bonus_point = BonusPoint(
-                    entry_id=entry.id,
-                    round_id=round_id,
-                    bonus_type=bonus["bonus_type"],
-                    points=bonus["points"],
-                    player_id=bonus.get("player_id")
-                )
-                self.db.add(bonus_point)
+                if bonus["bonus_type"] not in ["gir_leader", "fairways_leader"]:
+                    # Check if it doesn't already exist
+                    existing = self.db.query(BonusPoint).filter(
+                        BonusPoint.entry_id == entry.id,
+                        BonusPoint.round_id == round_id,
+                        BonusPoint.bonus_type == bonus["bonus_type"],
+                        BonusPoint.player_id == bonus.get("player_id")
+                    ).first()
+                    
+                    if not existing:
+                        bonus_point = BonusPoint(
+                            entry_id=entry.id,
+                            round_id=round_id,
+                            bonus_type=bonus["bonus_type"],
+                            points=bonus["points"],
+                            player_id=bonus.get("player_id")
+                        )
+                        self.db.add(bonus_point)
             
             self.db.commit()
             return daily_score
