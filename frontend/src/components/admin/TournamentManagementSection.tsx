@@ -16,6 +16,9 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
   const [backgroundJobRunning, setBackgroundJobRunning] = useState(false)
   const [checkingStatus, setCheckingStatus] = useState(true)
   const [intervalSeconds, setIntervalSeconds] = useState(300) // Default 5 minutes
+  const [startHour, setStartHour] = useState(6) // Default 6 AM
+  const [stopHour, setStopHour] = useState(23) // Default 11 PM
+  const [activeHours, setActiveHours] = useState<string>('')
   
   const calculateScores = useCalculateScores()
 
@@ -25,6 +28,11 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
       try {
         const status = await adminApi.getBackgroundJobStatus(tournament.id)
         setBackgroundJobRunning(status.running)
+        if (status.running && status.start_hour !== undefined && status.stop_hour !== undefined) {
+          setStartHour(status.start_hour)
+          setStopHour(status.stop_hour)
+          setActiveHours(status.active_hours || `${status.start_hour}:00 - ${status.stop_hour}:59`)
+        }
       } catch (error) {
         console.error('Failed to check background job status:', error)
       } finally {
@@ -100,11 +108,12 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
     setMessage(null)
 
     try {
-      await adminApi.startBackgroundJob(tournament.id, intervalSeconds)
+      const result = await adminApi.startBackgroundJob(tournament.id, intervalSeconds, startHour, stopHour)
       setBackgroundJobRunning(true)
+      setActiveHours(result.active_hours || `${startHour}:00 - ${stopHour}:59`)
       setMessage({ 
         type: 'success', 
-        text: `Automatic sync started! Will sync every ${intervalSeconds} seconds (${Math.round(intervalSeconds / 60)} minutes).` 
+        text: `Automatic sync started! Will sync every ${intervalSeconds} seconds (${Math.round(intervalSeconds / 60)} minutes) during ${result.active_hours || `${startHour}:00 - ${stopHour}:59`}.` 
       })
     } catch (error: any) {
       setMessage({ 
@@ -229,9 +238,16 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
                 )}
               </div>
               {backgroundJobRunning && (
-                <p className="text-xs text-gray-600 mt-1">
-                  Syncing every {intervalSeconds} seconds ({Math.round(intervalSeconds / 60)} minutes)
-                </p>
+                <div className="mt-2 space-y-1">
+                  <p className="text-xs text-gray-600">
+                    Syncing every {intervalSeconds} seconds ({Math.round(intervalSeconds / 60)} minutes)
+                  </p>
+                  {activeHours && (
+                    <p className="text-xs text-gray-600">
+                      Active hours: {activeHours}
+                    </p>
+                  )}
+                </div>
               )}
             </div>
 
@@ -257,6 +273,51 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
               </div>
               <p className="text-xs text-gray-500 mt-1">
                 Recommended: 300+ seconds (5+ minutes) to avoid rate limits. Minimum: 60 seconds.
+              </p>
+            </div>
+
+            {/* Active Hours Configuration */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Active Hours (24-hour format)
+              </label>
+              <p className="text-xs text-gray-600 mb-3">
+                Sync will only run during these hours. Outside these hours, syncs are paused to save API calls.
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Start Hour</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="23"
+                    value={startHour}
+                    onChange={(e) => setStartHour(parseInt(e.target.value) || 6)}
+                    disabled={backgroundJobRunning}
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed w-full"
+                  />
+                  <span className="text-xs text-gray-500 mt-1 block">
+                    {startHour === 0 ? '12 AM' : startHour < 12 ? `${startHour} AM` : startHour === 12 ? '12 PM' : `${startHour - 12} PM`}
+                  </span>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Stop Hour</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="23"
+                    value={stopHour}
+                    onChange={(e) => setStopHour(parseInt(e.target.value) || 23)}
+                    disabled={backgroundJobRunning}
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed w-full"
+                  />
+                  <span className="text-xs text-gray-500 mt-1 block">
+                    {stopHour === 0 ? '12 AM' : stopHour < 12 ? `${stopHour} AM` : stopHour === 12 ? '12 PM' : `${stopHour - 12} PM`}
+                  </span>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Example: Start 6, Stop 23 = Active from 6 AM to 11:59 PM (pauses midnight-6 AM)
               </p>
             </div>
 

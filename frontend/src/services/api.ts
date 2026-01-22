@@ -94,9 +94,19 @@ export const adminApi = {
   },
 
   /** Start background job for automatic sync */
-  startBackgroundJob: async (tournamentId: number, intervalSeconds: number = 300): Promise<{ message: string; status: string }> => {
+  startBackgroundJob: async (
+    tournamentId: number, 
+    intervalSeconds: number = 300,
+    startHour: number = 6,
+    stopHour: number = 23
+  ): Promise<{ message: string; status: string; active_hours: string }> => {
     const response = await api.post('/admin/jobs/start', null, {
-      params: { tournament_id: tournamentId, interval_seconds: intervalSeconds },
+      params: { 
+        tournament_id: tournamentId, 
+        interval_seconds: intervalSeconds,
+        start_hour: startHour,
+        stop_hour: stopHour
+      },
     })
     return response.data
   },
@@ -110,7 +120,13 @@ export const adminApi = {
   },
 
   /** Get background job status */
-  getBackgroundJobStatus: async (tournamentId: number): Promise<{ running: boolean; status: string }> => {
+  getBackgroundJobStatus: async (tournamentId: number): Promise<{ 
+    running: boolean; 
+    status: string; 
+    start_hour?: number;
+    stop_hour?: number;
+    active_hours?: string;
+  }> => {
     const response = await api.get('/admin/jobs/status', {
       params: { tournament_id: tournamentId },
     })

@@ -17,6 +17,8 @@ _job_services: dict[int, BackgroundJobService] = {}
 async def start_background_job(
     tournament_id: int = Query(..., description="Tournament ID"),
     interval_seconds: int = Query(60, description="Update interval in seconds"),
+    start_hour: int = Query(6, description="Hour to start syncing (0-23, default: 6 = 6 AM)"),
+    stop_hour: int = Query(23, description="Hour to stop syncing (0-23, default: 23 = 11 PM)"),
     db: Session = Depends(get_db)
 ):
     """Start background job for automatic score updates."""
@@ -24,6 +26,10 @@ async def start_background_job(
     
     if not tournament:
         raise HTTPException(status_code=404, detail="Tournament not found")
+    
+    # Validate hours
+    if not (0 <= start_hour <= 23) or not (0 <= stop_hour <= 23):
+        raise HTTPException(status_code=400, detail="Hours must be between 0 and 23")
     
     # Check if job already running
     if tournament_id in _job_services:
@@ -35,13 +41,16 @@ async def start_background_job(
     
     # Create and start job service
     job_service = BackgroundJobService(db)
-    await job_service.start(tournament_id, interval_seconds)
+    await job_service.start(tournament_id, interval_seconds, start_hour, stop_hour)
     _job_services[tournament_id] = job_service
     
     return {
         "message": "Background job started",
         "tournament_id": tournament_id,
         "interval_seconds": interval_seconds,
+        "start_hour": start_hour,
+        "stop_hour": stop_hour,
+        "active_hours": f"{start_hour:02d}:00 - {stop_hour:02d}:59",
         "status": "started"
     }
 
@@ -74,11 +83,20 @@ async def get_job_status(
     """Get background job status."""
     is_running = tournament_id in _job_services
     
-    return {
+    result = {
         "tournament_id": tournament_id,
         "running": is_running,
         "status": "running" if is_running else "stopped"
     }
+    
+    # Add time info if running
+    if is_running:
+        job_service = _job_services[tournament_id]
+        result["start_hour"] = getattr(job_service, 'start_hour', 6)
+        result["stop_hour"] = getattr(job_service, 'stop_hour', 23)
+        result["active_hours"] = f"{result['start_hour']:02d}:00 - {result['stop_hour']:02d}:59"
+    
+    return result
 
 
 @router.post("/jobs/run-once")

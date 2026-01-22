@@ -20,23 +20,36 @@ class BackgroundJobService:
         self.running = False
         self._task: Optional[asyncio.Task] = None
     
-    async def start(self, tournament_id: int, interval_seconds: int = 60):
+    async def start(
+        self, 
+        tournament_id: int, 
+        interval_seconds: int = 60,
+        start_hour: int = 6,
+        stop_hour: int = 23
+    ):
         """
         Start background job to automatically sync and calculate scores.
         
         Args:
             tournament_id: Tournament ID to monitor
             interval_seconds: How often to check for updates (default: 60 seconds)
+            start_hour: Hour of day to start syncing (0-23, default: 6 = 6 AM)
+            stop_hour: Hour of day to stop syncing (0-23, default: 23 = 11 PM)
         """
         if self.running:
             logger.warning("Background job already running")
             return
         
         self.running = True
+        self.start_hour = start_hour
+        self.stop_hour = stop_hour
         self._task = asyncio.create_task(
-            self._run_loop(tournament_id, interval_seconds)
+            self._run_loop(tournament_id, interval_seconds, start_hour, stop_hour)
         )
-        logger.info(f"Started background job for tournament {tournament_id}")
+        logger.info(
+            f"Started background job for tournament {tournament_id} "
+            f"(active hours: {start_hour:02d}:00 - {stop_hour:02d}:59)"
+        )
     
     async def stop(self):
         """Stop the background job."""
@@ -49,7 +62,26 @@ class BackgroundJobService:
                 pass
         logger.info("Stopped background job")
     
-    async def _run_loop(self, tournament_id: int, interval_seconds: int):
+    def _is_within_active_hours(self, current_hour: int, start_hour: int, stop_hour: int) -> bool:
+        """
+        Check if current hour is within active sync hours.
+        
+        Handles cases where stop_hour < start_hour (e.g., 22-6 means 10 PM to 6 AM).
+        """
+        if start_hour <= stop_hour:
+            # Normal case: start_hour <= stop_hour (e.g., 6-23 means 6 AM to 11 PM)
+            return start_hour <= current_hour <= stop_hour
+        else:
+            # Wraps around midnight (e.g., 22-6 means 10 PM to 6 AM)
+            return current_hour >= start_hour or current_hour <= stop_hour
+
+    async def _run_loop(
+        self, 
+        tournament_id: int, 
+        interval_seconds: int,
+        start_hour: int,
+        stop_hour: int
+    ):
         """Main loop for background job."""
         sync_service = DataSyncService(self.db)
         calculator = ScoreCalculatorService(self.db)
@@ -65,8 +97,20 @@ class BackgroundJobService:
                     logger.error(f"Tournament {tournament_id} not found")
                     break
                 
+                # Check if within active hours
+                now = datetime.now()
+                current_hour = now.hour
+                
+                if not self._is_within_active_hours(current_hour, start_hour, stop_hour):
+                    logger.debug(
+                        f"Skipping sync - outside active hours "
+                        f"(current: {current_hour:02d}:00, active: {start_hour:02d}:00-{stop_hour:02d}:59)"
+                    )
+                    await asyncio.sleep(interval_seconds)
+                    continue
+                
                 # Only run during active tournament days
-                today = datetime.now().date()
+                today = now.date()
                 if tournament.start_date <= today <= tournament.end_date:
                     logger.info(f"Running background sync for tournament {tournament_id}")
                     
