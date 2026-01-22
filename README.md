@@ -1,219 +1,174 @@
-# Eldorado Masters Pool Application
+# Eldorado Masters Pool
 
-A near real-time web application for managing and displaying the annual Eldorado Masters Golf Tournament pool with complex scoring rules, bonus points, and re-buy functionality.
+A near real-time web application for managing an annual Masters golf tournament pool with custom scoring logic, SmartSheet imports, and live leaderboard updates.
 
-## 📋 Table of Contents
+## 🏌️ Overview
 
-- [Overview](#overview)
-- [Features](#features)
-- [Technology Stack](#technology-stack)
-- [Project Structure](#project-structure)
-- [Getting Started](#getting-started)
-- [Development](#development)
-- [Testing](#testing)
-- [Deployment](#deployment)
-- [API Documentation](#api-documentation)
-- [Scoring Rules](#scoring-rules)
-- [Contributing](#contributing)
+This application allows participants to:
+- View real-time leaderboard with automatic updates
+- See detailed scoring breakdowns
+- Track bonus points and rebuys
 
-## 🎯 Overview
+Administrators can:
+- Import participant entries from SmartSheet
+- Import rebuys (missed cut / underperformer)
+- Manually add GIR and Fairways bonus points
+- Sync tournament data from Slash Golf API
+- Calculate scores automatically
 
-This application manages a Masters Golf Tournament pool where participants:
-- Pick 6 golfers from the Masters field
-- Earn points based on daily performance and positions
-- Can re-buy players who miss the cut or underperform
-- Compete for a share of the prize pool
+## 🚀 Quick Start
 
-The app provides:
-- Real-time score updates during the tournament
-- Live leaderboard with detailed scoring breakdowns
-- Admin interface for managing entries and re-buys
-- Historical data tracking
+### Prerequisites
 
-## ✨ Features
+- Python 3.9+
+- Node.js 18+
+- PostgreSQL database (Supabase recommended)
+- Slash Golf API key (RapidAPI)
 
-### For Participants
-- **Live Leaderboard**: See real-time standings with point breakdowns
-- **Entry Details**: View your selected players and their performance
-- **Daily Scoring**: See how points are earned each day
-- **Bonus Points**: Track all bonus point opportunities
-- **Mobile Responsive**: Access from any device
+### Backend Setup
 
-### For Administrators
-- **SmartSheet Import**: Import entries and re-buys from SmartSheet exports
-- **Manual Score Refresh**: Trigger score updates on demand
-- **Entry Management**: View and manage all entries
-- **Tournament Configuration**: Set up and configure tournaments
+1. **Navigate to backend directory:**
+   ```bash
+   cd backend
+   ```
 
-## 🛠 Technology Stack
+2. **Create virtual environment:**
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
 
-### Backend
-- **Python 3.11+** with **FastAPI** - Modern, fast web framework
-- **PostgreSQL** - Relational database (via Supabase)
-- **SQLAlchemy** - ORM for database operations
-- **httpx** - Async HTTP client for API calls
-- **APScheduler** - Task scheduling for score updates
-- **JWT** - Authentication for admin access
+3. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-### Frontend
-- **React 18** with **TypeScript** - Modern UI framework
-- **Tailwind CSS** - Utility-first CSS framework
-- **React Query** - Data fetching and caching
-- **React Router** - Client-side routing
+4. **Set up environment variables:**
+   ```bash
+   cp env.template .env
+   # Edit .env with your values
+   ```
 
-### Infrastructure
-- **Railway/Render** - Backend hosting
-- **Vercel** - Frontend hosting
-- **Supabase** - PostgreSQL database hosting
+5. **Run database migrations:**
+   ```bash
+   alembic upgrade head
+   ```
+
+6. **Start the server:**
+   ```bash
+   uvicorn app.main:app --reload
+   ```
+
+The API will be available at `http://localhost:8000`
+API documentation at `http://localhost:8000/docs`
+
+### Frontend Setup
+
+1. **Navigate to frontend directory:**
+   ```bash
+   cd frontend
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Set up environment variables:**
+   ```bash
+   cp env.template .env
+   # Edit .env with your API URL
+   ```
+
+4. **Start development server:**
+   ```bash
+   npm run dev
+   ```
+
+The frontend will be available at `http://localhost:5173`
 
 ## 📁 Project Structure
 
 ```
 masters/
-├── backend/                 # Python FastAPI backend
+├── backend/
 │   ├── app/
-│   │   ├── __init__.py
-│   │   ├── main.py         # FastAPI application entry point
-│   │   ├── config.py       # Configuration management
-│   │   ├── database.py     # Database connection
-│   │   ├── models/         # SQLAlchemy models
-│   │   ├── schemas/        # Pydantic schemas
-│   │   ├── api/            # API routes
-│   │   │   ├── public/    # Public endpoints
-│   │   │   └── admin/     # Admin endpoints
-│   │   ├── services/       # Business logic
-│   │   │   ├── scoring.py # Scoring engine
-│   │   │   ├── api_client.py # Slash Golf API client
-│   │   │   └── import_service.py # SmartSheet import
-│   │   └── utils/          # Utility functions
-│   ├── alembic/            # Database migrations
-│   ├── tests/              # Backend tests
-│   ├── requirements.txt    # Python dependencies
-│   └── .env.example        # Environment variables template
-│
-├── frontend/               # React frontend
+│   │   ├── api/          # API endpoints
+│   │   ├── models/       # Database models
+│   │   ├── services/     # Business logic
+│   │   └── main.py      # FastAPI application
+│   ├── alembic/         # Database migrations
+│   ├── tests/           # Test suite
+│   └── requirements.txt
+├── frontend/
 │   ├── src/
-│   │   ├── components/    # React components
-│   │   ├── pages/         # Page components
-│   │   ├── hooks/         # Custom React hooks
-│   │   ├── services/      # API client
-│   │   ├── types/         # TypeScript types
-│   │   └── App.tsx        # Main app component
-│   ├── public/            # Static assets
-│   ├── package.json       # Node dependencies
-│   └── .env.example       # Environment variables template
-│
-├── docs/                   # Additional documentation
-├── ARCHITECTURE.md         # Detailed architecture plan
-├── DEVELOPMENT_PLAN.md     # Phased development plan
-├── .gitignore             # Git ignore rules
-└── README.md              # This file
+│   │   ├── components/  # React components
+│   │   ├── pages/       # Page components
+│   │   ├── hooks/       # React Query hooks
+│   │   ├── services/    # API client
+│   │   └── types/       # TypeScript types
+│   └── package.json
+└── docs/                # Documentation
 ```
 
-## 🚀 Getting Started
+## 🎯 Features
 
-### Prerequisites
+### Scoring System
 
-- Python 3.11 or higher
-- Node.js 18 or higher
-- PostgreSQL database (or Supabase account)
-- Slash Golf API key (RapidAPI)
+- **Daily Points**: Based on position after each round
+  - Round 1: Leader (8), Top 5 (5), Top 10 (3), Top 25 (1)
+  - Round 2: Leader (12), Top 5 (8), Top 10 (5), Top 25 (3), Made Cut (1)
+  - Round 3-4: Leader (15), Top 5 (10), Top 10 (7), Top 25 (5), Made Cut (1)
 
-### Installation
+- **Bonus Points**:
+  - GIR Leader: 1 point (manual)
+  - Fairways Leader: 1 point (manual)
+  - Low Score of Day: 1 point
+  - Eagle: 2 points
+  - Double Eagle: 3 points
+  - Hole-in-One: 3 points
+  - All 6 Make Cut: 5 points (weekend only)
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd masters
-   ```
+### Rebuy System
 
-2. **Set up Backend**
-   ```bash
-   cd backend
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
-   cp .env.example .env
-   # Edit .env with your configuration
-   ```
+- **Missed Cut Rebuy**: Original player's points retained, rebuy player earns weekend points
+- **Underperformer Rebuy**: Original player's points retained, weekend bonus forfeited
 
-3. **Set up Database**
-   ```bash
-   # Create database (if using local PostgreSQL)
-   createdb eldorado_masters
-   
-   # Run migrations
-   alembic upgrade head
-   ```
+### Real-Time Updates
 
-4. **Set up Frontend**
-   ```bash
-   cd frontend
-   npm install
-   cp .env.example .env
-   # Edit .env with your API URL
-   ```
+- Auto-refresh every 30 seconds
+- Visual update indicators
+- Smooth transitions
+- Background job system for automatic score sync
 
-### Environment Variables
+## 📚 Documentation
 
-#### Backend (.env)
-```env
-# Database
-DATABASE_URL=postgresql://user:password@localhost/eldorado_masters
+- [Architecture Overview](ARCHITECTURE.md)
+- [Development Plan](DEVELOPMENT_PLAN.md)
+- [Setup Guide](SETUP_GUIDE.md)
+- [SmartSheet Import Guide](docs/SMARTSHEET_FORMAT.md)
+- [Backend Import Guide](backend/docs/IMPORT_GUIDE.md)
+- [Manual Bonus Points Guide](backend/docs/MANUAL_BONUS_POINTS.md)
 
-# Slash Golf API
-SLASH_GOLF_API_KEY=your_rapidapi_key
-SLASH_GOLF_API_HOST=live-golf-data.p.rapidapi.com
+## 🔧 API Endpoints
 
-# JWT
-JWT_SECRET_KEY=your_secret_key_here
-JWT_ALGORITHM=HS256
-JWT_EXPIRATION_HOURS=24
+### Public Endpoints
 
-# Application
-ENVIRONMENT=development
-LOG_LEVEL=INFO
-```
+- `GET /api/tournament/current` - Get current tournament
+- `GET /api/tournament/{id}` - Get tournament by ID
+- `GET /api/scores/leaderboard?tournament_id={id}` - Get leaderboard
+- `POST /api/scores/calculate?tournament_id={id}` - Calculate scores
 
-#### Frontend (.env)
-```env
-VITE_API_URL=http://localhost:8000
-```
+### Admin Endpoints
 
-## 💻 Development
+- `POST /api/admin/import/entries` - Import entries from CSV
+- `POST /api/admin/import/rebuys` - Import rebuys from CSV
+- `POST /api/admin/bonus-points/add` - Add manual bonus point
+- `GET /api/admin/players/search?name={name}` - Search players
+- `POST /api/admin/jobs/start` - Start background job
+- `POST /api/admin/jobs/stop` - Stop background job
 
-### Running the Backend
-
-```bash
-cd backend
-source venv/bin/activate
-uvicorn app.main:app --reload
-```
-
-Backend will be available at `http://localhost:8000`
-API documentation at `http://localhost:8000/docs`
-
-### Running the Frontend
-
-```bash
-cd frontend
-npm run dev
-```
-
-Frontend will be available at `http://localhost:5173`
-
-### Database Migrations
-
-```bash
-# Create a new migration
-alembic revision --autogenerate -m "description"
-
-# Apply migrations
-alembic upgrade head
-
-# Rollback migration
-alembic downgrade -1
-```
+See full API documentation at `/docs` when server is running.
 
 ## 🧪 Testing
 
@@ -221,9 +176,8 @@ alembic downgrade -1
 
 ```bash
 cd backend
+source venv/bin/activate
 pytest
-pytest tests/test_scoring.py -v  # Run specific test file
-pytest --cov=app tests/          # With coverage
 ```
 
 ### Frontend Tests
@@ -233,143 +187,127 @@ cd frontend
 npm test
 ```
 
-### Test Scripts
+## 📦 Deployment
 
-All test scripts are located in:
-- Backend: `backend/tests/`
-- Frontend: `frontend/src/__tests__/`
+### Backend (Railway/Render)
 
-See [DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md) for detailed test requirements for each phase.
+1. Connect your repository
+2. Set environment variables
+3. Set build command: `pip install -r requirements.txt`
+4. Set start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 
-## 📊 Scoring Rules
+### Frontend (Vercel)
 
-### Daily Scoring
+1. Connect your repository
+2. Set build command: `cd frontend && npm install && npm run build`
+3. Set output directory: `frontend/dist`
+4. Set environment variable: `VITE_API_URL`
 
-**Thursday (Round 1)**
-- Tournament Leader: 8 points
-- Top 5: 5 points
-- Top 10: 3 points
-- Top 25: 1 point
+## 🔐 Environment Variables
 
-**Friday & Saturday (Rounds 2 & 3)**
-- Tournament Leader: 12 points
-- Top 5: 8 points
-- Top 10: 5 points
-- Top 25: 3 points
-- Made cut, outside top 25: 1 point
+### Backend (.env)
 
-**Sunday (Round 4)**
-- Tournament Winner: 15 points
-- Tournament Leader (if not winner): 12 points
-- Top 5: 8 points
-- Top 10: 5 points
-- Top 25: 3 points
-- Made cut, outside top 25: 1 point
+```env
+DATABASE_URL=postgresql://...
+SLASH_GOLF_API_KEY=your_api_key
+SLASH_GOLF_API_HOST=your_api_host
+API_PREFIX=/api
+```
 
-### Bonus Points
+### Frontend (.env)
 
-- **Greens in Regulation Leader** (per day): 1 point
-- **Fairways Hit Leader** (per day): 1 point
-- **Low Score of Day**: 1 point
-- **Eagles** (per day): 2 points
-- **Double Eagle**: 3 points
-- **Hole in One**: 3 points (eagle 2 + bonus 1)
-- **All 6 Make Weekend**: 5 points (forfeited if rebuy)
+```env
+VITE_API_URL=http://localhost:8000
+```
 
-### Re-buy Rules
+## 🛠️ Development
 
-**Missed Cut Re-buy ($25)**
-- Original player's Thursday/Friday points remain
-- Re-buy player earns points from Saturday/Sunday only
-- Weekend bonus still eligible
+### Running in Development
 
-**Underperformer Re-buy ($25)**
-- Original player's Thursday/Friday points remain
-- Weekend bonus (5 points) is FORFEITED
-- Re-buy player earns points from Saturday/Sunday only
+1. **Start backend:**
+   ```bash
+   cd backend
+   source venv/bin/activate
+   uvicorn app.main:app --reload
+   ```
 
-## 🚢 Deployment
+2. **Start frontend:**
+   ```bash
+   cd frontend
+   npm run dev
+   ```
 
-### Backend Deployment (Railway)
+### Database Migrations
 
-1. Connect your GitHub repository to Railway
-2. Set environment variables in Railway dashboard
-3. Railway will automatically deploy on push to main
+```bash
+# Create new migration
+alembic revision --autogenerate -m "description"
 
-### Frontend Deployment (Vercel)
+# Apply migrations
+alembic upgrade head
 
-1. Connect your GitHub repository to Vercel
-2. Set environment variables in Vercel dashboard
-3. Vercel will automatically deploy on push to main
+# Rollback
+alembic downgrade -1
+```
 
-### Database (Supabase)
+## 📝 Usage Workflow
 
-1. Create a new Supabase project
-2. Get connection string
-3. Update `DATABASE_URL` in backend environment variables
-4. Run migrations: `alembic upgrade head`
+1. **Sync Tournament Data:**
+   - Use `/api/tournament/sync` endpoint
+   - Or use admin interface
 
-## 📚 API Documentation
+2. **Import Entries:**
+   - Export from SmartSheet as CSV
+   - Use `/api/admin/import/entries` endpoint
+   - Verify entries in leaderboard
 
-Once the backend is running, visit:
-- Swagger UI: `http://localhost:8000/docs`
-- ReDoc: `http://localhost:8000/redoc`
+3. **Import Rebuys (After Cut):**
+   - Export rebuys from SmartSheet
+   - Use `/api/admin/import/rebuys` endpoint
 
-### Key Endpoints
+4. **Add Manual Bonuses:**
+   - Use `/api/admin/bonus-points/add` for GIR/Fairways
+   - Or use admin interface
 
-**Public:**
-- `GET /api/leaderboard` - Current pool leaderboard
-- `GET /api/entry/{entryId}` - Entry details
-- `GET /api/tournament/current` - Current tournament info
+5. **Calculate Scores:**
+   - Scores auto-calculate on sync
+   - Or manually trigger with `/api/scores/calculate`
 
-**Admin:**
-- `POST /api/admin/login` - Admin authentication
-- `POST /api/admin/import-entries` - Import SmartSheet entries
-- `POST /api/admin/import-rebuys` - Import SmartSheet rebuys
+6. **View Leaderboard:**
+   - Visit frontend at configured URL
+   - Leaderboard auto-updates every 30 seconds
 
-## 🔄 Development Phases
+## 🐛 Troubleshooting
 
-See [DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md) for the complete phased development approach.
+### Database Connection Issues
 
-**Quick Summary:**
-1. Foundation & Setup
-2. API Integration
-3. Scoring Engine
-4. Data Import
-5. Frontend Foundation
-6. Leaderboard & Display
-7. Real-time Updates
-8. Admin Interface
-9. Testing & Polish
-10. Deployment
+- Verify `DATABASE_URL` is correct
+- Check Supabase project is active
+- Ensure connection string uses correct format
 
-## 🤝 Contributing
+### API Connection Issues
 
-1. Create a feature branch: `git checkout -b feature/amazing-feature`
-2. Make your changes
-3. Write/update tests
-4. Run tests: `pytest` and `npm test`
-5. Commit changes: `git commit -m 'Add amazing feature'`
-6. Push to branch: `git push origin feature/amazing-feature`
-7. Open a Pull Request
+- Verify `SLASH_GOLF_API_KEY` is set
+- Check API rate limits
+- Verify network connectivity
 
-## 📝 Notes
+### Import Errors
 
-- **API Rate Limits**: Slash Golf API has rate limits (20,000 requests/day). The app implements caching to minimize API calls.
-- **Data Retention**: All tournament data is stored. Purge policies can be configured later.
-- **SmartSheet Format**: See admin documentation for expected SmartSheet column formats.
-
-## 🆘 Support
-
-For issues or questions:
-1. Check the documentation in `docs/`
-2. Review test scripts for examples
-3. Check API documentation at `/docs` endpoint
+- Check CSV column names match exactly
+- Verify player names match API data
+- Review error messages in response
 
 ## 📄 License
 
-This project is for private use.
+Private project for Eldorado Masters Pool
 
----
+## 👥 Contributors
 
-**Built with ❤️ for the Eldorado Masters Pool**
+Built for the 13th Annual Eldorado Masters Pool
+
+## 🎉 Acknowledgments
+
+- Slash Golf API for tournament data
+- FastAPI for backend framework
+- React + TypeScript for frontend
+- Tailwind CSS for styling
