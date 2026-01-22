@@ -4,6 +4,7 @@ export interface Tournament {
   id: number
   year: number
   tourn_id: string
+  org_id?: string
   name: string
   start_date: string
   end_date: string
