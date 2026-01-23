@@ -126,30 +126,6 @@ export function BonusPointsSection({ tournamentId }: BonusPointsSectionProps) {
     }
   }
 
-  const handleDeleteBonus = async (bonusPointId: number) => {
-    if (!confirm('Are you sure you want to delete this bonus point? Scores will be recalculated.')) {
-      return
-    }
-
-    setDeletingId(bonusPointId)
-    try {
-      await adminApi.deleteBonusPoint(bonusPointId)
-      setMessage({ 
-        type: 'success', 
-        text: 'Bonus point deleted and scores recalculated.' 
-      })
-      // Reload bonus points list
-      await loadBonusPoints()
-    } catch (error: any) {
-      setMessage({ 
-        type: 'error', 
-        text: error.response?.data?.detail || 'Failed to delete bonus point' 
-      })
-    } finally {
-      setDeletingId(null)
-    }
-  }
-
   const getBonusTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
       'gir_leader': 'GIR Leader',
