@@ -589,6 +589,7 @@ async def diagnose_round(
             leaderboard_rows = snapshot.leaderboard_data.get("leaderboardRows", [])
             result["snapshot_data_summary"] = {
                 "leaderboard_rows": len(leaderboard_rows),
+                "leaderboard_keys": list(snapshot.leaderboard_data.keys()) if isinstance(snapshot.leaderboard_data, dict) else [],
                 "sample_players": [
                     {
                         "playerId": row.get("playerId"),
@@ -604,8 +605,36 @@ async def diagnose_round(
             # Get all player IDs from leaderboard
             leaderboard_player_ids = {str(row.get("playerId")) for row in leaderboard_rows if row.get("playerId")}
             result["player_matching"]["leaderboard_players"] = list(leaderboard_player_ids)
+            
+            if len(leaderboard_rows) == 0:
+                result["issues"].append("Leaderboard data exists but is empty (0 rows)")
         else:
             result["issues"].append("Snapshot exists but has no leaderboard data")
+        
+        # Check scorecard data structure
+        if snapshot.scorecard_data:
+            scorecard_keys = list(snapshot.scorecard_data.keys()) if isinstance(snapshot.scorecard_data, dict) else []
+            result["snapshot_data_summary"]["scorecard_players"] = len(scorecard_keys)
+            result["snapshot_data_summary"]["scorecard_sample"] = {}
+            
+            # Sample first player's scorecard structure
+            if scorecard_keys:
+                first_player_id = scorecard_keys[0]
+                first_scorecard = snapshot.scorecard_data.get(first_player_id)
+                if isinstance(first_scorecard, list):
+                    result["snapshot_data_summary"]["scorecard_sample"] = {
+                        "player_id": first_player_id,
+                        "scorecard_type": "list",
+                        "rounds_count": len(first_scorecard),
+                        "first_round_keys": list(first_scorecard[0].keys()) if first_scorecard and len(first_scorecard) > 0 else [],
+                        "round_numbers": [r.get("round") for r in first_scorecard if isinstance(r, dict)]
+                    }
+                elif isinstance(first_scorecard, dict):
+                    result["snapshot_data_summary"]["scorecard_sample"] = {
+                        "player_id": first_player_id,
+                        "scorecard_type": "dict",
+                        "keys": list(first_scorecard.keys())
+                    }
     else:
         result["issues"].append(f"No snapshot found for Round {round_id}")
         result["warnings"].append("You may need to sync this round first: POST /api/tournament/sync-round?tournament_id={}&round_id={}".format(tournament_id, round_id))
