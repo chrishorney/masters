@@ -22,6 +22,8 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
   const [syncYear, setSyncYear] = useState(tournament?.year || 2026)
   const [syncTournId, setSyncTournId] = useState(tournament?.tourn_id || '')
   const [syncOrgId, setSyncOrgId] = useState(tournament?.org_id || '1')
+  const [syncRoundId, setSyncRoundId] = useState(1)
+  const [syncingRound, setSyncingRound] = useState(false)
   
   const calculateScores = useCalculateScores()
 
@@ -194,6 +196,108 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
         text: error.response?.data?.detail || 'Failed to stop background job' 
       })
     } finally {
+      setCalculating(false)
+    }
+  }
+
+  const handleSyncRound = async () => {
+    if (!tournament) {
+      setMessage({ type: 'error', text: 'No tournament available. Please sync a tournament first.' })
+      return
+    }
+
+    setSyncingRound(true)
+    setMessage(null)
+
+    try {
+      const response = await api.post('/tournament/sync-round', null, {
+        params: { 
+          tournament_id: tournament.id,
+          round_id: syncRoundId
+        }
+      })
+      setMessage({ 
+        type: 'success', 
+        text: `Round ${syncRoundId} synced successfully! Players processed: ${response.data.players_processed}, Scorecards fetched: ${response.data.scorecards_fetched}` 
+      })
+    } catch (error: any) {
+      setMessage({ 
+        type: 'error', 
+        text: error.response?.data?.detail || 'Failed to sync round' 
+      })
+    } finally {
+      setSyncingRound(false)
+    }
+  }
+
+  const handleCalculateRoundScores = async () => {
+    if (!tournament) {
+      setMessage({ type: 'error', text: 'No tournament available. Please sync a tournament first.' })
+      return
+    }
+
+    setCalculating(true)
+    setMessage(null)
+
+    try {
+      await api.post('/scores/calculate', null, {
+        params: { 
+          tournament_id: tournament.id,
+          round_id: syncRoundId
+        }
+      })
+      setMessage({ 
+        type: 'success', 
+        text: `Scores calculated successfully for Round ${syncRoundId}!` 
+      })
+    } catch (error: any) {
+      setMessage({ 
+        type: 'error', 
+        text: error.response?.data?.detail || 'Failed to calculate scores' 
+      })
+    } finally {
+      setCalculating(false)
+    }
+  }
+
+  const handleSyncAndCalculateRound = async () => {
+    if (!tournament) {
+      setMessage({ type: 'error', text: 'No tournament available. Please sync a tournament first.' })
+      return
+    }
+
+    setSyncingRound(true)
+    setCalculating(true)
+    setMessage(null)
+
+    try {
+      // First sync the round
+      const syncResponse = await api.post('/tournament/sync-round', null, {
+        params: { 
+          tournament_id: tournament.id,
+          round_id: syncRoundId
+        }
+      })
+      
+      // Then calculate scores
+      await api.post('/scores/calculate', null, {
+        params: { 
+          tournament_id: tournament.id,
+          round_id: syncRoundId
+        }
+      })
+      
+      setMessage({ 
+        type: 'success', 
+        text: `Round ${syncRoundId} synced and scores calculated! Players: ${syncResponse.data.players_processed}` 
+      })
+    } catch (error: any) {
+      setMessage({ 
+        type: 'error', 
+        text: error.response?.data?.detail || 'Failed to sync and calculate round' 
+      })
+    } finally {
+      setSyncingRound(false)
       setCalculating(false)
     }
   }
@@ -375,6 +479,65 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
               >
                 {calculating ? 'Running...' : 'Sync & Calculate'}
               </button>
+            </div>
+          )}
+
+          {/* Sync Specific Round */}
+          {tournament && (
+            <div className="border-b border-gray-200 pb-4">
+              <h3 className="font-medium text-gray-900 mb-2">Sync & Calculate Specific Round</h3>
+              <p className="text-sm text-gray-600 mb-3">
+                Sync historical round data and calculate scores. Useful for recovering lost round data or testing.
+                This fetches scorecards for all players and reconstructs the leaderboard for the specified round.
+              </p>
+              
+              <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Round Number (1-4)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="4"
+                  value={syncRoundId}
+                  onChange={(e) => setSyncRoundId(parseInt(e.target.value) || 1)}
+                  className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Round {syncRoundId === 1 ? '1 (Thursday)' : syncRoundId === 2 ? '2 (Friday)' : syncRoundId === 3 ? '3 (Saturday)' : '4 (Sunday)'}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={handleSyncRound}
+                  disabled={syncingRound || !syncRoundId || syncRoundId < 1 || syncRoundId > 4}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                >
+                  {syncingRound ? 'Syncing...' : 'Sync Round Only'}
+                </button>
+                <button
+                  onClick={handleCalculateRoundScores}
+                  disabled={calculating || !syncRoundId || syncRoundId < 1 || syncRoundId > 4}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                >
+                  {calculating ? 'Calculating...' : 'Calculate Scores Only'}
+                </button>
+                <button
+                  onClick={handleSyncAndCalculateRound}
+                  disabled={syncingRound || calculating || !syncRoundId || syncRoundId < 1 || syncRoundId > 4}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                >
+                  {(syncingRound || calculating) ? 'Processing...' : 'Sync & Calculate Round'}
+                </button>
+              </div>
+              
+              <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-xs text-yellow-800">
+                  <strong>⚠️ Note:</strong> Syncing a round fetches scorecards for ALL players, which may use many API calls.
+                  Use this feature sparingly and primarily for recovery/testing purposes.
+                </p>
+              </div>
             </div>
           )}
 

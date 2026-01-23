@@ -419,3 +419,164 @@ class DataSyncService:
             self.db.rollback()
         
         return results
+    
+    def sync_round_data(
+        self,
+        tournament_id: int,
+        round_id: int,
+        org_id: Optional[str] = None,
+        tourn_id: Optional[str] = None,
+        year: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        Sync data for a specific round by fetching scorecards and reconstructing leaderboard.
+        
+        This is useful for:
+        - Syncing historical rounds that weren't captured
+        - Recovery if round data was lost
+        - Testing with specific round data
+        
+        Args:
+            tournament_id: Tournament ID in database
+            round_id: Round number to sync (1-4)
+            org_id: Organization ID (optional, will use tournament's if not provided)
+            tourn_id: Tournament ID from API (optional, will use tournament's if not provided)
+            year: Year (optional, will use tournament's if not provided)
+            
+        Returns:
+            Dictionary with sync results
+        """
+        results = {
+            "tournament": None,
+            "round_id": round_id,
+            "snapshot": None,
+            "scorecards_fetched": 0,
+            "players_processed": 0,
+            "errors": []
+        }
+        
+        try:
+            # Get tournament
+            tournament = self.db.query(Tournament).filter(Tournament.id == tournament_id).first()
+            if not tournament:
+                raise ValueError(f"Tournament {tournament_id} not found")
+            
+            results["tournament"] = tournament
+            
+            # Use tournament's org_id, tourn_id, year if not provided
+            sync_org_id = org_id or tournament.org_id
+            sync_tourn_id = tourn_id or tournament.tourn_id
+            sync_year = year or tournament.year
+            
+            # Get all players for this tournament (from leaderboard or existing players)
+            leaderboard_data = self.api_client.get_leaderboard(sync_org_id, sync_tourn_id, sync_year)
+            players = self.sync_players_from_leaderboard(leaderboard_data)
+            
+            # Fetch scorecards for ALL players (scorecards contain all rounds)
+            scorecard_data = {}
+            round_leaderboard_rows = []
+            scorecards_fetched = 0
+            
+            for player in players:
+                player_id = player.player_id
+                try:
+                    scorecards = self.api_client.get_scorecard(
+                        player_id=player_id,
+                        org_id=sync_org_id,
+                        tourn_id=sync_tourn_id,
+                        year=sync_year
+                    )
+                    scorecard_data[player_id] = scorecards
+                    scorecards_fetched += 1
+                    
+                    # Extract round-specific data from scorecard
+                    round_data = None
+                    for scorecard_round in scorecards:
+                        if scorecard_round.get("round") == round_id:
+                            round_data = scorecard_round
+                            break
+                    
+                    if round_data:
+                        # Reconstruct leaderboard row for this round
+                        holes = round_data.get("holes", {})
+                        total_score = round_data.get("totalScore", 0)
+                        score_to_par = round_data.get("scoreToPar", 0)
+                        
+                        # Calculate position (we'll need to sort by score later)
+                        round_leaderboard_rows.append({
+                            "playerId": player_id,
+                            "firstName": player.first_name,
+                            "lastName": player.last_name,
+                            "currentRoundScore": self._format_score_to_par(score_to_par),
+                            "totalScore": total_score,
+                            "scoreToPar": score_to_par,
+                            "round": round_id,
+                            "status": round_data.get("status", "active"),
+                            "holes": holes
+                        })
+                    
+                except Exception as e:
+                    error_msg = f"Failed to fetch scorecard for player {player_id}: {e}"
+                    logger.warning(error_msg)
+                    results["errors"].append(error_msg)
+            
+            # Sort leaderboard by score (best first)
+            round_leaderboard_rows.sort(key=lambda x: (x.get("scoreToPar", 999), x.get("totalScore", 999)))
+            
+            # Assign positions
+            for idx, row in enumerate(round_leaderboard_rows):
+                position = idx + 1
+                # Handle ties (if score matches previous)
+                if idx > 0 and round_leaderboard_rows[idx-1].get("scoreToPar") == row.get("scoreToPar"):
+                    # Check if previous was a tie
+                    prev_pos = round_leaderboard_rows[idx-1].get("position", position - 1)
+                    row["position"] = prev_pos
+                    row["positionDisplay"] = f"T{prev_pos}"
+                else:
+                    row["position"] = position
+                    row["positionDisplay"] = str(position)
+            
+            # Reconstruct leaderboard structure
+            round_leaderboard = {
+                "leaderboardRows": round_leaderboard_rows,
+                "round": round_id,
+                "tournamentId": sync_tourn_id,
+                "year": sync_year
+            }
+            
+            # Save snapshot with round-specific data
+            snapshot = self.save_score_snapshot(
+                tournament_id=tournament_id,
+                round_id=round_id,
+                leaderboard_data=round_leaderboard,
+                scorecard_data=scorecard_data
+            )
+            results["snapshot"] = snapshot
+            results["scorecards_fetched"] = scorecards_fetched
+            results["players_processed"] = len(round_leaderboard_rows)
+            
+            logger.info(
+                f"Successfully synced Round {round_id} for tournament {tournament.name} - "
+                f"Players: {len(round_leaderboard_rows)}, "
+                f"Scorecards fetched: {scorecards_fetched}"
+            )
+            
+        except Exception as e:
+            import traceback
+            error_msg = f"Error syncing round {round_id} data: {str(e) or type(e).__name__}"
+            error_details = traceback.format_exc()
+            logger.error(f"{error_msg}\n{error_details}")
+            results["errors"].append(error_msg)
+            results["error_details"] = error_details
+            self.db.rollback()
+        
+        return results
+    
+    def _format_score_to_par(self, score_to_par: int) -> str:
+        """Format score to par as string (e.g., -5, +2, E)."""
+        if score_to_par == 0:
+            return "E"
+        elif score_to_par < 0:
+            return str(score_to_par)
+        else:
+            return f"+{score_to_par}"

@@ -114,3 +114,79 @@ async def sync_tournament(
             status_code=500, 
             detail=f"Error syncing tournament: {str(e) or type(e).__name__}"
         )
+
+
+@router.post("/tournament/sync-round")
+async def sync_round(
+    tournament_id: int,
+    round_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Sync data for a specific round by fetching scorecards and reconstructing leaderboard.
+    
+    This is useful for:
+    - Syncing historical rounds that weren't captured
+    - Recovery if round data was lost
+    - Testing with specific round data
+    
+    Args:
+        tournament_id: Tournament ID in database
+        round_id: Round number to sync (1-4)
+    """
+    if round_id < 1 or round_id > 4:
+        raise HTTPException(
+            status_code=400,
+            detail="Round ID must be between 1 and 4"
+        )
+    
+    sync_service = DataSyncService(db)
+    
+    try:
+        # Get tournament to pass org_id, tourn_id, year
+        tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+        if not tournament:
+            raise HTTPException(status_code=404, detail="Tournament not found")
+        
+        results = sync_service.sync_round_data(
+            tournament_id=tournament_id,
+            round_id=round_id,
+            org_id=tournament.org_id,
+            tourn_id=tournament.tourn_id,
+            year=tournament.year
+        )
+        
+        if results["errors"]:
+            error_msg = "; ".join(results["errors"])
+            raise HTTPException(
+                status_code=500,
+                detail=f"Sync completed with errors: {error_msg}"
+            )
+        
+        if not results.get("snapshot"):
+            raise HTTPException(
+                status_code=500,
+                detail="Sync failed: No snapshot was created"
+            )
+        
+        return {
+            "message": f"Round {round_id} data synced successfully",
+            "tournament_id": results["tournament"].id,
+            "tournament_name": results["tournament"].name,
+            "round_id": results["round_id"],
+            "snapshot_id": results["snapshot"].id,
+            "players_processed": results["players_processed"],
+            "scorecards_fetched": results["scorecards_fetched"],
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        import logging
+        logger = logging.getLogger(__name__)
+        error_details = traceback.format_exc()
+        logger.error(f"Unexpected error in sync-round endpoint: {error_details}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Error syncing round: {str(e) or type(e).__name__}"
+        )
