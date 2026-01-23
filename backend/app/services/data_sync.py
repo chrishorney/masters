@@ -492,26 +492,34 @@ class DataSyncService:
                     # Extract round-specific data from scorecard
                     round_data = None
                     for scorecard_round in scorecards:
-                        if scorecard_round.get("round") == round_id:
+                        # Scorecard uses "roundId" not "round"
+                        if scorecard_round.get("roundId") == round_id:
                             round_data = scorecard_round
                             break
                     
                     if round_data:
                         # Reconstruct leaderboard row for this round
                         holes = round_data.get("holes", {})
-                        total_score = round_data.get("totalScore", 0)
-                        score_to_par = round_data.get("scoreToPar", 0)
+                        total_shots = round_data.get("totalShots", 0)
+                        current_round_score_str = round_data.get("currentRoundScore", "")
+                        
+                        # Parse score to par from string (e.g., "E", "-5", "+2")
+                        score_to_par = self._parse_round_score(current_round_score_str)
+                        if score_to_par is None:
+                            # Calculate from holes if score string is invalid
+                            total_par = sum(hole.get("par", 0) for hole in holes.values() if isinstance(hole, dict))
+                            score_to_par = total_shots - total_par if total_par > 0 else 0
                         
                         # Calculate position (we'll need to sort by score later)
                         round_leaderboard_rows.append({
                             "playerId": player_id,
                             "firstName": player.first_name,
                             "lastName": player.last_name,
-                            "currentRoundScore": self._format_score_to_par(score_to_par),
-                            "totalScore": total_score,
+                            "currentRoundScore": current_round_score_str or self._format_score_to_par(score_to_par),
+                            "totalScore": total_shots,
                             "scoreToPar": score_to_par,
                             "round": round_id,
-                            "status": round_data.get("status", "active"),
+                            "status": "active" if round_data.get("roundComplete", False) else "in_progress",
                             "holes": holes
                         })
                     
