@@ -627,7 +627,11 @@ async def diagnose_round(
                         "scorecard_type": "list",
                         "rounds_count": len(first_scorecard),
                         "first_round_keys": list(first_scorecard[0].keys()) if first_scorecard and len(first_scorecard) > 0 else [],
-                        "round_numbers": [r.get("round") for r in first_scorecard if isinstance(r, dict)]
+                        "round_numbers": [r.get("roundId") for r in first_scorecard if isinstance(r, dict)],
+                        "round_numbers_with_types": [
+                            {"roundId": r.get("roundId"), "type": type(r.get("roundId")).__name__}
+                            for r in first_scorecard if isinstance(r, dict)
+                        ]
                     }
                 elif isinstance(first_scorecard, dict):
                     result["snapshot_data_summary"]["scorecard_sample"] = {

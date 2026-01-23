@@ -476,6 +476,10 @@ class DataSyncService:
             scorecard_data = {}
             round_leaderboard_rows = []
             scorecards_fetched = 0
+            rounds_found = 0
+            rounds_matched = 0
+            
+            logger.info(f"Starting Round {round_id} sync for {len(players)} players")
             
             for player in players:
                 player_id = player.player_id
@@ -491,11 +495,29 @@ class DataSyncService:
                     
                     # Extract round-specific data from scorecard
                     round_data = None
+                    scorecard_round_ids = []
                     for scorecard_round in scorecards:
+                        rounds_found += 1
                         # Scorecard uses "roundId" not "round"
-                        if scorecard_round.get("roundId") == round_id:
-                            round_data = scorecard_round
-                            break
+                        # Handle both string and integer types
+                        scorecard_round_id = scorecard_round.get("roundId")
+                        if scorecard_round_id is not None:
+                            scorecard_round_ids.append(scorecard_round_id)
+                            # Convert to int for comparison (handles both "1" and 1)
+                            try:
+                                if int(scorecard_round_id) == round_id:
+                                    round_data = scorecard_round
+                                    rounds_matched += 1
+                                    break
+                            except (ValueError, TypeError):
+                                # If conversion fails, try direct comparison
+                                if scorecard_round_id == round_id:
+                                    round_data = scorecard_round
+                                    rounds_matched += 1
+                                    break
+                    
+                    if not round_data and scorecard_round_ids:
+                        logger.debug(f"Player {player_id}: Found rounds {scorecard_round_ids}, looking for {round_id}")
                     
                     if round_data:
                         # Reconstruct leaderboard row for this round
@@ -565,9 +587,19 @@ class DataSyncService:
             
             logger.info(
                 f"Successfully synced Round {round_id} for tournament {tournament.name} - "
-                f"Players: {len(round_leaderboard_rows)}, "
-                f"Scorecards fetched: {scorecards_fetched}"
+                f"Players processed: {len(players)}, "
+                f"Scorecards fetched: {scorecards_fetched}, "
+                f"Rounds found in scorecards: {rounds_found}, "
+                f"Rounds matched (roundId={round_id}): {rounds_matched}, "
+                f"Leaderboard rows created: {len(round_leaderboard_rows)}"
             )
+            
+            if len(round_leaderboard_rows) == 0:
+                logger.warning(
+                    f"No leaderboard rows created for Round {round_id}. "
+                    f"This may indicate that no players have scorecard data for this round, "
+                    f"or there's a mismatch in roundId values."
+                )
             
         except Exception as e:
             import traceback
