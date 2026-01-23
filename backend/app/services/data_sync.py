@@ -68,6 +68,87 @@ class DataSyncService:
             logger.warning(f"Could not parse score string: {score_str}")
             return None
     
+    def detect_scorecard_changes(
+        self,
+        tournament_id: int,
+        current_leaderboard: Dict[str, Any],
+        current_round: int
+    ) -> List[Dict[str, Any]]:
+        """
+        Compare current leaderboard to previous snapshot and detect players
+        who improved by 2+ strokes (potential eagle/albatross/hole-in-one).
+        
+        Args:
+            tournament_id: Tournament ID
+            current_leaderboard: Current leaderboard data from API
+            current_round: Current round number
+            
+        Returns:
+            List of dictionaries with player_id, previous_score, current_score, and improvement
+        """
+        # Get previous snapshot for same round
+        previous_snapshot = self.db.query(ScoreSnapshot).filter(
+            ScoreSnapshot.tournament_id == tournament_id,
+            ScoreSnapshot.round_id == current_round
+        ).order_by(ScoreSnapshot.timestamp.desc()).offset(1).first()
+        
+        if not previous_snapshot:
+            # First snapshot for this round, no comparison possible
+            logger.debug(f"No previous snapshot found for tournament {tournament_id}, round {current_round}")
+            return []
+        
+        previous_leaderboard = previous_snapshot.leaderboard_data
+        players_to_fetch = []
+        
+        # Build maps of player_id -> currentRoundScore
+        current_scores = {}
+        previous_scores = {}
+        
+        for row in current_leaderboard.get("leaderboardRows", []):
+            player_id = str(row.get("playerId"))
+            status = row.get("status", "").lower()
+            score_str = row.get("currentRoundScore", "")
+            
+            # Skip if player hasn't started or is withdrawn/disqualified
+            if status in ["wd", "dq", "cut"] or not score_str:
+                continue
+            
+            current_scores[player_id] = self._parse_round_score(score_str)
+        
+        for row in previous_leaderboard.get("leaderboardRows", []):
+            player_id = str(row.get("playerId"))
+            score_str = row.get("currentRoundScore", "")
+            if score_str:
+                previous_scores[player_id] = self._parse_round_score(score_str)
+        
+        # Compare scores
+        for player_id, current_score in current_scores.items():
+            if current_score is None:
+                continue
+            
+            previous_score = previous_scores.get(player_id)
+            if previous_score is None:
+                # Player just started, can't compare
+                continue
+            
+            score_improvement = previous_score - current_score  # Negative = better score
+            
+            # If improved by 2+ strokes, fetch scorecard
+            if score_improvement >= 2:
+                players_to_fetch.append({
+                    "player_id": player_id,
+                    "previous_score": previous_score,
+                    "current_score": current_score,
+                    "improvement": score_improvement
+                })
+                logger.info(
+                    f"Detected score improvement for player {player_id}: "
+                    f"{previous_score} -> {current_score} (improvement: {score_improvement} strokes)"
+                )
+        
+        logger.info(f"Detected {len(players_to_fetch)} players with 2+ stroke improvements")
+        return players_to_fetch
+    
     def sync_tournament(
         self,
         org_id: Optional[str] = None,
