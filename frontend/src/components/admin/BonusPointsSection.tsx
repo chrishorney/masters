@@ -134,8 +134,14 @@ export function BonusPointsSection({ tournamentId }: BonusPointsSectionProps) {
     return labels[type] || type
   }
 
-  // Group bonus points by round
-  const groupedByRound = bonusPointsList.reduce((acc, bp) => {
+  // Only show manual bonus types (GIR and Fairways)
+  const manualBonusTypes = ['gir_leader', 'fairways_leader']
+  const manualBonusPoints = bonusPointsList.filter(bp => 
+    manualBonusTypes.includes(bp.bonus_type)
+  )
+
+  // Group bonus points by round (only manual ones)
+  const groupedByRound = manualBonusPoints.reduce((acc, bp) => {
     if (!acc[bp.round_id]) {
       acc[bp.round_id] = []
     }
@@ -291,9 +297,12 @@ export function BonusPointsSection({ tournamentId }: BonusPointsSectionProps) {
 
         {loadingBonusPoints ? (
           <div className="text-center py-8 text-gray-500">Loading bonus points...</div>
-        ) : bonusPointsList.length === 0 ? (
+        ) : manualBonusPoints.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
-            No bonus points assigned yet.
+            No manual bonus points assigned yet.
+            <div className="text-xs text-gray-400 mt-2">
+              (Only GIR Leader and Fairways Leader bonus points are shown here)
+            </div>
           </div>
         ) : (
           <div className="space-y-6">
