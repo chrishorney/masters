@@ -16,15 +16,26 @@ echo ""
 
 # Step 1: Sync tournament data
 echo "📥 Step 1: Syncing tournament data..."
-SYNC_RESPONSE=$(curl -s -X POST "$API_URL/api/tournament/sync?year=$YEAR")
-echo "Response: $SYNC_RESPONSE"
+echo "Calling: $API_URL/api/tournament/sync?year=$YEAR"
+SYNC_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST "$API_URL/api/tournament/sync?year=$YEAR")
+HTTP_CODE=$(echo "$SYNC_RESPONSE" | grep "HTTP_CODE" | cut -d: -f2)
+RESPONSE_BODY=$(echo "$SYNC_RESPONSE" | sed '/HTTP_CODE/d')
+echo "HTTP Status: $HTTP_CODE"
+echo "Response: $RESPONSE_BODY"
 echo ""
 
 # Check if sync was successful
-if echo "$SYNC_RESPONSE" | grep -q "tournament_id"; then
+if [ "$HTTP_CODE" = "200" ] && echo "$RESPONSE_BODY" | grep -q "tournament_id"; then
     echo "✅ Tournament synced successfully"
+elif [ "$HTTP_CODE" = "200" ]; then
+    echo "⚠️  Got 200 but response doesn't look right: $RESPONSE_BODY"
+    echo "Continuing anyway..."
 else
-    echo "❌ Tournament sync failed. Response: $SYNC_RESPONSE"
+    echo "❌ Tournament sync failed (HTTP $HTTP_CODE)"
+    echo "Response: $RESPONSE_BODY"
+    echo ""
+    echo "Trying to check if tournament exists..."
+    curl -s "$API_URL/api/tournament/2" | head -20
     exit 1
 fi
 
