@@ -382,6 +382,76 @@ async def clear_tournament_entries(
     }
 
 
+@router.post("/diagnostics/clear-all")
+async def clear_all_tournament_data(
+    confirm: bool = Query(False, description="Must be true to confirm deletion"),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Clear ALL tournament data from the database.
+    
+    This will delete:
+    - All entries (from all tournaments)
+    - All daily scores
+    - All bonus points
+    - All ranking snapshots
+    - All score snapshots
+    - All tournaments
+    
+    Participants and players are NOT deleted (they can be reused).
+    
+    WARNING: This is irreversible and will delete ALL tournament data!
+    """
+    if not confirm:
+        raise HTTPException(
+            status_code=400,
+            detail="Must set confirm=true to clear all tournament data"
+        )
+    
+    deleted_counts = {
+        "entries": 0,
+        "daily_scores": 0,
+        "bonus_points": 0,
+        "ranking_snapshots": 0,
+        "score_snapshots": 0,
+        "tournaments": 0
+    }
+    
+    # Delete all entries (this will cascade delete daily_scores, bonus_points, ranking_snapshots)
+    deleted_counts["entries"] = db.query(Entry).delete(synchronize_session=False)
+    
+    # Delete daily scores (in case cascade didn't work)
+    deleted_counts["daily_scores"] = db.query(DailyScore).delete(synchronize_session=False)
+    
+    # Delete bonus points
+    deleted_counts["bonus_points"] = db.query(BonusPoint).delete(synchronize_session=False)
+    
+    # Delete ranking snapshots
+    deleted_counts["ranking_snapshots"] = db.query(RankingSnapshot).delete(synchronize_session=False)
+    
+    # Delete score snapshots
+    deleted_counts["score_snapshots"] = db.query(ScoreSnapshot).delete(synchronize_session=False)
+    
+    # Delete all tournaments
+    deleted_counts["tournaments"] = db.query(Tournament).delete(synchronize_session=False)
+    
+    db.commit()
+    
+    return {
+        "message": "Cleared all tournament data from database",
+        "deleted": deleted_counts,
+        "preserved": {
+            "participants": "All participants preserved",
+            "players": "All players preserved"
+        },
+        "next_steps": [
+            "1. Import or create new tournaments",
+            "2. Import entries for new tournaments",
+            "3. Sync tournament data from API"
+        ]
+    }
+
+
 @router.post("/diagnostics/tournament/{tournament_id}/fix")
 async def fix_tournament_data(
     tournament_id: int,
