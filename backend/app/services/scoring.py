@@ -460,16 +460,12 @@ class ScoringService:
                         )
                         self.db.add(bonus_point)
                         
-                        # Send Discord notification for special bonuses (non-blocking)
-                        try:
-                            await self._notify_discord_bonus(
-                                bonus=bonus,
-                                round_id=round_id,
-                                tournament=tournament
-                            )
-                        except Exception as e:
-                            # Don't fail scoring if Discord fails
-                            logger.warning(f"Discord notification failed (non-critical): {e}")
+                        # Send Discord notification for special bonuses (fire-and-forget, non-blocking)
+                        self._notify_discord_bonus_async(
+                            bonus=bonus,
+                            round_id=round_id,
+                            tournament=tournament
+                        )
             
             self.db.commit()
             return existing_score
@@ -519,16 +515,12 @@ class ScoringService:
                         )
                         self.db.add(bonus_point)
                         
-                        # Send Discord notification for special bonuses (non-blocking)
-                        try:
-                            await self._notify_discord_bonus(
-                                bonus=bonus,
-                                round_id=round_id,
-                                tournament=tournament
-                            )
-                        except Exception as e:
-                            # Don't fail scoring if Discord fails
-                            logger.warning(f"Discord notification failed (non-critical): {e}")
+                        # Send Discord notification for special bonuses (fire-and-forget, non-blocking)
+                        self._notify_discord_bonus_async(
+                            bonus=bonus,
+                            round_id=round_id,
+                            tournament=tournament
+                        )
             
             self.db.commit()
             return daily_score
