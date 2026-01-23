@@ -9,6 +9,41 @@ from app.models import Tournament, ScoreSnapshot
 router = APIRouter()
 
 
+@router.get("/validation/api-raw")
+async def get_raw_api_data(
+    tournament_id: int = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Get raw API data from tournament to see what currentRound value is.
+    Useful for debugging round detection issues.
+    """
+    # Get tournament
+    if tournament_id:
+        tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    else:
+        tournament = db.query(Tournament).order_by(
+            Tournament.year.desc(),
+            Tournament.start_date.desc()
+        ).first()
+    
+    if not tournament:
+        raise HTTPException(status_code=404, detail="No tournament found")
+    
+    # Get raw API data stored in database
+    api_data = tournament.api_data or {}
+    
+    return {
+        "tournament_id": tournament.id,
+        "tournament_name": tournament.name,
+        "database_current_round": tournament.current_round,
+        "api_data_currentRound": api_data.get("currentRound"),
+        "api_data_currentRound_type": str(type(api_data.get("currentRound"))),
+        "api_data_keys": list(api_data.keys()) if api_data else [],
+        "full_api_data": api_data,  # Include full data for inspection
+    }
+
+
 @router.get("/validation/sync-status")
 async def get_sync_status(
     tournament_id: int = None,

@@ -115,12 +115,25 @@ class DataSyncService:
             tournament.start_date = start_date
             tournament.end_date = end_date
             tournament.status = api_data.get("status", "Unknown")
-            tournament.current_round = parse_mongodb_value(api_data.get("currentRound", 1))
+            
+            # Get currentRound from API - log what we're getting
+            raw_current_round = api_data.get("currentRound")
+            logger.info(f"API returned currentRound: {raw_current_round} (type: {type(raw_current_round)})")
+            parsed_round = parse_mongodb_value(raw_current_round) if raw_current_round is not None else 1
+            tournament.current_round = parsed_round
+            logger.info(f"Parsed current_round: {parsed_round} (was: {tournament.current_round})")
+            
             # Store API data as JSON string
             tournament.api_data = json.loads(json.dumps(api_data, default=str))
-            logger.info(f"Updated tournament: {tournament.name} ({tournament.year})")
+            logger.info(f"Updated tournament: {tournament.name} ({tournament.year}) - Round {parsed_round}")
         else:
             # Create new
+            # Get currentRound from API - log what we're getting
+            raw_current_round = api_data.get("currentRound")
+            logger.info(f"API returned currentRound: {raw_current_round} (type: {type(raw_current_round)})")
+            parsed_round = parse_mongodb_value(raw_current_round) if raw_current_round is not None else 1
+            logger.info(f"Parsed current_round: {parsed_round}")
+            
             tournament = Tournament(
                 year=int(api_data["year"]),
                 tourn_id=api_data["tournId"],
@@ -129,11 +142,11 @@ class DataSyncService:
                 start_date=start_date,
                 end_date=end_date,
                 status=api_data.get("status", "Unknown"),
-                current_round=parse_mongodb_value(api_data.get("currentRound", 1)),
+                current_round=parsed_round,
                 api_data=json.loads(json.dumps(api_data, default=str))  # Serialize to JSON
             )
             self.db.add(tournament)
-            logger.info(f"Created tournament: {tournament.name} ({tournament.year})")
+            logger.info(f"Created tournament: {tournament.name} ({tournament.year}) - Round {parsed_round}")
         
         self.db.commit()
         self.db.refresh(tournament)
