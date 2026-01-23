@@ -46,13 +46,20 @@ export function BonusPointsSection({ tournamentId }: BonusPointsSectionProps) {
 
   // Load bonus points list
   const loadBonusPoints = async () => {
+    if (!tournamentId) {
+      console.warn('BonusPointsSection: No tournamentId provided')
+      return
+    }
+    
     setLoadingBonusPoints(true)
     try {
+      console.log('Loading bonus points for tournament:', tournamentId, 'round:', filterRound)
       const result = await adminApi.listBonusPoints(tournamentId, filterRound || undefined)
+      console.log('Bonus points result:', result)
       setBonusPointsList(result.bonus_points || [])
       
       // Get unique player IDs and fetch their names
-      const uniquePlayerIds = [...new Set(result.bonus_points.map((bp: BonusPoint) => bp.player_id))]
+      const uniquePlayerIds = [...new Set((result.bonus_points || []).map((bp: BonusPoint) => bp.player_id))]
       if (uniquePlayerIds.length > 0) {
         try {
           const tournamentPlayers = await adminApi.getTournamentPlayers(tournamentId)
@@ -66,6 +73,7 @@ export function BonusPointsSection({ tournamentId }: BonusPointsSectionProps) {
         }
       }
     } catch (error: any) {
+      console.error('Error loading bonus points:', error)
       setMessage({ 
         type: 'error', 
         text: error.response?.data?.detail || 'Failed to load bonus points' 
@@ -78,6 +86,7 @@ export function BonusPointsSection({ tournamentId }: BonusPointsSectionProps) {
   // Load bonus points on mount and when filter changes
   useEffect(() => {
     loadBonusPoints()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournamentId, filterRound])
 
   const handleAddBonus = async () => {
