@@ -514,3 +514,158 @@ async def fix_tournament_data(
             result["errors"].append(f"Error recalculating scores: {str(e)}")
     
     return result
+
+
+@router.get("/diagnostics/tournament/{tournament_id}/round/{round_id}")
+async def diagnose_round(
+    tournament_id: int,
+    round_id: int,
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Diagnose specific round data and scores.
+    
+    Returns detailed information about:
+    - Round snapshot existence and data
+    - Daily scores for the round
+    - Player matching between entries and leaderboard
+    - Score calculation details
+    """
+    result = {
+        "tournament_id": tournament_id,
+        "round_id": round_id,
+        "tournament": None,
+        "snapshot": None,
+        "snapshot_exists": False,
+        "snapshot_data_summary": {},
+        "daily_scores": {
+            "total": 0,
+            "entries_with_scores": 0,
+            "entries_without_scores": 0,
+            "total_points_sum": 0,
+            "scores": []
+        },
+        "player_matching": {
+            "entries_players": [],
+            "leaderboard_players": [],
+            "matched": [],
+            "unmatched": []
+        },
+        "issues": [],
+        "warnings": []
+    }
+    
+    # 1. Check tournament exists
+    tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    if not tournament:
+        result["issues"].append(f"Tournament {tournament_id} not found")
+        return result
+    
+    result["tournament"] = {
+        "id": tournament.id,
+        "year": tournament.year,
+        "name": tournament.name,
+        "current_round": tournament.current_round
+    }
+    
+    # 2. Check snapshot for this round
+    snapshot = db.query(ScoreSnapshot).filter(
+        ScoreSnapshot.tournament_id == tournament_id,
+        ScoreSnapshot.round_id == round_id
+    ).order_by(ScoreSnapshot.timestamp.desc()).first()
+    
+    if snapshot:
+        result["snapshot_exists"] = True
+        result["snapshot"] = {
+            "id": snapshot.id,
+            "round_id": snapshot.round_id,
+            "timestamp": snapshot.timestamp.isoformat(),
+            "has_leaderboard_data": bool(snapshot.leaderboard_data),
+            "has_scorecard_data": bool(snapshot.scorecard_data)
+        }
+        
+        # Summarize leaderboard data
+        if snapshot.leaderboard_data:
+            leaderboard_rows = snapshot.leaderboard_data.get("leaderboardRows", [])
+            result["snapshot_data_summary"] = {
+                "leaderboard_rows": len(leaderboard_rows),
+                "sample_players": [
+                    {
+                        "playerId": row.get("playerId"),
+                        "name": f"{row.get('firstName', '')} {row.get('lastName', '')}".strip(),
+                        "position": row.get("positionDisplay", row.get("position")),
+                        "scoreToPar": row.get("scoreToPar"),
+                        "currentRoundScore": row.get("currentRoundScore")
+                    }
+                    for row in leaderboard_rows[:10]  # First 10 players
+                ]
+            }
+            
+            # Get all player IDs from leaderboard
+            leaderboard_player_ids = {str(row.get("playerId")) for row in leaderboard_rows if row.get("playerId")}
+            result["player_matching"]["leaderboard_players"] = list(leaderboard_player_ids)
+        else:
+            result["issues"].append("Snapshot exists but has no leaderboard data")
+    else:
+        result["issues"].append(f"No snapshot found for Round {round_id}")
+        result["warnings"].append("You may need to sync this round first: POST /api/tournament/sync-round?tournament_id={}&round_id={}".format(tournament_id, round_id))
+    
+    # 3. Check daily scores for this round
+    entries = db.query(Entry).filter(Entry.tournament_id == tournament_id).all()
+    entry_ids = [e.id for e in entries]
+    
+    daily_scores = db.query(DailyScore).filter(
+        DailyScore.entry_id.in_(entry_ids),
+        DailyScore.round_id == round_id
+    ).all() if entry_ids else []
+    
+    result["daily_scores"]["total"] = len(daily_scores)
+    result["daily_scores"]["entries_with_scores"] = len(set(s.entry_id for s in daily_scores))
+    result["daily_scores"]["entries_without_scores"] = len(entries) - result["daily_scores"]["entries_with_scores"]
+    result["daily_scores"]["total_points_sum"] = sum(s.total_points for s in daily_scores)
+    
+    # Detailed score breakdown
+    for score in daily_scores:
+        entry = next((e for e in entries if e.id == score.entry_id), None)
+        result["daily_scores"]["scores"].append({
+            "entry_id": score.entry_id,
+            "participant_name": entry.participant.name if entry and entry.participant else "Unknown",
+            "round_id": score.round_id,
+            "base_points": score.base_points,
+            "bonus_points": score.bonus_points,
+            "total_points": score.total_points,
+            "calculated_at": score.calculated_at.isoformat() if score.calculated_at else None
+        })
+    
+    # 4. Check player matching between entries and leaderboard
+    if snapshot and snapshot.leaderboard_data:
+        leaderboard_rows = snapshot.leaderboard_data.get("leaderboardRows", [])
+        leaderboard_player_ids = {str(row.get("playerId")) for row in leaderboard_rows if row.get("playerId")}
+        
+        # Get all player IDs from entries
+        entry_player_ids = set()
+        for entry in entries:
+            for player_id_field in ["player1_id", "player2_id", "player3_id", "player4_id", "player5_id", "player6_id"]:
+                player_id = getattr(entry, player_id_field, None)
+                if player_id:
+                    entry_player_ids.add(str(player_id))
+        
+        result["player_matching"]["entries_players"] = list(entry_player_ids)
+        result["player_matching"]["matched"] = list(entry_player_ids & leaderboard_player_ids)
+        result["player_matching"]["unmatched"] = list(entry_player_ids - leaderboard_player_ids)
+        
+        if result["player_matching"]["unmatched"]:
+            result["warnings"].append(
+                f"Found {len(result['player_matching']['unmatched'])} entry players not in Round {round_id} leaderboard. "
+                "This may cause 0 points for those players."
+            )
+    
+    # 5. Check for entries with 0 points
+    zero_point_entries = [s for s in daily_scores if s.total_points == 0]
+    if zero_point_entries:
+        result["warnings"].append(
+            f"Found {len(zero_point_entries)} entries with 0 points for Round {round_id}. "
+            "This may be normal if players didn't make the cut or weren't in the leaderboard."
+        )
+    
+    return result
