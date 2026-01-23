@@ -1,7 +1,7 @@
 /** React Query hooks for ranking history */
 import { useQuery } from '@tanstack/react-query'
 import { rankingHistoryApi } from '../services/api'
-import type { RankingHistoryResponse, RankingAnalytics } from '../types'
+import type { RankingHistoryResponse, EntryRankingHistoryResponse, RankingAnalytics } from '../types'
 
 /** Get ranking history for a tournament */
 export function useTournamentRankingHistory(
@@ -22,7 +22,7 @@ export function useEntryRankingHistory(
   entryId: number | undefined,
   tournamentId?: number
 ) {
-  return useQuery<RankingHistoryResponse>({
+  return useQuery<EntryRankingHistoryResponse>({
     queryKey: ['ranking-history', 'entry', entryId, tournamentId],
     queryFn: () => rankingHistoryApi.getEntryHistory(entryId!, tournamentId),
     enabled: !!entryId,

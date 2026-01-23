@@ -98,6 +98,21 @@ export interface RankingHistoryResponse {
   total_snapshots: number
 }
 
+export interface EntryRankingHistoryResponse {
+  entry: { id: number; participant_name: string; tournament_id: number }
+  snapshots: Array<{
+    id: number
+    tournament_id: number
+    tournament_name: string
+    round_id: number
+    position: number
+    total_points: number
+    points_behind_leader: number
+    timestamp: string
+  }>
+  total_snapshots: number
+}
+
 export interface RankingAnalytics {
   tournament_id: number
   tournament_name: string
