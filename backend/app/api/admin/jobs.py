@@ -1,11 +1,15 @@
 """Admin endpoints for background jobs."""
+import logging
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Optional
 
 from app.database import get_db
-from app.models import Tournament
+from app.models import Tournament, ScoreSnapshot
 from app.services.background_jobs import BackgroundJobService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
