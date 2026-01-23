@@ -1,10 +1,10 @@
 """Score calculator service - calculates scores for all entries."""
 import logging
 from typing import Dict, Any, List, Optional
-from datetime import date
+from datetime import date, datetime
 from sqlalchemy.orm import Session
 
-from app.models import Tournament, Entry, ScoreSnapshot
+from app.models import Tournament, Entry, ScoreSnapshot, DailyScore, RankingSnapshot
 from app.services.scoring import ScoringService
 from app.services.api_client import SlashGolfAPIClient
 
@@ -105,6 +105,15 @@ class ScoreCalculatorService:
             f"Calculated scores for {results['entries_updated']} entries "
             f"in tournament {tournament_id}, round {round_id}"
         )
+        
+        # Capture ranking snapshot after scores are calculated
+        if results["success"] and results["entries_updated"] > 0:
+            try:
+                self._capture_ranking_snapshot(tournament_id, round_id)
+            except Exception as e:
+                # Log error but don't fail the calculation
+                logger.error(f"Error capturing ranking snapshot: {e}", exc_info=True)
+                results["errors"].append(f"Warning: Ranking snapshot failed: {e}")
         
         return results
     
