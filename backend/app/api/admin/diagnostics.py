@@ -309,6 +309,79 @@ async def clear_tournament_data(
     }
 
 
+@router.post("/diagnostics/tournament/{tournament_id}/clear-entries")
+async def clear_tournament_entries(
+    tournament_id: int,
+    confirm: bool = Query(False, description="Must be true to confirm deletion"),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Clear all entries for a tournament.
+    
+    This will delete:
+    - All entries for this tournament
+    - All daily scores for those entries
+    - All bonus points for those entries
+    - All ranking snapshots for those entries
+    
+    Participants and players are NOT deleted.
+    
+    WARNING: This is irreversible!
+    """
+    if not confirm:
+        raise HTTPException(
+            status_code=400,
+            detail="Must set confirm=true to clear tournament entries"
+        )
+    
+    # Verify tournament exists
+    tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    if not tournament:
+        raise HTTPException(status_code=404, detail=f"Tournament {tournament_id} not found")
+    
+    # Get entries for this tournament
+    entries = db.query(Entry).filter(Entry.tournament_id == tournament_id).all()
+    entry_ids = [e.id for e in entries]
+    
+    deleted_counts = {
+        "entries": len(entry_ids),
+        "daily_scores": 0,
+        "bonus_points": 0,
+        "ranking_snapshots": 0
+    }
+    
+    if entry_ids:
+        # Delete daily scores
+        deleted_counts["daily_scores"] = db.query(DailyScore).filter(
+            DailyScore.entry_id.in_(entry_ids)
+        ).delete(synchronize_session=False)
+        
+        # Delete bonus points
+        deleted_counts["bonus_points"] = db.query(BonusPoint).filter(
+            BonusPoint.entry_id.in_(entry_ids)
+        ).delete(synchronize_session=False)
+        
+        # Delete ranking snapshots
+        deleted_counts["ranking_snapshots"] = db.query(RankingSnapshot).filter(
+            RankingSnapshot.entry_id.in_(entry_ids)
+        ).delete(synchronize_session=False)
+        
+        # Delete entries
+        db.query(Entry).filter(Entry.tournament_id == tournament_id).delete(synchronize_session=False)
+    
+    db.commit()
+    
+    return {
+        "message": f"Cleared all entries for tournament {tournament_id}",
+        "tournament": {
+            "id": tournament.id,
+            "name": tournament.name,
+            "year": tournament.year
+        },
+        "deleted": deleted_counts
+    }
+
+
 @router.post("/diagnostics/tournament/{tournament_id}/fix")
 async def fix_tournament_data(
     tournament_id: int,
