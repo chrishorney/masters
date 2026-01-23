@@ -28,7 +28,126 @@ This document outlines potential improvements and features for future developmen
 
 ---
 
-## Phase 12: Real-Time Updates (WebSockets)
+## Phase 12: Ranking History & Position Tracking
+
+### Features
+- **Ranking History Database**
+  - New `ranking_snapshots` table to track entry positions over time
+  - Capture ranking after each score calculation
+  - Store: entry_id, tournament_id, round_id, position, total_points, timestamp
+  - Index on (tournament_id, timestamp) for fast queries
+
+- **Automatic Position Tracking**
+  - Hook into score calculation process
+  - After scores are calculated, determine rankings
+  - Save snapshot of all entry positions
+  - Track both position (1st, 2nd, etc.) and points at that moment
+
+- **Visualization Dashboard**
+  - **Position Over Time Chart**
+    - Line chart showing each entry's position throughout tournament
+    - X-axis: Time/Round progression
+    - Y-axis: Position (inverted - lower is better)
+    - Color-coded lines for each entry
+    - Interactive tooltips showing points at each snapshot
+  
+  - **Position Heatmap**
+    - Grid showing position changes round-by-round
+    - Rows: Entries (sorted by final position)
+    - Columns: Rounds
+    - Color intensity: Position (darker = better position)
+    - Quick visual of who moved up/down each round
+  
+  - **Biggest Movers**
+    - Show entries with largest position changes
+    - "Biggest Climb" (e.g., 15th → 3rd)
+    - "Biggest Drop" (e.g., 2nd → 12th)
+    - Highlight dramatic position swings
+  
+  - **Position Distribution**
+    - Bar chart showing how many entries held each position
+    - "How many different entries were in 1st place?"
+    - Shows competitiveness of tournament
+
+- **Additional Analytics**
+  - **Time in Lead**
+    - Track how long each entry held 1st place
+    - "Leaderboard dominance" metric
+  
+  - **Consistency Score**
+    - Measure how stable each entry's position was
+    - Low variance = consistent performance
+    - High variance = volatile (big swings)
+  
+  - **Round-by-Round Performance**
+    - Show which rounds each entry gained/lost the most positions
+    - Identify "clutch rounds" where someone made a big move
+  
+  - **Projected Finish**
+    - Based on current trajectory, predict final position
+    - Show confidence intervals
+    - "If trends continue, Entry X will finish in Y position"
+
+### Database Schema
+
+```python
+class RankingSnapshot(Base):
+    __tablename__ = "ranking_snapshots"
+    
+    id = Column(Integer, primary_key=True)
+    tournament_id = Column(Integer, ForeignKey("tournaments.id"), nullable=False)
+    entry_id = Column(Integer, ForeignKey("entries.id"), nullable=False)
+    round_id = Column(Integer, nullable=False)
+    position = Column(Integer, nullable=False)  # 1st, 2nd, 3rd, etc.
+    total_points = Column(Float, nullable=False)
+    points_behind_leader = Column(Float)  # How many points behind 1st place
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Indexes for fast queries
+    __table_args__ = (
+        Index('idx_tournament_timestamp', 'tournament_id', 'timestamp'),
+        Index('idx_entry_tournament', 'entry_id', 'tournament_id'),
+    )
+```
+
+### Implementation Approach
+
+1. **Create Migration**
+   - Add `ranking_snapshots` table
+   - Add indexes for performance
+
+2. **Modify Score Calculator**
+   - After calculating all scores, determine rankings
+   - Create snapshot records for all entries
+   - Hook into `calculate_scores_for_tournament` method
+
+3. **API Endpoints**
+   - `GET /api/tournament/{id}/ranking-history` - Get all snapshots
+   - `GET /api/entry/{id}/position-history` - Get position over time for one entry
+   - `GET /api/tournament/{id}/analytics` - Get analytics (biggest movers, etc.)
+
+4. **Frontend Components**
+   - `RankingHistoryChart.tsx` - Line chart component
+   - `PositionHeatmap.tsx` - Heatmap visualization
+   - `TournamentAnalytics.tsx` - Analytics dashboard
+   - Use Chart.js, Recharts, or D3.js for visualizations
+
+### Benefits
+- **Engagement**: Users can see their journey through the tournament
+- **Competitiveness**: Visualize how close the competition is
+- **Storytelling**: "Look how Entry X climbed from 20th to 1st!"
+- **Analytics**: Understand tournament dynamics and patterns
+- **Historical Data**: Track trends across multiple tournaments
+
+### Technical Considerations
+- **Performance**: Indexing is critical for fast queries
+- **Storage**: May accumulate significant data over time (consider archiving old tournaments)
+- **Real-time**: Could update visualizations as new snapshots are created
+- **Caching**: Cache analytics calculations for frequently viewed tournaments
+
+---
+
+## Phase 13: Real-Time Updates (WebSockets)
 
 ### Features
 - **WebSocket Integration**
