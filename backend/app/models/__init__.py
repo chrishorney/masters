@@ -6,6 +6,7 @@ from .entry import Entry
 from .score_snapshot import ScoreSnapshot
 from .daily_score import DailyScore
 from .bonus_point import BonusPoint
+from .ranking_snapshot import RankingSnapshot
 
 __all__ = [
     "Tournament",
@@ -15,4 +16,5 @@ __all__ = [
     "ScoreSnapshot",
     "DailyScore",
     "BonusPoint",
+    "RankingSnapshot",
 ]

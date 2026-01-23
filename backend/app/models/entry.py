@@ -38,6 +38,7 @@ class Entry(Base):
     tournament = relationship("Tournament", back_populates="entries")
     daily_scores = relationship("DailyScore", back_populates="entry", cascade="all, delete-orphan")
     bonus_points = relationship("BonusPoint", back_populates="entry", cascade="all, delete-orphan")
+    ranking_snapshots = relationship("RankingSnapshot", back_populates="entry", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Entry {self.id} - Participant {self.participant_id}>"

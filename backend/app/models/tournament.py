@@ -24,6 +24,7 @@ class Tournament(Base):
     # Relationships
     entries = relationship("Entry", back_populates="tournament")
     score_snapshots = relationship("ScoreSnapshot", back_populates="tournament")
+    ranking_snapshots = relationship("RankingSnapshot", back_populates="tournament")
 
     def __repr__(self):
         return f"<Tournament {self.year} {self.name}>"
