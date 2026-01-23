@@ -1,5 +1,6 @@
 """Scoring engine - calculates points based on tournament rules."""
 import logging
+import asyncio
 from typing import Dict, List, Any, Optional, Tuple
 from datetime import date
 from sqlalchemy.orm import Session
@@ -53,6 +54,13 @@ class ScoringService:
     
     def __init__(self, db: Session):
         self.db = db
+        # Initialize Discord service (will be None if disabled)
+        try:
+            from app.services.discord import get_discord_service
+            self.discord_service = get_discord_service()
+        except Exception as e:
+            logger.debug(f"Discord service not available: {e}")
+            self.discord_service = None
     
     def calculate_position_points(
         self,
@@ -451,6 +459,17 @@ class ScoringService:
                             hole=bonus.get("hole")
                         )
                         self.db.add(bonus_point)
+                        
+                        # Send Discord notification for special bonuses (non-blocking)
+                        try:
+                            await self._notify_discord_bonus(
+                                bonus=bonus,
+                                round_id=round_id,
+                                tournament=tournament
+                            )
+                        except Exception as e:
+                            # Don't fail scoring if Discord fails
+                            logger.warning(f"Discord notification failed (non-critical): {e}")
             
             self.db.commit()
             return existing_score
@@ -499,6 +518,72 @@ class ScoringService:
                             hole=bonus.get("hole")
                         )
                         self.db.add(bonus_point)
+                        
+                        # Send Discord notification for special bonuses (non-blocking)
+                        try:
+                            await self._notify_discord_bonus(
+                                bonus=bonus,
+                                round_id=round_id,
+                                tournament=tournament
+                            )
+                        except Exception as e:
+                            # Don't fail scoring if Discord fails
+                            logger.warning(f"Discord notification failed (non-critical): {e}")
             
             self.db.commit()
             return daily_score
+    
+    async def _notify_discord_bonus(
+        self,
+        bonus: Dict[str, Any],
+        round_id: int,
+        tournament: Tournament
+    ):
+        """
+        Send Discord notification for bonus points (non-blocking, errors are logged but don't fail).
+        
+        Args:
+            bonus: Bonus point dictionary
+            round_id: Round number
+            tournament: Tournament model
+        """
+        if not self.discord_service or not self.discord_service.enabled:
+            return
+        
+        bonus_type = bonus.get("bonus_type")
+        player_id = bonus.get("player_id")
+        hole = bonus.get("hole")
+        
+        # Only notify for special bonuses (hole-in-one, eagles)
+        if bonus_type not in ["hole_in_one", "double_eagle", "eagle"]:
+            return
+        
+        if not player_id:
+            return
+        
+        # Get player name
+        player = self.db.query(Player).filter(Player.player_id == player_id).first()
+        player_name = player.full_name if player else f"Player {player_id}"
+        
+        # Send appropriate notification
+        if bonus_type == "hole_in_one":
+            await self.discord_service.notify_hole_in_one(
+                player_name=player_name,
+                hole=hole or 0,
+                round_id=round_id,
+                tournament_name=tournament.name
+            )
+        elif bonus_type == "double_eagle":
+            await self.discord_service.notify_double_eagle(
+                player_name=player_name,
+                hole=hole or 0,
+                round_id=round_id,
+                tournament_name=tournament.name
+            )
+        elif bonus_type == "eagle":
+            await self.discord_service.notify_eagle(
+                player_name=player_name,
+                hole=hole or 0,
+                round_id=round_id,
+                tournament_name=tournament.name
+            )

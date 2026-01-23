@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     default_tournament_id: str = "475"
     default_year: int = 2024
     
+    # Discord Integration (optional)
+    discord_webhook_url: str = "https://discord.com/api/webhooks/1464311605084028931/qPXmTCWouXiB6Ahz6wIZWCJhV0OwlArZh-Qqoaibi8OEow_uS_9bAP-Pgz2atpGnfFHz"
+    discord_enabled: bool = False
+    
     class Config:
         env_file = ".env"
         case_sensitive = False
