@@ -499,10 +499,13 @@ class DataSyncService:
                     for scorecard_round in scorecards:
                         rounds_found += 1
                         # Scorecard uses "roundId" not "round"
-                        # Handle both string and integer types
-                        scorecard_round_id = scorecard_round.get("roundId")
-                        if scorecard_round_id is not None:
+                        # Handle MongoDB format: {"$numberInt": "1"} or regular int/string
+                        raw_round_id = scorecard_round.get("roundId")
+                        if raw_round_id is not None:
+                            # Parse MongoDB format if needed
+                            scorecard_round_id = parse_mongodb_value(raw_round_id)
                             scorecard_round_ids.append(scorecard_round_id)
+                            
                             # Convert to int for comparison (handles both "1" and 1)
                             try:
                                 if int(scorecard_round_id) == round_id:
