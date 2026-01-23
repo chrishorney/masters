@@ -84,8 +84,11 @@ async def sync_tournament(
             "message": "Tournament data synced successfully",
             "tournament_id": results["tournament"].id,
             "tournament_name": results["tournament"].name,
+            "current_round": results["tournament"].current_round,
             "players_synced": results["players_synced"],
             "snapshot_id": results["snapshot"].id,
+            "snapshot_round": results["snapshot"].round_id,
+            "scorecards_fetched": results.get("scorecards_fetched", 0),
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error syncing tournament: {str(e)}")

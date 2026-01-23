@@ -251,6 +251,7 @@ class DataSyncService:
             "tournament": None,
             "players_synced": 0,
             "snapshot": None,
+            "scorecards_fetched": 0,
             "errors": []
         }
         
