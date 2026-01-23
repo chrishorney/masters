@@ -227,24 +227,10 @@ class ScoreCalculatorService:
             total_points = entry_data["total_points"]
             points_behind = leader_points - total_points if leader_points > 0 else 0
             
-            # Check if snapshot already exists for this entry/round/tournament
-            # (to avoid duplicates if calculate is called multiple times)
-            existing = self.db.query(RankingSnapshot).filter(
-                RankingSnapshot.tournament_id == tournament_id,
-                RankingSnapshot.entry_id == entry_id,
-                RankingSnapshot.round_id == round_id
-            ).order_by(RankingSnapshot.timestamp.desc()).first()
-            
-            # Only create if this is a new calculation (points changed or no snapshot exists)
+            # Always create a new snapshot to track position changes over time
+            # Even if points are the same, position might have changed due to other entries
+            # This allows us to see the full history of position changes
             should_create = True
-            if existing:
-                # Only create new snapshot if points changed (to track position changes)
-                if abs(existing.total_points - total_points) < 0.01:  # Account for float precision
-                    should_create = False
-                    logger.debug(
-                        f"Skipping duplicate snapshot for entry {entry_id}, "
-                        f"round {round_id} (points unchanged)"
-                    )
             
             if should_create:
                 snapshot = RankingSnapshot(
