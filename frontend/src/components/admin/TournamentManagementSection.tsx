@@ -279,7 +279,7 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
         
         <div className="space-y-4">
           {/* Sync Tournament */}
-          {tournament ? (
+          {tournament && (
             <div className="border-b border-gray-200 pb-4">
               <h3 className="font-medium text-gray-900 mb-2">Sync Tournament Data</h3>
               <p className="text-sm text-gray-600 mb-3">
