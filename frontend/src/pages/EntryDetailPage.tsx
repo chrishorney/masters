@@ -215,7 +215,7 @@ export function EntryDetailPage() {
               
               if (isRebuyRound && entry.rebuy_player_ids && entry.rebuy_player_ids.length > 0) {
                 // Create mapping: for each original player position, use rebuy if it exists
-                activePlayerIds = originalPlayerIds.map((origId, index) => {
+                activePlayerIds = originalPlayerIds.map((origId) => {
                   const rebuyIndex = entry.rebuy_original_player_ids?.indexOf(origId)
                   if (rebuyIndex !== undefined && rebuyIndex >= 0 && entry.rebuy_player_ids?.[rebuyIndex]) {
                     return entry.rebuy_player_ids[rebuyIndex]
@@ -371,9 +371,9 @@ export function EntryDetailPage() {
                     entry.player5_id,
                     entry.player6_id,
                   ]
-                  originalPlayerIds.forEach(id => allPlayerIds.add(id))
+                  originalPlayerIds.forEach((id: string) => allPlayerIds.add(id))
                   if (entry.rebuy_player_ids) {
-                    entry.rebuy_player_ids.forEach(id => allPlayerIds.add(id))
+                    entry.rebuy_player_ids.forEach((id: string) => allPlayerIds.add(id))
                   }
                   
                   // Initialize player totals
