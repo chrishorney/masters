@@ -25,6 +25,15 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
   
   const calculateScores = useCalculateScores()
 
+  // Update form fields when tournament changes
+  useEffect(() => {
+    if (tournament) {
+      setSyncYear(tournament.year || 2026)
+      setSyncTournId(tournament.tourn_id || '')
+      setSyncOrgId(tournament.org_id || '1')
+    }
+  }, [tournament?.id, tournament?.year, tournament?.tourn_id, tournament?.org_id])
+
   // Check background job status on mount and periodically
   useEffect(() => {
     if (!tournament) {
@@ -283,11 +292,51 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
             <div className="border-b border-gray-200 pb-4">
               <h3 className="font-medium text-gray-900 mb-2">Sync Tournament Data</h3>
               <p className="text-sm text-gray-600 mb-3">
-                Fetch latest leaderboard and scorecard data from Slash Golf API
+                Fetch latest leaderboard and scorecard data from Slash Golf API. You can sync the current tournament or enter different tournament parameters to sync a different tournament.
               </p>
+              
+              {/* Manual Tournament Input Form */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-4">
+                <h4 className="text-sm font-medium text-gray-700">Tournament Parameters</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
+                    <input
+                      type="number"
+                      value={syncYear}
+                      onChange={(e) => setSyncYear(parseInt(e.target.value) || 2026)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="2026"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tournament ID</label>
+                    <input
+                      type="text"
+                      value={syncTournId}
+                      onChange={(e) => setSyncTournId(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="e.g., 470 (Masters)"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Required</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Org ID</label>
+                    <input
+                      type="text"
+                      value={syncOrgId}
+                      onChange={(e) => setSyncOrgId(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="1"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Usually 1 for PGA</p>
+                  </div>
+                </div>
+              </div>
+              
               <button
-                onClick={() => handleSync()}
-                disabled={syncing}
+                onClick={() => handleSync(syncOrgId, syncTournId, syncYear)}
+                disabled={syncing || !syncTournId || !syncYear}
                 className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
               >
                 {syncing ? 'Syncing...' : 'Sync Tournament Data'}
