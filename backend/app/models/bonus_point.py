@@ -17,6 +17,7 @@ class BonusPoint(Base):
     #       "double_eagle", "hole_in_one", "all_make_cut"
     points = Column(Float, nullable=False)
     player_id = Column(String, nullable=True)  # Which player earned it (if applicable)
+    hole = Column(Integer, nullable=True)  # Hole number for eagle/albatross/hole-in-one bonuses
     awarded_at = Column(DateTime, server_default=func.now())
     
     # Relationships

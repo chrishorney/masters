@@ -12,6 +12,11 @@ DATABASE_URL=postgresql://postgres.[PROJECT_REF]:[PASSWORD]@aws-1-us-east-2.pool
 SLASH_GOLF_API_KEY=your_rapidapi_key_here
 SLASH_GOLF_API_HOST=live-golf-data.p.rapidapi.com
 
+# JWT Authentication
+JWT_SECRET_KEY=your_random_secret_key_here
+JWT_ALGORITHM=HS256
+JWT_EXPIRATION_HOURS=24
+
 # Application
 API_PREFIX=/api
 ENVIRONMENT=production
@@ -37,6 +42,12 @@ LOG_LEVEL=INFO
 **SLASH_GOLF_API_HOST:**
 - Use: `live-golf-data.p.rapidapi.com`
 - (This is the standard host for the API)
+
+**JWT_SECRET_KEY:**
+- Generate a random secret string (at least 32 characters)
+- You can use: `openssl rand -hex 32` or any long random string
+- This is used to sign JWT tokens for authentication
+- Keep this secret and never commit it to Git
 
 ## Frontend Environment Variables (Vercel)
 

@@ -427,13 +427,19 @@ class ScoringService:
             # Add auto-calculated bonuses (not manual ones)
             for bonus in bonuses:
                 if bonus["bonus_type"] not in ["gir_leader", "fairways_leader"]:
-                    # Check if it doesn't already exist
-                    existing = self.db.query(BonusPoint).filter(
+                    # Check if it doesn't already exist (check by hole for eagle/albatross/hole-in-one)
+                    query = self.db.query(BonusPoint).filter(
                         BonusPoint.entry_id == entry.id,
                         BonusPoint.round_id == round_id,
                         BonusPoint.bonus_type == bonus["bonus_type"],
                         BonusPoint.player_id == bonus.get("player_id")
-                    ).first()
+                    )
+                    
+                    # For bonuses with holes, also check the hole number
+                    if bonus.get("hole") is not None:
+                        query = query.filter(BonusPoint.hole == bonus.get("hole"))
+                    
+                    existing = query.first()
                     
                     if not existing:
                         bonus_point = BonusPoint(
@@ -441,7 +447,8 @@ class ScoringService:
                             round_id=round_id,
                             bonus_type=bonus["bonus_type"],
                             points=bonus["points"],
-                            player_id=bonus.get("player_id")
+                            player_id=bonus.get("player_id"),
+                            hole=bonus.get("hole")
                         )
                         self.db.add(bonus_point)
             
@@ -468,13 +475,19 @@ class ScoringService:
             # Create bonus point records (only auto-calculated ones, manual ones already exist)
             for bonus in bonuses:
                 if bonus["bonus_type"] not in ["gir_leader", "fairways_leader"]:
-                    # Check if it doesn't already exist
-                    existing = self.db.query(BonusPoint).filter(
+                    # Check if it doesn't already exist (check by hole for eagle/albatross/hole-in-one)
+                    query = self.db.query(BonusPoint).filter(
                         BonusPoint.entry_id == entry.id,
                         BonusPoint.round_id == round_id,
                         BonusPoint.bonus_type == bonus["bonus_type"],
                         BonusPoint.player_id == bonus.get("player_id")
-                    ).first()
+                    )
+                    
+                    # For bonuses with holes, also check the hole number
+                    if bonus.get("hole") is not None:
+                        query = query.filter(BonusPoint.hole == bonus.get("hole"))
+                    
+                    existing = query.first()
                     
                     if not existing:
                         bonus_point = BonusPoint(
@@ -482,7 +495,8 @@ class ScoringService:
                             round_id=round_id,
                             bonus_type=bonus["bonus_type"],
                             points=bonus["points"],
-                            player_id=bonus.get("player_id")
+                            player_id=bonus.get("player_id"),
+                            hole=bonus.get("hole")
                         )
                         self.db.add(bonus_point)
             

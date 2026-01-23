@@ -20,8 +20,8 @@ Before starting, ensure you have:
 - API Docs: `https://masters-production.up.railway.app/docs`
 
 **Frontend (Vercel):**
-- URL: `https://masters-4vofh12ze-chrishorney-gmailcoms-projects.vercel.app`
-- Admin Page: `https://masters-4vofh12ze-chrishorney-gmailcoms-projects.vercel.app/admin`
+- URL: `https://masters-livid.vercel.app`
+- Admin Page: `https://masters-livid.vercel.app/admin`
 
 **Database (Supabase):**
 - Connection: (See Step 1.2 for connection string)
@@ -99,7 +99,7 @@ DATABASE_URL=your_supabase_connection_string
 SLASH_GOLF_API_KEY=your_rapidapi_key
 SLASH_GOLF_API_HOST=live-golf-data.p.rapidapi.com
 JWT_SECRET_KEY=your_random_secret_key
-CORS_ORIGINS=https://masters-4vofh12ze-chrishorney-gmailcoms-projects.vercel.app,http://localhost:5173,http://localhost:3000
+CORS_ORIGINS=https://masters-livid.vercel.app,http://localhost:5173,http://localhost:3000
 API_PREFIX=/api
 ENVIRONMENT=production
 LOG_LEVEL=INFO
@@ -111,6 +111,7 @@ LOG_LEVEL=INFO
    - Make sure `DATABASE_URL` is the connection pooling URL
    - Generate `JWT_SECRET_KEY` with: `openssl rand -hex 32`
    - Update `CORS_ORIGINS` with your actual Vercel frontend URL after Step 3
+   - **Current production URL**: `https://masters-livid.vercel.app`
 
 ### 2.5 Deploy
 1. Railway will automatically deploy when you push to main
@@ -169,15 +170,15 @@ https://masters-production.up.railway.app
 
 **Frontend URL (Production):**
 ```
-https://masters-4vofh12ze-chrishorney-gmailcoms-projects.vercel.app
+https://masters-livid.vercel.app
 ```
 
 ### 3.6 Test Frontend
-1. Visit your Vercel URL: `https://masters-4vofh12ze-chrishorney-gmailcoms-projects.vercel.app`
+1. Visit your Vercel URL: `https://masters-livid.vercel.app`
 2. Should see the home page
 3. Check leaderboard page
 4. Verify it connects to backend
-5. Test admin page: `https://masters-4vofh12ze-chrishorney-gmailcoms-projects.vercel.app/admin`
+5. Test admin page: `https://masters-livid.vercel.app/admin`
 
 ✅ **Step 3 Complete** - Frontend is live!
 
@@ -194,7 +195,7 @@ If your frontend loads but shows no data, check:
    - Go to Railway → Your Service → Variables
    - Check `CORS_ORIGINS` includes your Vercel URL:
      ```
-     https://masters-4vofh12ze-chrishorney-gmailcoms-projects.vercel.app,http://localhost:5173,http://localhost:3000
+     https://masters-livid.vercel.app,http://localhost:5173,http://localhost:3000
      ```
    - If missing, add it and Railway will restart
 

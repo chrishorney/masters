@@ -41,6 +41,33 @@ class DataSyncService:
         self.db = db
         self.api_client = SlashGolfAPIClient()
     
+    def _parse_round_score(self, score_str: str) -> Optional[int]:
+        """
+        Parse currentRoundScore string to integer.
+        
+        Args:
+            score_str: Score string like "-5", "+2", "E", or empty
+            
+        Returns:
+            Integer score (negative for under par, positive for over par), or None if invalid
+        """
+        if not score_str or score_str == "":
+            return None
+        
+        try:
+            if score_str.startswith("-"):
+                return -int(score_str[1:])
+            elif score_str.startswith("+"):
+                return int(score_str[1:])
+            elif score_str == "E":
+                return 0
+            else:
+                # Try to parse as integer directly
+                return int(score_str)
+        except (ValueError, AttributeError):
+            logger.warning(f"Could not parse score string: {score_str}")
+            return None
+    
     def sync_tournament(
         self,
         org_id: Optional[str] = None,
@@ -239,14 +266,46 @@ class DataSyncService:
             players = self.sync_players_from_leaderboard(leaderboard_data)
             results["players_synced"] = len(players)
             
-            # Save snapshot
+            # Detect players who need scorecard fetching (2+ stroke improvement)
             current_round = tournament.current_round or 1
+            players_to_fetch = self.detect_scorecard_changes(
+                tournament_id=tournament.id,
+                current_leaderboard=leaderboard_data,
+                current_round=current_round
+            )
+            
+            # Fetch scorecards for detected players
+            scorecard_data = {}
+            scorecards_fetched = 0
+            for player_info in players_to_fetch:
+                player_id = player_info["player_id"]
+                try:
+                    scorecards = self.api_client.get_scorecard(
+                        player_id=player_id,
+                        org_id=org_id,
+                        tourn_id=tourn_id,
+                        year=year
+                    )
+                    scorecard_data[player_id] = scorecards
+                    scorecards_fetched += 1
+                    logger.info(
+                        f"Fetched scorecard for player {player_id} "
+                        f"(improvement: {player_info['improvement']} strokes)"
+                    )
+                except Exception as e:
+                    error_msg = f"Failed to fetch scorecard for player {player_id}: {e}"
+                    logger.warning(error_msg)
+                    results["errors"].append(error_msg)
+            
+            # Save snapshot with scorecard data (if any)
             snapshot = self.save_score_snapshot(
                 tournament_id=tournament.id,
                 round_id=current_round,
-                leaderboard_data=leaderboard_data
+                leaderboard_data=leaderboard_data,
+                scorecard_data=scorecard_data if scorecard_data else None
             )
             results["snapshot"] = snapshot
+            results["scorecards_fetched"] = scorecards_fetched
             
             logger.info(f"Successfully synced tournament {tournament.name}")
             
