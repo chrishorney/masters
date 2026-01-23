@@ -157,11 +157,25 @@ export function AdminPage() {
         {activeTab === 'import' && tournament && (
           <ImportSection tournamentId={tournament.id} />
         )}
+        {activeTab === 'import' && !tournament && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+            <p className="text-yellow-800">
+              Please create or sync a tournament first before importing entries.
+            </p>
+          </div>
+        )}
         {activeTab === 'bonus' && tournament && (
           <BonusPointsSection tournamentId={tournament.id} />
         )}
-        {activeTab === 'tournament' && tournament && (
-          <TournamentManagementSection tournament={tournament} />
+        {activeTab === 'bonus' && !tournament && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+            <p className="text-yellow-800">
+              Please create or sync a tournament first before managing bonus points.
+            </p>
+          </div>
+        )}
+        {activeTab === 'tournament' && (
+          <TournamentManagementSection tournament={tournament || undefined} />
         )}
       </div>
     </div>
