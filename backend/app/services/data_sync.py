@@ -329,9 +329,12 @@ class DataSyncService:
             )
             
         except Exception as e:
-            error_msg = f"Error syncing tournament data: {e}"
-            logger.error(error_msg)
+            import traceback
+            error_msg = f"Error syncing tournament data: {str(e) or type(e).__name__}"
+            error_details = traceback.format_exc()
+            logger.error(f"{error_msg}\n{error_details}")
             results["errors"].append(error_msg)
+            results["error_details"] = error_details  # Include traceback for debugging
             self.db.rollback()
         
         return results

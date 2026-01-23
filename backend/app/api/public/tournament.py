@@ -75,9 +75,21 @@ async def sync_tournament(
         results = sync_service.sync_tournament_data(org_id, tourn_id, year)
         
         if results["errors"]:
+            error_msg = "; ".join(results["errors"])
+            # Include error details if available (for debugging)
+            if "error_details" in results:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Sync error details: {results['error_details']}")
             raise HTTPException(
                 status_code=500,
-                detail=f"Sync completed with errors: {results['errors']}"
+                detail=f"Sync completed with errors: {error_msg}"
+            )
+        
+        if not results.get("tournament"):
+            raise HTTPException(
+                status_code=500,
+                detail="Sync failed: No tournament was created or updated"
             )
         
         return {
@@ -86,9 +98,19 @@ async def sync_tournament(
             "tournament_name": results["tournament"].name,
             "current_round": results["tournament"].current_round,
             "players_synced": results["players_synced"],
-            "snapshot_id": results["snapshot"].id,
-            "snapshot_round": results["snapshot"].round_id,
+            "snapshot_id": results["snapshot"].id if results.get("snapshot") else None,
+            "snapshot_round": results["snapshot"].round_id if results.get("snapshot") else None,
             "scorecards_fetched": results.get("scorecards_fetched", 0),
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error syncing tournament: {str(e)}")
+        import traceback
+        import logging
+        logger = logging.getLogger(__name__)
+        error_details = traceback.format_exc()
+        logger.error(f"Unexpected error in sync endpoint: {error_details}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Error syncing tournament: {str(e) or type(e).__name__}"
+        )
