@@ -87,7 +87,16 @@ async def get_job_status(
     tournament_id: int = Query(..., description="Tournament ID"),
     db: Session = Depends(get_db)
 ):
-    """Get background job status."""
+    """
+    Get background job status and last sync information.
+    
+    Returns:
+        - running: Whether the background job is currently running
+        - status: "running" or "stopped"
+        - last_sync_timestamp: ISO timestamp of the most recent sync (if any)
+        - last_sync_round: Round number of the most recent sync (if any)
+        - time_since_last_sync: Human-readable time since last sync (if any)
+    """
     is_in_dict = tournament_id in _job_services
     
     # Check if task is actually running (not just in dictionary)
@@ -125,6 +134,35 @@ async def get_job_status(
         result["start_hour"] = getattr(job_service, 'start_hour', 6)
         result["stop_hour"] = getattr(job_service, 'stop_hour', 23)
         result["active_hours"] = f"{result['start_hour']:02d}:00 - {result['stop_hour']:02d}:59"
+    
+    # Get last sync timestamp from most recent ScoreSnapshot
+    last_snapshot = db.query(ScoreSnapshot).filter(
+        ScoreSnapshot.tournament_id == tournament_id
+    ).order_by(ScoreSnapshot.timestamp.desc()).first()
+    
+    if last_snapshot:
+        result["last_sync_timestamp"] = last_snapshot.timestamp.isoformat()
+        result["last_sync_round"] = last_snapshot.round_id
+        
+        # Calculate time since last sync
+        time_diff = datetime.now() - last_snapshot.timestamp
+        total_seconds = int(time_diff.total_seconds())
+        
+        if total_seconds < 60:
+            result["time_since_last_sync"] = f"{total_seconds} seconds ago"
+        elif total_seconds < 3600:
+            minutes = total_seconds // 60
+            result["time_since_last_sync"] = f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+        elif total_seconds < 86400:
+            hours = total_seconds // 3600
+            result["time_since_last_sync"] = f"{hours} hour{'s' if hours != 1 else ''} ago"
+        else:
+            days = total_seconds // 86400
+            result["time_since_last_sync"] = f"{days} day{'s' if days != 1 else ''} ago"
+    else:
+        result["last_sync_timestamp"] = None
+        result["last_sync_round"] = None
+        result["time_since_last_sync"] = "Never"
     
     return result
 
