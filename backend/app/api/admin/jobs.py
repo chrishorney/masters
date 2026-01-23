@@ -88,16 +88,39 @@ async def get_job_status(
     db: Session = Depends(get_db)
 ):
     """Get background job status."""
-    is_running = tournament_id in _job_services
+    is_in_dict = tournament_id in _job_services
+    
+    # Check if task is actually running (not just in dictionary)
+    is_actually_running = False
+    if is_in_dict:
+        job_service = _job_services[tournament_id]
+        # Check if service thinks it's running AND task exists and is not done
+        if hasattr(job_service, 'running') and job_service.running:
+            if hasattr(job_service, '_task') and job_service._task is not None:
+                # Check if task is done or cancelled
+                if not job_service._task.done():
+                    is_actually_running = True
+                else:
+                    # Task is done but service thinks it's running - clean up
+                    logger.warning(f"Job service for tournament {tournament_id} has completed task but running flag is True. Cleaning up.")
+                    job_service.running = False
+                    if tournament_id in _job_services:
+                        del _job_services[tournament_id]
+            else:
+                # No task but service thinks it's running - clean up
+                logger.warning(f"Job service for tournament {tournament_id} has no task but running flag is True. Cleaning up.")
+                job_service.running = False
+                if tournament_id in _job_services:
+                    del _job_services[tournament_id]
     
     result = {
         "tournament_id": tournament_id,
-        "running": is_running,
-        "status": "running" if is_running else "stopped"
+        "running": is_actually_running,
+        "status": "running" if is_actually_running else "stopped"
     }
     
     # Add time info if running
-    if is_running:
+    if is_actually_running and is_in_dict:
         job_service = _job_services[tournament_id]
         result["start_hour"] = getattr(job_service, 'start_hour', 6)
         result["stop_hour"] = getattr(job_service, 'stop_hour', 23)

@@ -91,71 +91,83 @@ class BackgroundJobService:
         sync_service = DataSyncService(self.db)
         calculator = ScoreCalculatorService(self.db)
         
-        while self.running:
-            try:
-                # Check if tournament is active
-                tournament = self.db.query(Tournament).filter(
-                    Tournament.id == tournament_id
-                ).first()
-                
-                if not tournament:
-                    logger.error(f"Tournament {tournament_id} not found")
-                    break
-                
-                # Check if within active hours
-                now = datetime.now()
-                current_hour = now.hour
-                
-                if not self._is_within_active_hours(current_hour, start_hour, stop_hour):
-                    logger.debug(
-                        f"Skipping sync - outside active hours "
-                        f"(current: {current_hour:02d}:00, active: {start_hour:02d}:00-{stop_hour:02d}:59)"
-                    )
-                    await asyncio.sleep(interval_seconds)
-                    continue
-                
-                # Only run during active tournament days
-                today = now.date()
-                if tournament.start_date <= today <= tournament.end_date:
-                    logger.info(f"Running background sync for tournament {tournament_id}")
+        try:
+            while self.running:
+                try:
+                    # Check if tournament is active
+                    tournament = self.db.query(Tournament).filter(
+                        Tournament.id == tournament_id
+                    ).first()
                     
-                    # Sync tournament data
-                    try:
-                        sync_results = sync_service.sync_tournament_data(
-                            org_id=tournament.org_id,
-                            tourn_id=tournament.tourn_id,
-                            year=tournament.year
+                    if not tournament:
+                        logger.error(f"Tournament {tournament_id} not found")
+                        self.running = False
+                        break
+                    
+                    # Check if within active hours
+                    now = datetime.now()
+                    current_hour = now.hour
+                    
+                    if not self._is_within_active_hours(current_hour, start_hour, stop_hour):
+                        logger.debug(
+                            f"Skipping sync - outside active hours "
+                            f"(current: {current_hour:02d}:00, active: {start_hour:02d}:00-{stop_hour:02d}:59)"
                         )
+                        await asyncio.sleep(interval_seconds)
+                        continue
+                    
+                    # Only run during active tournament days
+                    today = now.date()
+                    if tournament.start_date <= today <= tournament.end_date:
+                        logger.info(f"Running background sync for tournament {tournament_id}")
                         
-                        if sync_results.get("errors"):
-                            logger.warning(f"Sync completed with errors: {sync_results['errors']}")
-                        
-                        # Calculate scores for current round
-                        calc_results = calculator.calculate_scores_for_tournament(
-                            tournament_id=tournament_id,
-                            round_id=tournament.current_round
-                        )
-                        
-                        if calc_results.get("success"):
-                            logger.info(
-                                f"Calculated scores for {calc_results.get('entries_processed', 0)} entries"
+                        # Sync tournament data
+                        try:
+                            sync_results = sync_service.sync_tournament_data(
+                                org_id=tournament.org_id,
+                                tourn_id=tournament.tourn_id,
+                                year=tournament.year
                             )
-                        else:
-                            logger.warning(f"Score calculation failed: {calc_results.get('message')}")
+                            
+                            if sync_results.get("errors"):
+                                logger.warning(f"Sync completed with errors: {sync_results['errors']}")
+                            
+                            # Calculate scores for current round
+                            calc_results = calculator.calculate_scores_for_tournament(
+                                tournament_id=tournament_id,
+                                round_id=tournament.current_round
+                            )
+                            
+                            if calc_results.get("success"):
+                                logger.info(
+                                    f"Calculated scores for {calc_results.get('entries_processed', 0)} entries"
+                                )
+                            else:
+                                logger.warning(f"Score calculation failed: {calc_results.get('message')}")
+                        
+                        except Exception as e:
+                            logger.error(f"Error in background job: {e}", exc_info=True)
+                    else:
+                        logger.debug(f"Tournament not active today (start: {tournament.start_date}, end: {tournament.end_date})")
                     
-                    except Exception as e:
-                        logger.error(f"Error in background job: {e}", exc_info=True)
-                else:
-                    logger.debug(f"Tournament not active today (start: {tournament.start_date}, end: {tournament.end_date})")
+                    # Wait for next interval
+                    await asyncio.sleep(interval_seconds)
                 
-                # Wait for next interval
-                await asyncio.sleep(interval_seconds)
-            
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"Unexpected error in background job loop: {e}", exc_info=True)
-                await asyncio.sleep(interval_seconds)
+                except asyncio.CancelledError:
+                    logger.info(f"Background job for tournament {tournament_id} was cancelled")
+                    self.running = False
+                    break
+                except Exception as e:
+                    logger.error(f"Unexpected error in background job loop: {e}", exc_info=True)
+                    # Continue running even if there's an error
+                    await asyncio.sleep(interval_seconds)
+        except Exception as e:
+            logger.error(f"Fatal error in background job loop: {e}", exc_info=True)
+            self.running = False
+        finally:
+            # Ensure running flag is set to False when loop exits
+            self.running = False
+            logger.info(f"Background job loop for tournament {tournament_id} has stopped")
     
     async def run_once(self, tournament_id: int):
         """
