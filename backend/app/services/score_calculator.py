@@ -107,7 +107,9 @@ class ScoreCalculatorService:
         )
         
         # Capture ranking snapshot after scores are calculated
-        if results["success"] and results["entries_updated"] > 0:
+        # Always capture if calculation was successful, even if no entries were updated
+        # (entries might have same points but positions could have changed)
+        if results["success"]:
             logger.info(f"Attempting to capture ranking snapshot for tournament {tournament_id}, round {round_id}")
             try:
                 snapshots_created = self._capture_ranking_snapshot(tournament_id, round_id)
@@ -117,9 +119,9 @@ class ScoreCalculatorService:
                 logger.error(f"Error capturing ranking snapshot: {e}", exc_info=True)
                 results["errors"].append(f"Warning: Ranking snapshot failed: {e}")
         else:
-            logger.debug(
-                f"Skipping ranking snapshot capture: success={results.get('success')}, "
-                f"entries_updated={results.get('entries_updated')}"
+            logger.warning(
+                f"Skipping ranking snapshot capture: calculation was not successful. "
+                f"success={results.get('success')}, entries_updated={results.get('entries_updated')}"
             )
         
         return results
