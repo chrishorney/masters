@@ -19,6 +19,9 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
   const [startHour, setStartHour] = useState(6) // Default 6 AM
   const [stopHour, setStopHour] = useState(23) // Default 11 PM
   const [activeHours, setActiveHours] = useState<string>('')
+  const [syncYear, setSyncYear] = useState(tournament?.year || 2026)
+  const [syncTournId, setSyncTournId] = useState(tournament?.tourn_id || '')
+  const [syncOrgId, setSyncOrgId] = useState(tournament?.org_id || '1')
   
   const calculateScores = useCalculateScores()
 
@@ -188,6 +191,61 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
 
   return (
     <div className="space-y-6">
+      {!tournament && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 md:p-6">
+          <h2 className="text-xl md:text-2xl font-semibold text-yellow-900 mb-2">No Tournament Found</h2>
+          <p className="text-yellow-800 mb-4">
+            No tournament exists in the database. Please sync a tournament from the Slash Golf API to get started.
+          </p>
+          
+          {/* Sync Tournament Form */}
+          <div className="bg-white rounded-lg p-4 space-y-4">
+            <h3 className="font-medium text-gray-900">Create/Sync Tournament</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
+                <input
+                  type="number"
+                  value={syncYear}
+                  onChange={(e) => setSyncYear(parseInt(e.target.value) || 2026)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="2026"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tournament ID</label>
+                <input
+                  type="text"
+                  value={syncTournId}
+                  onChange={(e) => setSyncTournId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="470 (Masters)"
+                />
+                <p className="text-xs text-gray-500 mt-1">e.g., 470 for Masters</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Org ID</label>
+                <input
+                  type="text"
+                  value={syncOrgId}
+                  onChange={(e) => setSyncOrgId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="1"
+                />
+                <p className="text-xs text-gray-500 mt-1">Usually 1 for PGA</p>
+              </div>
+            </div>
+            <button
+              onClick={() => handleSync(syncOrgId, syncTournId, syncYear)}
+              disabled={syncing || !syncTournId || !syncYear}
+              className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {syncing ? 'Syncing...' : 'Sync Tournament'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {tournament && (
         <>
           {/* Tournament Info */}
@@ -221,7 +279,7 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
         
         <div className="space-y-4">
           {/* Sync Tournament */}
-          {tournament && (
+          {tournament ? (
             <div className="border-b border-gray-200 pb-4">
               <h3 className="font-medium text-gray-900 mb-2">Sync Tournament Data</h3>
               <p className="text-sm text-gray-600 mb-3">
