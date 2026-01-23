@@ -417,25 +417,30 @@ async def clear_all_tournament_data(
         "tournaments": 0
     }
     
-    # Delete all entries (this will cascade delete daily_scores, bonus_points, ranking_snapshots)
-    deleted_counts["entries"] = db.query(Entry).delete(synchronize_session=False)
-    
-    # Delete daily scores (in case cascade didn't work)
-    deleted_counts["daily_scores"] = db.query(DailyScore).delete(synchronize_session=False)
-    
-    # Delete bonus points
-    deleted_counts["bonus_points"] = db.query(BonusPoint).delete(synchronize_session=False)
-    
-    # Delete ranking snapshots
-    deleted_counts["ranking_snapshots"] = db.query(RankingSnapshot).delete(synchronize_session=False)
-    
-    # Delete score snapshots
-    deleted_counts["score_snapshots"] = db.query(ScoreSnapshot).delete(synchronize_session=False)
-    
-    # Delete all tournaments
-    deleted_counts["tournaments"] = db.query(Tournament).delete(synchronize_session=False)
-    
-    db.commit()
+    try:
+        # Delete in correct order to avoid foreign key constraint issues
+        # 1. Delete child records first (they reference entries and tournaments)
+        deleted_counts["daily_scores"] = db.query(DailyScore).delete(synchronize_session=False)
+        deleted_counts["bonus_points"] = db.query(BonusPoint).delete(synchronize_session=False)
+        deleted_counts["ranking_snapshots"] = db.query(RankingSnapshot).delete(synchronize_session=False)
+        deleted_counts["score_snapshots"] = db.query(ScoreSnapshot).delete(synchronize_session=False)
+        
+        # 2. Delete entries (they reference tournaments and participants)
+        deleted_counts["entries"] = db.query(Entry).delete(synchronize_session=False)
+        
+        # 3. Delete tournaments last (they might be referenced by entries)
+        deleted_counts["tournaments"] = db.query(Tournament).delete(synchronize_session=False)
+        
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error clearing all tournament data: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error clearing all tournament data: {str(e)}"
+        )
     
     return {
         "message": "Cleared all tournament data from database",
