@@ -17,7 +17,29 @@ cd backend
 pip install requests
 ```
 
-### 1. Generate Test CSV
+### Option 1: Sync and Generate (Recommended)
+
+If tournament data hasn't been synced yet, use this script:
+
+```bash
+cd backend
+./sync_and_generate_csv.sh
+```
+
+This will:
+1. Sync tournament 2 data from the API
+2. Generate the test CSV file
+
+### Option 2: Manual Steps
+
+### 1. Sync Tournament Data (if needed)
+
+First, make sure tournament data is synced:
+```bash
+curl -X POST "https://masters-production.up.railway.app/api/tournament/sync?year=2026"
+```
+
+### 2. Generate Test CSV
 
 ```bash
 cd backend
