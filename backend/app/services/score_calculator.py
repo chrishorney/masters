@@ -108,12 +108,19 @@ class ScoreCalculatorService:
         
         # Capture ranking snapshot after scores are calculated
         if results["success"] and results["entries_updated"] > 0:
+            logger.info(f"Attempting to capture ranking snapshot for tournament {tournament_id}, round {round_id}")
             try:
-                self._capture_ranking_snapshot(tournament_id, round_id)
+                snapshots_created = self._capture_ranking_snapshot(tournament_id, round_id)
+                logger.info(f"Successfully captured {snapshots_created} ranking snapshots")
             except Exception as e:
                 # Log error but don't fail the calculation
                 logger.error(f"Error capturing ranking snapshot: {e}", exc_info=True)
                 results["errors"].append(f"Warning: Ranking snapshot failed: {e}")
+        else:
+            logger.debug(
+                f"Skipping ranking snapshot capture: success={results.get('success')}, "
+                f"entries_updated={results.get('entries_updated')}"
+            )
         
         return results
     
@@ -163,3 +170,99 @@ class ScoreCalculatorService:
                 results["errors"].append(error_msg)
         
         return results
+    
+    def _capture_ranking_snapshot(
+        self,
+        tournament_id: int,
+        round_id: int
+    ) -> int:
+        """
+        Capture a snapshot of current rankings for all entries.
+        
+        This creates RankingSnapshot records for each entry showing their
+        position and total points at this moment in time.
+        
+        Args:
+            tournament_id: Tournament ID
+            round_id: Round number
+            
+        Returns:
+            Number of snapshots created
+        """
+        # Get all entries for this tournament
+        entries = self.db.query(Entry).filter(
+            Entry.tournament_id == tournament_id
+        ).all()
+        
+        if not entries:
+            logger.warning(f"No entries found for tournament {tournament_id}")
+            return 0
+        
+        # Calculate current rankings (same logic as get_leaderboard)
+        leaderboard_data = []
+        
+        for entry in entries:
+            # Get all daily scores for this entry
+            daily_scores = self.db.query(DailyScore).filter(
+                DailyScore.entry_id == entry.id
+            ).order_by(DailyScore.round_id).all()
+            
+            total_points = sum(score.total_points for score in daily_scores)
+            
+            leaderboard_data.append({
+                "entry_id": entry.id,
+                "total_points": total_points
+            })
+        
+        # Sort by total points descending
+        leaderboard_data.sort(key=lambda x: x["total_points"], reverse=True)
+        
+        # Determine leader's points
+        leader_points = leaderboard_data[0]["total_points"] if leaderboard_data else 0
+        
+        # Create ranking snapshots
+        snapshots_created = 0
+        for position, entry_data in enumerate(leaderboard_data, start=1):
+            entry_id = entry_data["entry_id"]
+            total_points = entry_data["total_points"]
+            points_behind = leader_points - total_points if leader_points > 0 else 0
+            
+            # Check if snapshot already exists for this entry/round/tournament
+            # (to avoid duplicates if calculate is called multiple times)
+            existing = self.db.query(RankingSnapshot).filter(
+                RankingSnapshot.tournament_id == tournament_id,
+                RankingSnapshot.entry_id == entry_id,
+                RankingSnapshot.round_id == round_id
+            ).order_by(RankingSnapshot.timestamp.desc()).first()
+            
+            # Only create if this is a new calculation (points changed or no snapshot exists)
+            should_create = True
+            if existing:
+                # Only create new snapshot if points changed (to track position changes)
+                if abs(existing.total_points - total_points) < 0.01:  # Account for float precision
+                    should_create = False
+                    logger.debug(
+                        f"Skipping duplicate snapshot for entry {entry_id}, "
+                        f"round {round_id} (points unchanged)"
+                    )
+            
+            if should_create:
+                snapshot = RankingSnapshot(
+                    tournament_id=tournament_id,
+                    entry_id=entry_id,
+                    round_id=round_id,
+                    position=position,
+                    total_points=total_points,
+                    points_behind_leader=points_behind,
+                    timestamp=datetime.utcnow()
+                )
+                self.db.add(snapshot)
+                snapshots_created += 1
+        
+        if snapshots_created > 0:
+            self.db.commit()
+            logger.info(
+                f"Created {snapshots_created} ranking snapshots for tournament {tournament_id}, round {round_id}"
+            )
+        
+        return snapshots_created
