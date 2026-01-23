@@ -150,24 +150,248 @@ class RankingSnapshot(Base):
 
 ---
 
-## Phase 13: Real-Time Updates (WebSockets)
+## Phase 13: Real-Time Updates (Server-Sent Events / WebSockets)
 
-### Features
-- **WebSocket Integration**
-  - Replace polling with WebSocket connections
-  - Real-time score updates
-  - Live leaderboard changes
-  - Push notifications for score changes
+### Status
+**Recommended Approach**: Start with Server-Sent Events (SSE) - simpler implementation that fits the use case perfectly.
 
-- **Server-Sent Events (SSE) Alternative**
-  - Simpler than WebSockets
-  - One-way server-to-client updates
-  - Automatic reconnection
+### Why Real-Time Updates?
+
+**Current Limitations**:
+- Frontend polls every 30 seconds (`refetchInterval: 30 * 1000`)
+- Users see updates up to 30 seconds after scores are calculated
+- Wasted API calls: 10 users = 20 requests/minute, even when nothing changed
+- Doesn't scale well: 100 users = 200 requests/minute
+
+**Benefits of Real-Time**:
+- ⚡ **Instant Updates**: < 1 second delay vs 0-30 second delay
+- 📉 **Reduced Server Load**: 99% reduction in unnecessary requests
+- 🔋 **Battery Efficient**: One connection vs constant polling
+- 👥 **Synchronized**: All users see updates simultaneously
+- 🎯 **Better UX**: More engaging, "live" feel
+
+### Recommended: Server-Sent Events (SSE)
+
+**Why SSE Over WebSockets?**
+- ✅ Simpler to implement (~1 day vs 2-3 days)
+- ✅ Perfect for one-way updates (server → client)
+- ✅ Built into browsers, automatic reconnection
+- ✅ Easier to debug and maintain
+- ✅ Can upgrade to WebSockets later if needed
+
+### Implementation Plan
+
+#### Backend Implementation
+
+1. **SSE Endpoint**
+   ```python
+   @router.get("/scores/stream/{tournament_id}")
+   async def stream_score_updates(
+       tournament_id: int,
+       db: Session = Depends(get_db)
+   ):
+       """Stream score updates via Server-Sent Events."""
+       async def event_generator():
+           # Send initial state
+           yield f"data: {json.dumps({'type': 'connected'})}\n\n"
+           
+           # Watch for score changes
+           last_snapshot_id = None
+           while True:
+               # Check for new score calculations
+               latest_snapshot = db.query(ScoreSnapshot).filter(
+                   ScoreSnapshot.tournament_id == tournament_id
+               ).order_by(ScoreSnapshot.timestamp.desc()).first()
+               
+               if latest_snapshot and latest_snapshot.id != last_snapshot_id:
+                   # New scores calculated, send update
+                   leaderboard = get_leaderboard_data(tournament_id)
+                   yield f"data: {json.dumps({
+                       'type': 'scores_updated',
+                       'data': leaderboard
+                   })}\n\n"
+                   last_snapshot_id = latest_snapshot.id
+               
+               await asyncio.sleep(2)  # Check every 2 seconds
+       
+       return StreamingResponse(
+           event_generator(),
+           media_type="text/event-stream",
+           headers={
+               "Cache-Control": "no-cache",
+               "Connection": "keep-alive",
+           }
+       )
+   ```
+
+2. **Integration Points**
+   - Hook into `calculate_scores_for_tournament` completion
+   - Trigger SSE broadcast when scores are calculated
+   - Use Redis pub/sub for multi-server deployments (optional)
+
+3. **Connection Management**
+   - Track active connections
+   - Handle disconnections gracefully
+   - Heartbeat messages to keep connection alive
+   - Automatic reconnection on client side
+
+#### Frontend Implementation
+
+1. **SSE Hook**
+   ```typescript
+   export function useScoreUpdates(tournamentId: number | undefined) {
+     const queryClient = useQueryClient()
+     
+     useEffect(() => {
+       if (!tournamentId) return
+       
+       const eventSource = new EventSource(
+         `${API_URL}/api/scores/stream/${tournamentId}`
+       )
+       
+       eventSource.onmessage = (event) => {
+         const data = JSON.parse(event.data)
+         if (data.type === 'scores_updated') {
+           // Invalidate and refetch leaderboard
+           queryClient.invalidateQueries(['leaderboard', tournamentId])
+         }
+       }
+       
+       eventSource.onerror = () => {
+         // Handle reconnection
+         eventSource.close()
+         setTimeout(() => {
+           // Reconnect after delay
+         }, 5000)
+       }
+       
+       return () => eventSource.close()
+     }, [tournamentId])
+   }
+   ```
+
+2. **Replace Polling**
+   - Remove `refetchInterval` from `useLeaderboard`
+   - Use SSE hook instead
+   - Keep polling as fallback if SSE fails
+
+3. **Visual Indicators**
+   - "Live" indicator when connected
+   - Connection status (connected/disconnected/reconnecting)
+   - Smooth transitions when updates arrive
+
+### Database Considerations
+
+**Option 1: Poll Database** (Simpler)
+- SSE endpoint polls database every 2-5 seconds
+- Checks for new `ScoreSnapshot` records
+- Pros: Simple, no additional infrastructure
+- Cons: Database queries every few seconds
+
+**Option 2: Redis Pub/Sub** (Better for Scale)
+- When scores calculated, publish event to Redis
+- SSE endpoints subscribe to Redis channel
+- Pros: Efficient, scales to multiple servers
+- Cons: Requires Redis infrastructure
+
+**Recommendation**: Start with Option 1, upgrade to Option 2 if needed.
+
+### Deployment Considerations
+
+1. **Railway/Render**
+   - SSE connections count as active connections
+   - May need to adjust connection limits
+   - Consider connection timeout settings
+
+2. **Load Balancing**
+   - If using multiple servers, need Redis pub/sub
+   - Or use sticky sessions (same server for same client)
+
+3. **Monitoring**
+   - Track active SSE connections
+   - Monitor connection drop rate
+   - Alert on high reconnection rates
+
+### Fallback Strategy
+
+**Hybrid Approach**:
+1. Try SSE connection first
+2. If SSE fails, fall back to polling
+3. Show connection status to user
+4. Automatically retry SSE connection
+
+### Testing Strategy
+
+1. **Unit Tests**
+   - Test SSE endpoint generation
+   - Test event formatting
+   - Test connection handling
+
+2. **Integration Tests**
+   - Test full flow: calculate scores → SSE broadcast → client receives
+   - Test reconnection logic
+   - Test multiple concurrent connections
+
+3. **Load Tests**
+   - Test with 50+ concurrent connections
+   - Verify server handles connections efficiently
+   - Check memory usage over time
+
+### Migration Path
+
+**Phase 1: Add SSE (Keep Polling)**
+- Add SSE endpoint
+- Add SSE hook to frontend
+- Keep polling as fallback
+- A/B test: some users get SSE, others polling
+
+**Phase 2: Make SSE Default**
+- Make SSE the primary method
+- Keep polling as fallback only
+- Monitor connection success rate
+
+**Phase 3: Remove Polling**
+- Once SSE is stable, remove polling
+- Monitor for any issues
+
+### Alternative: WebSocket Implementation
+
+If bidirectional communication is needed later:
+
+**WebSocket Features**:
+- Full duplex (client ↔ server)
+- Lower overhead than SSE
+- More complex to implement
+- Better for chat, notifications, etc.
+
+**When to Use WebSockets**:
+- Need client-to-server messages (e.g., user actions)
+- Need lower latency (< 100ms)
+- Need binary data transfer
+- Have infrastructure to support it
+
+**For This Project**: SSE is sufficient - we only need server → client updates.
 
 ### Benefits
-- Instant updates (no 30-second delay)
-- Better user experience
-- Reduced server load (no constant polling)
+- ⚡ **Instant Updates**: < 1 second delay vs 0-30 second delay
+- 📉 **Reduced Server Load**: 99% reduction in unnecessary API calls
+- 🔋 **Battery Efficient**: One persistent connection vs constant polling
+- 👥 **Synchronized Updates**: All users see changes simultaneously
+- 🎯 **Better UX**: More engaging, "live" tournament feel
+- 💰 **Cost Savings**: Fewer API calls = lower infrastructure costs
+
+### Technical Considerations
+- **Connection Limits**: Monitor active SSE connections
+- **Reconnection Logic**: Handle network interruptions gracefully
+- **Heartbeat**: Send periodic messages to keep connection alive
+- **Error Handling**: Graceful degradation to polling if SSE fails
+- **Scaling**: Use Redis pub/sub for multi-server deployments
+
+### Estimated Implementation Time
+- **Backend SSE Endpoint**: 4-6 hours
+- **Frontend SSE Hook**: 2-3 hours
+- **Testing & Polish**: 2-3 hours
+- **Total**: ~1-2 days
 
 ---
 
