@@ -308,7 +308,12 @@ class DataSyncService:
             results["snapshot"] = snapshot
             results["scorecards_fetched"] = scorecards_fetched
             
-            logger.info(f"Successfully synced tournament {tournament.name}")
+            logger.info(
+                f"Successfully synced tournament {tournament.name} - "
+                f"Round {current_round} (from API: {tournament.current_round}), "
+                f"Players: {len(players)}, "
+                f"Scorecards fetched: {scorecards_fetched}"
+            )
             
         except Exception as e:
             error_msg = f"Error syncing tournament data: {e}"
