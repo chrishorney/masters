@@ -132,6 +132,35 @@ export const adminApi = {
     })
     return response.data
   },
+
+  /** List bonus points for a tournament */
+  listBonusPoints: async (
+    tournamentId: number, 
+    roundId?: number
+  ): Promise<{
+    tournament_id: number;
+    round_id?: number;
+    bonus_points: Array<{
+      id: number;
+      entry_id: number;
+      round_id: number;
+      bonus_type: string;
+      points: number;
+      player_id: string;
+      awarded_at: string;
+    }>;
+  }> => {
+    const params: any = { tournament_id: tournamentId }
+    if (roundId) params.round_id = roundId
+    const response = await api.get('/admin/bonus-points/list', { params })
+    return response.data
+  },
+
+  /** Delete a bonus point */
+  deleteBonusPoint: async (bonusPointId: number): Promise<{ message: string }> => {
+    const response = await api.delete(`/admin/bonus-points/${bonusPointId}`)
+    return response.data
+  },
 }
 
 export default api

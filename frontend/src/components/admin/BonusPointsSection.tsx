@@ -1,10 +1,20 @@
 /** Manual bonus points management section */
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { adminApi } from '../../services/api'
 import api from '../../services/api'
 
 interface BonusPointsSectionProps {
   tournamentId: number
+}
+
+interface BonusPoint {
+  id: number
+  entry_id: number
+  round_id: number
+  bonus_type: string
+  points: number
+  player_id: string
+  awarded_at: string
 }
 
 export function BonusPointsSection({ tournamentId }: BonusPointsSectionProps) {
@@ -15,6 +25,13 @@ export function BonusPointsSection({ tournamentId }: BonusPointsSectionProps) {
   const [selectedPlayer, setSelectedPlayer] = useState<any>(null)
   const [adding, setAdding] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  
+  // Bonus points list state
+  const [bonusPointsList, setBonusPointsList] = useState<BonusPoint[]>([])
+  const [filterRound, setFilterRound] = useState<number | null>(null)
+  const [loadingBonusPoints, setLoadingBonusPoints] = useState(false)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [playerMap, setPlayerMap] = useState<Record<string, string>>({})
 
   const handleSearch = async () => {
     if (!playerSearch.trim()) return
@@ -26,6 +43,42 @@ export function BonusPointsSection({ tournamentId }: BonusPointsSectionProps) {
       setMessage({ type: 'error', text: 'Failed to search players' })
     }
   }
+
+  // Load bonus points list
+  const loadBonusPoints = async () => {
+    setLoadingBonusPoints(true)
+    try {
+      const result = await adminApi.listBonusPoints(tournamentId, filterRound || undefined)
+      setBonusPointsList(result.bonus_points || [])
+      
+      // Get unique player IDs and fetch their names
+      const uniquePlayerIds = [...new Set(result.bonus_points.map((bp: BonusPoint) => bp.player_id))]
+      if (uniquePlayerIds.length > 0) {
+        try {
+          const tournamentPlayers = await adminApi.getTournamentPlayers(tournamentId)
+          const playerNameMap: Record<string, string> = {}
+          tournamentPlayers.players.forEach((p: any) => {
+            playerNameMap[p.player_id] = p.full_name
+          })
+          setPlayerMap(playerNameMap)
+        } catch (err) {
+          console.error('Failed to load player names:', err)
+        }
+      }
+    } catch (error: any) {
+      setMessage({ 
+        type: 'error', 
+        text: error.response?.data?.detail || 'Failed to load bonus points' 
+      })
+    } finally {
+      setLoadingBonusPoints(false)
+    }
+  }
+
+  // Load bonus points on mount and when filter changes
+  useEffect(() => {
+    loadBonusPoints()
+  }, [tournamentId, filterRound])
 
   const handleAddBonus = async () => {
     if (!selectedPlayer) {
@@ -47,11 +100,13 @@ export function BonusPointsSection({ tournamentId }: BonusPointsSectionProps) {
 
       setMessage({ 
         type: 'success', 
-        text: `Bonus added! ${response.data.entries_updated || 0} entries updated.` 
+        text: `Bonus added! ${response.data.bonus_points_created || 0} bonus points created.` 
       })
       setSelectedPlayer(null)
       setPlayerSearch('')
       setSearchResults([])
+      // Reload bonus points list
+      await loadBonusPoints()
     } catch (error: any) {
       setMessage({ 
         type: 'error', 
@@ -61,6 +116,49 @@ export function BonusPointsSection({ tournamentId }: BonusPointsSectionProps) {
       setAdding(false)
     }
   }
+
+  const handleDeleteBonus = async (bonusPointId: number) => {
+    if (!confirm('Are you sure you want to delete this bonus point? Scores will be recalculated.')) {
+      return
+    }
+
+    setDeletingId(bonusPointId)
+    try {
+      await adminApi.deleteBonusPoint(bonusPointId)
+      setMessage({ 
+        type: 'success', 
+        text: 'Bonus point deleted and scores recalculated.' 
+      })
+      // Reload bonus points list
+      await loadBonusPoints()
+    } catch (error: any) {
+      setMessage({ 
+        type: 'error', 
+        text: error.response?.data?.detail || 'Failed to delete bonus point' 
+      })
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  const getBonusTypeLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      'gir_leader': 'GIR Leader',
+      'fairways_leader': 'Fairways Leader',
+    }
+    return labels[type] || type
+  }
+
+  // Group bonus points by round
+  const groupedByRound = bonusPointsList.reduce((acc, bp) => {
+    if (!acc[bp.round_id]) {
+      acc[bp.round_id] = []
+    }
+    acc[bp.round_id].push(bp)
+    return acc
+  }, {} as Record<number, BonusPoint[]>)
+
+  const rounds = Object.keys(groupedByRound).map(Number).sort()
 
   return (
     <div className="space-y-6">
@@ -177,6 +275,122 @@ export function BonusPointsSection({ tournamentId }: BonusPointsSectionProps) {
         </div>
       )}
 
+      {/* Existing Bonus Points List */}
+      <div className="bg-white rounded-lg shadow-md p-4 md:p-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 gap-4">
+          <h2 className="text-xl md:text-2xl font-semibold text-gray-900">Assigned Bonus Points</h2>
+          
+          {/* Filter by Round */}
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700">Filter by Round:</label>
+            <select
+              value={filterRound || ''}
+              onChange={(e) => setFilterRound(e.target.value ? parseInt(e.target.value) : null)}
+              className="px-3 py-1 rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 text-sm"
+            >
+              <option value="">All Rounds</option>
+              <option value="1">Round 1</option>
+              <option value="2">Round 2</option>
+              <option value="3">Round 3</option>
+              <option value="4">Round 4</option>
+            </select>
+            <button
+              onClick={loadBonusPoints}
+              disabled={loadingBonusPoints}
+              className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+            >
+              {loadingBonusPoints ? 'Loading...' : 'Refresh'}
+            </button>
+          </div>
+        </div>
+
+        {loadingBonusPoints ? (
+          <div className="text-center py-8 text-gray-500">Loading bonus points...</div>
+        ) : bonusPointsList.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            No bonus points assigned yet.
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {rounds.map((round) => {
+              const roundBonusPoints = groupedByRound[round]
+              // Group by player_id and bonus_type to show unique assignments
+              const uniqueAssignments = roundBonusPoints.reduce((acc, bp) => {
+                const key = `${bp.player_id}-${bp.bonus_type}`
+                if (!acc[key]) {
+                  acc[key] = {
+                    player_id: bp.player_id,
+                    bonus_type: bp.bonus_type,
+                    points: bp.points,
+                    count: 0,
+                    ids: [] as number[]
+                  }
+                }
+                acc[key].count++
+                acc[key].ids.push(bp.id)
+                return acc
+              }, {} as Record<string, { player_id: string; bonus_type: string; points: number; count: number; ids: number[] }>)
+
+              return (
+                <div key={round} className="border border-gray-200 rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-900 mb-3">Round {round}</h3>
+                  <div className="space-y-2">
+                    {Object.values(uniqueAssignments).map((assignment) => (
+                      <div
+                        key={`${assignment.player_id}-${assignment.bonus_type}`}
+                        className="flex flex-col md:flex-row md:items-center md:justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors gap-2"
+                      >
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-900">
+                            {getBonusTypeLabel(assignment.bonus_type)}
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            Player: {playerMap[assignment.player_id] || `ID: ${assignment.player_id}`}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            Applied to {assignment.count} {assignment.count === 1 ? 'entry' : 'entries'} • {assignment.points} {assignment.points === 1 ? 'point' : 'points'} each
+                          </div>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            // Delete all bonus points for this player/type/round combination
+                            if (confirm(`Delete all ${assignment.count} bonus point(s) for ${getBonusTypeLabel(assignment.bonus_type)}? This will remove the bonus from all ${assignment.count} entries and recalculate their scores.`)) {
+                              setDeletingId(assignment.ids[0]) // Use first ID for loading state
+                              try {
+                                // Delete all IDs sequentially to avoid overwhelming the server
+                                for (const id of assignment.ids) {
+                                  await adminApi.deleteBonusPoint(id)
+                                }
+                                setMessage({ 
+                                  type: 'success', 
+                                  text: `Deleted ${assignment.count} bonus point(s). Scores have been recalculated.` 
+                                })
+                                await loadBonusPoints()
+                              } catch (error: any) {
+                                setMessage({ 
+                                  type: 'error', 
+                                  text: error.response?.data?.detail || 'Failed to delete bonus points' 
+                                })
+                              } finally {
+                                setDeletingId(null)
+                              }
+                            }
+                          }}
+                          disabled={deletingId !== null}
+                          className="w-full md:w-auto px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {deletingId !== null && assignment.ids.includes(deletingId) ? 'Deleting...' : 'Delete All'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
       {/* Help Text */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <h4 className="font-medium text-blue-900 mb-2">About Manual Bonus Points</h4>
@@ -184,7 +398,8 @@ export function BonusPointsSection({ tournamentId }: BonusPointsSectionProps) {
           <p>• GIR (Greens in Regulation) and Fairways Hit leaders are not available in the API</p>
           <p>• These must be added manually after each round</p>
           <p>• The bonus will automatically be applied to all entries that have the selected player</p>
-          <p>• Scores will be automatically recalculated after adding a bonus</p>
+          <p>• Scores will be automatically recalculated after adding or deleting a bonus</p>
+          <p>• Use the "Assigned Bonus Points" section above to view and manage existing bonuses</p>
         </div>
       </div>
     </div>
