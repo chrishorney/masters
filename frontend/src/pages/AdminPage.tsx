@@ -9,7 +9,7 @@ import { TournamentManagementSection } from '../components/admin/TournamentManag
 
 export function AdminPage() {
   const { data: tournament, isLoading, error } = useCurrentTournament()
-  const [activeTab, setActiveTab] = useState<'import' | 'bonus' | 'tournament'>('import')
+  const [activeTab, setActiveTab] = useState<'import' | 'bonus' | 'tournament'>('tournament')
 
   if (isLoading) {
     return (
@@ -19,13 +19,73 @@ export function AdminPage() {
     )
   }
 
-  if (error) {
+  // If no tournament exists, show tournament management tab to create one
+  if (error || !tournament) {
+    // Still show the page, but default to tournament tab to allow creating one
     return (
-      <div className="max-w-4xl mx-auto">
-        <ErrorMessage 
-          message="Failed to load tournament information."
-          onRetry={() => window.location.reload()}
-        />
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
+          <p className="text-gray-600">
+            {!tournament 
+              ? "No tournament found. Please create or sync a tournament to get started."
+              : "Manage tournament data, imports, and bonus points"}
+          </p>
+        </div>
+
+        {/* Tabs */}
+        <div className="border-b border-gray-200 mb-6">
+          <nav className="flex space-x-8" aria-label="Tabs">
+            <button
+              onClick={() => setActiveTab('tournament')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'tournament'
+                  ? 'border-green-500 text-green-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Tournament Management
+            </button>
+            {tournament && (
+              <>
+                <button
+                  onClick={() => setActiveTab('import')}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'import'
+                      ? 'border-green-500 text-green-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  SmartSheet Imports
+                </button>
+                <button
+                  onClick={() => setActiveTab('bonus')}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'bonus'
+                      ? 'border-green-500 text-green-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  Bonus Points
+                </button>
+              </>
+            )}
+          </nav>
+        </div>
+
+        {/* Tab Content */}
+        <div>
+          {activeTab === 'tournament' && (
+            <TournamentManagementSection tournament={tournament || undefined} />
+          )}
+          {activeTab === 'import' && tournament && (
+            <ImportSection tournamentId={tournament.id} />
+          )}
+          {activeTab === 'bonus' && tournament && (
+            <BonusPointsSection tournamentId={tournament.id} />
+          )}
+        </div>
       </div>
     )
   }

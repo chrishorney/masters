@@ -6,7 +6,7 @@ import api from '../../services/api'
 import type { Tournament } from '../../types'
 
 interface TournamentManagementSectionProps {
-  tournament: Tournament
+  tournament?: Tournament
 }
 
 export function TournamentManagementSection({ tournament }: TournamentManagementSectionProps) {
@@ -24,6 +24,11 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
 
   // Check background job status on mount and periodically
   useEffect(() => {
+    if (!tournament) {
+      setCheckingStatus(false)
+      return
+    }
+
     const checkStatus = async () => {
       try {
         const status = await adminApi.getBackgroundJobStatus(tournament.id)
@@ -44,19 +49,33 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
     // Check status every 10 seconds
     const interval = setInterval(checkStatus, 10000)
     return () => clearInterval(interval)
-  }, [tournament.id])
+  }, [tournament?.id])
 
-  const handleSync = async () => {
+  const handleSync = async (orgId?: string, tournId?: string, year?: number) => {
     setSyncing(true)
     setMessage(null)
 
     try {
-      await tournamentApi.sync(
-        tournament.org_id || undefined,
-        tournament.tourn_id,
-        tournament.year
-      )
-      setMessage({ type: 'success', text: 'Tournament data synced successfully!' })
+      // Use provided params or tournament data
+      const syncOrgId = orgId || tournament?.org_id || undefined
+      const syncTournId = tournId || tournament?.tourn_id || undefined
+      const syncYear = year || tournament?.year || undefined
+
+      if (!syncTournId || !syncYear) {
+        setMessage({ 
+          type: 'error', 
+          text: 'Please provide tournament ID and year to sync' 
+        })
+        setSyncing(false)
+        return
+      }
+
+      await tournamentApi.sync(syncOrgId, syncTournId, syncYear)
+      setMessage({ type: 'success', text: 'Tournament data synced successfully! Please refresh the page.' })
+      // Refresh page after 2 seconds to load new tournament
+      setTimeout(() => {
+        window.location.reload()
+      }, 2000)
     } catch (error: any) {
       setMessage({ 
         type: 'error', 
@@ -68,6 +87,11 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
   }
 
   const handleCalculateScores = async () => {
+    if (!tournament) {
+      setMessage({ type: 'error', text: 'No tournament available. Please sync a tournament first.' })
+      return
+    }
+
     setCalculating(true)
     setMessage(null)
 
@@ -85,6 +109,11 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
   }
 
   const handleRunJobOnce = async () => {
+    if (!tournament) {
+      setMessage({ type: 'error', text: 'No tournament available. Please sync a tournament first.' })
+      return
+    }
+
     setCalculating(true)
     setMessage(null)
 
@@ -104,6 +133,11 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
   }
 
   const handleStartBackgroundJob = async () => {
+    if (!tournament) {
+      setMessage({ type: 'error', text: 'No tournament available. Please sync a tournament first.' })
+      return
+    }
+
     setCalculating(true)
     setMessage(null)
 
@@ -126,6 +160,11 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
   }
 
   const handleStopBackgroundJob = async () => {
+    if (!tournament) {
+      setMessage({ type: 'error', text: 'No tournament available. Please sync a tournament first.' })
+      return
+    }
+
     setCalculating(true)
     setMessage(null)
 
@@ -184,8 +223,8 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
               Fetch latest leaderboard and scorecard data from Slash Golf API
             </p>
             <button
-              onClick={handleSync}
-              disabled={syncing}
+              onClick={() => handleSync()}
+              disabled={syncing || !tournament}
               className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
             >
               {syncing ? 'Syncing...' : 'Sync Tournament Data'}
@@ -193,36 +232,41 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
           </div>
 
           {/* Calculate Scores */}
-          <div className="border-b border-gray-200 pb-4">
-            <h3 className="font-medium text-gray-900 mb-2">Calculate Scores</h3>
-            <p className="text-sm text-gray-600 mb-3">
-              Recalculate scores for all entries based on current leaderboard data
-            </p>
-            <button
-              onClick={handleCalculateScores}
-              disabled={calculating}
-              className="w-full md:w-auto px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
-            >
-              {calculating ? 'Calculating...' : 'Calculate Scores'}
-            </button>
-          </div>
+          {tournament && (
+            <div className="border-b border-gray-200 pb-4">
+              <h3 className="font-medium text-gray-900 mb-2">Calculate Scores</h3>
+              <p className="text-sm text-gray-600 mb-3">
+                Recalculate scores for all entries based on current leaderboard data
+              </p>
+              <button
+                onClick={handleCalculateScores}
+                disabled={calculating}
+                className="w-full md:w-auto px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
+              >
+                {calculating ? 'Calculating...' : 'Calculate Scores'}
+              </button>
+            </div>
+          )}
 
           {/* Run Job Once */}
-          <div className="border-b border-gray-200 pb-4">
-            <h3 className="font-medium text-gray-900 mb-2">Sync & Calculate (One-Time)</h3>
-            <p className="text-sm text-gray-600 mb-3">
-              Sync tournament data and calculate scores in one action
-            </p>
-            <button
-              onClick={handleRunJobOnce}
-              disabled={calculating || backgroundJobRunning}
-              className="w-full md:w-auto px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
-            >
-              {calculating ? 'Running...' : 'Sync & Calculate'}
-            </button>
-          </div>
+          {tournament && (
+            <div className="border-b border-gray-200 pb-4">
+              <h3 className="font-medium text-gray-900 mb-2">Sync & Calculate (One-Time)</h3>
+              <p className="text-sm text-gray-600 mb-3">
+                Sync tournament data and calculate scores in one action
+              </p>
+              <button
+                onClick={handleRunJobOnce}
+                disabled={calculating || backgroundJobRunning}
+                className="w-full md:w-auto px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
+              >
+                {calculating ? 'Running...' : 'Sync & Calculate'}
+              </button>
+            </div>
+          )}
 
           {/* Automatic Background Sync */}
+          {tournament && (
           <div>
             <h3 className="font-medium text-gray-900 mb-2">Automatic Background Sync</h3>
             <p className="text-sm text-gray-600 mb-3">
@@ -364,6 +408,7 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
               </p>
             </div>
           </div>
+          )}
         </div>
       </div>
 
