@@ -2,7 +2,6 @@
 import { useState } from 'react'
 import { useCurrentTournament } from '../hooks/useTournament'
 import { LoadingSpinner } from '../components/LoadingSpinner'
-import { ErrorMessage } from '../components/ErrorMessage'
 import { ImportSection } from '../components/admin/ImportSection'
 import { BonusPointsSection } from '../components/admin/BonusPointsSection'
 import { TournamentManagementSection } from '../components/admin/TournamentManagementSection'

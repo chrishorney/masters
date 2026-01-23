@@ -217,19 +217,21 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
         
         <div className="space-y-4">
           {/* Sync Tournament */}
-          <div className="border-b border-gray-200 pb-4">
-            <h3 className="font-medium text-gray-900 mb-2">Sync Tournament Data</h3>
-            <p className="text-sm text-gray-600 mb-3">
-              Fetch latest leaderboard and scorecard data from Slash Golf API
-            </p>
-            <button
-              onClick={() => handleSync()}
-              disabled={syncing || !tournament}
-              className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
-            >
-              {syncing ? 'Syncing...' : 'Sync Tournament Data'}
-            </button>
-          </div>
+          {tournament && (
+            <div className="border-b border-gray-200 pb-4">
+              <h3 className="font-medium text-gray-900 mb-2">Sync Tournament Data</h3>
+              <p className="text-sm text-gray-600 mb-3">
+                Fetch latest leaderboard and scorecard data from Slash Golf API
+              </p>
+              <button
+                onClick={() => handleSync()}
+                disabled={syncing}
+                className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
+              >
+                {syncing ? 'Syncing...' : 'Sync Tournament Data'}
+              </button>
+            </div>
+          )}
 
           {/* Calculate Scores */}
           {tournament && (
