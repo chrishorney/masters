@@ -88,67 +88,97 @@ class BackgroundJobService:
         stop_hour: int
     ):
         """Main loop for background job."""
-        sync_service = DataSyncService(self.db)
-        calculator = ScoreCalculatorService(self.db)
+        # Don't reuse the same DB session - create new ones for each operation
+        # to avoid session expiration issues
         
         try:
+            consecutive_errors = 0
+            max_consecutive_errors = 5
+            
             while self.running:
                 try:
-                    # Check if tournament is active
-                    tournament = self.db.query(Tournament).filter(
-                        Tournament.id == tournament_id
-                    ).first()
+                    # Create fresh database session for this iteration
+                    from app.database import SessionLocal
+                    db = SessionLocal()
                     
-                    if not tournament:
-                        logger.error(f"Tournament {tournament_id} not found")
-                        self.running = False
-                        break
-                    
-                    # Check if within active hours
-                    now = datetime.now()
-                    current_hour = now.hour
-                    
-                    if not self._is_within_active_hours(current_hour, start_hour, stop_hour):
-                        logger.debug(
-                            f"Skipping sync - outside active hours "
-                            f"(current: {current_hour:02d}:00, active: {start_hour:02d}:00-{stop_hour:02d}:59)"
-                        )
-                        await asyncio.sleep(interval_seconds)
-                        continue
-                    
-                    # Only run during active tournament days
-                    today = now.date()
-                    if tournament.start_date <= today <= tournament.end_date:
-                        logger.info(f"Running background sync for tournament {tournament_id}")
+                    try:
+                        # Check if tournament is active
+                        tournament = db.query(Tournament).filter(
+                            Tournament.id == tournament_id
+                        ).first()
                         
-                        # Sync tournament data
-                        try:
-                            sync_results = sync_service.sync_tournament_data(
-                                org_id=tournament.org_id,
-                                tourn_id=tournament.tourn_id,
-                                year=tournament.year
+                        if not tournament:
+                            logger.error(f"Tournament {tournament_id} not found")
+                            consecutive_errors += 1
+                            if consecutive_errors >= max_consecutive_errors:
+                                logger.error(f"Too many consecutive errors ({consecutive_errors}). Stopping job.")
+                                self.running = False
+                                break
+                            await asyncio.sleep(interval_seconds)
+                            continue
+                        
+                        # Reset error counter on success
+                        consecutive_errors = 0
+                    
+                        # Check if within active hours
+                        now = datetime.now()
+                        current_hour = now.hour
+                        
+                        if not self._is_within_active_hours(current_hour, start_hour, stop_hour):
+                            logger.debug(
+                                f"Skipping sync - outside active hours "
+                                f"(current: {current_hour:02d}:00, active: {start_hour:02d}:00-{stop_hour:02d}:59)"
                             )
+                            db.close()
+                            await asyncio.sleep(interval_seconds)
+                            continue
+                        
+                        # Only run during active tournament days
+                        today = now.date()
+                        if tournament.start_date <= today <= tournament.end_date:
+                            logger.info(f"Running background sync for tournament {tournament_id}")
                             
-                            if sync_results.get("errors"):
-                                logger.warning(f"Sync completed with errors: {sync_results['errors']}")
+                            # Create fresh services with fresh DB session
+                            sync_service = DataSyncService(db)
+                            calculator = ScoreCalculatorService(db)
                             
-                            # Calculate scores for current round
-                            calc_results = calculator.calculate_scores_for_tournament(
-                                tournament_id=tournament_id,
-                                round_id=tournament.current_round
-                            )
-                            
-                            if calc_results.get("success"):
-                                logger.info(
-                                    f"Calculated scores for {calc_results.get('entries_processed', 0)} entries"
+                            # Sync tournament data
+                            try:
+                                sync_results = sync_service.sync_tournament_data(
+                                    org_id=tournament.org_id,
+                                    tourn_id=tournament.tourn_id,
+                                    year=tournament.year
                                 )
-                            else:
-                                logger.warning(f"Score calculation failed: {calc_results.get('message')}")
-                        
-                        except Exception as e:
-                            logger.error(f"Error in background job: {e}", exc_info=True)
-                    else:
-                        logger.debug(f"Tournament not active today (start: {tournament.start_date}, end: {tournament.end_date})")
+                                
+                                if sync_results.get("errors"):
+                                    logger.warning(f"Sync completed with errors: {sync_results['errors']}")
+                                
+                                # Calculate scores for current round
+                                calc_results = calculator.calculate_scores_for_tournament(
+                                    tournament_id=tournament_id,
+                                    round_id=tournament.current_round
+                                )
+                                
+                                if calc_results.get("success"):
+                                    logger.info(
+                                        f"Calculated scores for {calc_results.get('entries_processed', 0)} entries"
+                                    )
+                                else:
+                                    logger.warning(f"Score calculation failed: {calc_results.get('message')}")
+                            
+                            except Exception as e:
+                                logger.error(f"Error in background job sync/calc: {e}", exc_info=True)
+                                consecutive_errors += 1
+                                if consecutive_errors >= max_consecutive_errors:
+                                    logger.error(f"Too many consecutive errors ({consecutive_errors}). Stopping job.")
+                                    self.running = False
+                                    break
+                        else:
+                            logger.debug(f"Tournament not active today (start: {tournament.start_date}, end: {tournament.end_date})")
+                    
+                    finally:
+                        # Always close the database session
+                        db.close()
                     
                     # Wait for next interval
                     await asyncio.sleep(interval_seconds)
@@ -158,11 +188,16 @@ class BackgroundJobService:
                     self.running = False
                     break
                 except Exception as e:
-                    logger.error(f"Unexpected error in background job loop: {e}", exc_info=True)
-                    # Continue running even if there's an error
+                    logger.error(f"Unexpected error in background job loop iteration: {e}", exc_info=True)
+                    consecutive_errors += 1
+                    if consecutive_errors >= max_consecutive_errors:
+                        logger.error(f"Too many consecutive errors ({consecutive_errors}). Stopping job.")
+                        self.running = False
+                        break
+                    # Continue running even if there's an error, but wait before retrying
                     await asyncio.sleep(interval_seconds)
         except Exception as e:
-            logger.error(f"Fatal error in background job loop: {e}", exc_info=True)
+            logger.error(f"Critical error in background job loop: {e}", exc_info=True)
             self.running = False
         finally:
             # Ensure running flag is set to False when loop exits
