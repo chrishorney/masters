@@ -7,7 +7,8 @@ export function useCurrentTournament() {
   return useQuery({
     queryKey: ['tournament', 'current'],
     queryFn: () => tournamentApi.getCurrent(),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 30 * 1000, // 30 seconds - refresh more frequently for current round
+    refetchInterval: 60 * 1000, // Refetch every minute to catch round changes
   })
 }
 
@@ -17,7 +18,8 @@ export function useTournament(id: number | undefined) {
     queryKey: ['tournament', id],
     queryFn: () => tournamentApi.getById(id!),
     enabled: !!id,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000, // 30 seconds - refresh more frequently for current round
+    refetchInterval: 60 * 1000, // Refetch every minute to catch round changes
   })
 }
 
