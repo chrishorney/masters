@@ -5,6 +5,7 @@ import { HomePage } from './pages/HomePage'
 import { LeaderboardPage } from './pages/LeaderboardPage'
 import { EntryDetailPage } from './pages/EntryDetailPage'
 import { AdminPage } from './pages/AdminPage'
+import { RankingHistoryPage } from './pages/RankingHistoryPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -23,6 +24,7 @@ function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/leaderboard" element={<LeaderboardPage />} />
+            <Route path="/ranking-history" element={<RankingHistoryPage />} />
             <Route path="/entry/:entryId" element={<EntryDetailPage />} />
             <Route path="/admin" element={<AdminPage />} />
           </Routes>

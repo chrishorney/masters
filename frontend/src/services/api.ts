@@ -163,4 +163,88 @@ export const adminApi = {
   },
 }
 
+// Ranking history endpoints
+export const rankingHistoryApi = {
+  /** Get ranking history for a tournament */
+  getTournamentHistory: async (
+    tournamentId: number,
+    roundId?: number,
+    entryId?: number
+  ): Promise<{
+    tournament: { id: number; name: string; year: number };
+    snapshots: Array<{
+      id: number;
+      entry_id: number;
+      entry_name: string;
+      round_id: number;
+      position: number;
+      total_points: number;
+      points_behind_leader: number;
+      timestamp: string;
+    }>;
+    total_snapshots: number;
+  }> => {
+    const params: any = {}
+    if (roundId) params.round_id = roundId
+    if (entryId) params.entry_id = entryId
+    const response = await api.get(`/ranking-history/tournament/${tournamentId}`, { params })
+    return response.data
+  },
+
+  /** Get ranking history for a specific entry */
+  getEntryHistory: async (
+    entryId: number,
+    tournamentId?: number
+  ): Promise<{
+    entry: { id: number; participant_name: string; tournament_id: number };
+    snapshots: Array<{
+      id: number;
+      tournament_id: number;
+      tournament_name: string;
+      round_id: number;
+      position: number;
+      total_points: number;
+      points_behind_leader: number;
+      timestamp: string;
+    }>;
+    total_snapshots: number;
+  }> => {
+    const params: any = {}
+    if (tournamentId) params.tournament_id = tournamentId
+    const response = await api.get(`/ranking-history/entry/${entryId}`, { params })
+    return response.data
+  },
+
+  /** Get ranking analytics for a tournament */
+  getAnalytics: async (tournamentId: number): Promise<{
+    tournament_id: number;
+    tournament_name: string;
+    biggest_movers: Array<{
+      entry_id: number;
+      entry_name: string;
+      start_position: number;
+      end_position: number;
+      position_change: number;
+      improvement: boolean;
+    }>;
+    position_distribution: Record<number, {
+      position: number;
+      unique_entries_count: number;
+      unique_entries: string[];
+      total_snapshots: number;
+    }>;
+    time_in_lead: Array<{
+      entry_id: number;
+      entry_name: string;
+      seconds: number;
+      hours: number;
+      formatted: string;
+    }>;
+    total_snapshots: number;
+  }> => {
+    const response = await api.get(`/ranking-history/analytics/${tournamentId}`)
+    return response.data
+  },
+}
+
 export default api

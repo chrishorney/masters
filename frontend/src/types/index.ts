@@ -80,3 +80,47 @@ export interface Player {
   position?: string
   status?: string
 }
+
+export interface RankingSnapshot {
+  id: number
+  entry_id: number
+  entry_name: string
+  round_id: number
+  position: number
+  total_points: number
+  points_behind_leader: number
+  timestamp: string
+}
+
+export interface RankingHistoryResponse {
+  tournament: { id: number; name: string; year: number }
+  snapshots: RankingSnapshot[]
+  total_snapshots: number
+}
+
+export interface RankingAnalytics {
+  tournament_id: number
+  tournament_name: string
+  biggest_movers: Array<{
+    entry_id: number
+    entry_name: string
+    start_position: number
+    end_position: number
+    position_change: number
+    improvement: boolean
+  }>
+  position_distribution: Record<number, {
+    position: number
+    unique_entries_count: number
+    unique_entries: string[]
+    total_snapshots: number
+  }>
+  time_in_lead: Array<{
+    entry_id: number
+    entry_name: string
+    seconds: number
+    hours: number
+    formatted: string
+  }>
+  total_snapshots: number
+}
