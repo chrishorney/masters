@@ -395,7 +395,367 @@ If bidirectional communication is needed later:
 
 ---
 
-## Phase 13: Email Notifications
+## Phase 13: Discord Integration
+
+### Status
+**Recommended Approach**: Start with Discord Webhooks for notifications, add Discord bot for interactive features later.
+
+### Why Discord Integration?
+
+**Benefits**:
+- 🎯 **Real-Time Engagement**: Instant notifications when exciting events happen
+- 💬 **Community Building**: Centralized communication hub for participants
+- 📱 **Mobile-Friendly**: Discord app provides push notifications
+- 🔔 **Event Alerts**: "Scheffler just got a hole-in-one!", "Rory is now in the lead!"
+- 📊 **Live Updates**: Leaderboard changes, round completions, bonus points
+- 🤖 **Interactive Features**: Bot commands to check scores, leaderboard, etc.
+
+### Architecture Overview
+
+**Two-Phase Approach**:
+
+1. **Phase 13a: Discord Webhooks** (Simpler, Start Here)
+   - Server sends notifications to Discord channel via webhooks
+   - One-way communication (website → Discord)
+   - No bot required
+   - Easy to set up and maintain
+
+2. **Phase 13b: Discord Bot** (Advanced, Later)
+   - Interactive bot with commands
+   - Two-way communication (Discord ↔ website)
+   - More features, more complex
+
+### Phase 13a: Discord Webhooks Implementation
+
+#### 1. Discord Setup
+
+**Create Discord Server**:
+1. Create a new Discord server (or use existing)
+2. Create channels:
+   - `#tournament-updates` - General tournament notifications
+   - `#leaderboard` - Leaderboard changes and position updates
+   - `#bonus-points` - Hole-in-ones, eagles, special achievements
+   - `#round-completion` - Round start/end notifications
+
+**Create Webhooks**:
+1. Server Settings → Integrations → Webhooks
+2. Create webhook for each channel (or one for all)
+3. Copy webhook URL (keep secret!)
+4. Store in environment variables
+
+#### 2. Backend Implementation
+
+**Discord Service**:
+```python
+# backend/app/services/discord.py
+import httpx
+import logging
+from typing import Optional, Dict, Any
+from app.models import Tournament, Entry, Player, BonusPoint
+
+logger = logging.getLogger(__name__)
+
+class DiscordService:
+    def __init__(self, webhook_url: Optional[str] = None):
+        self.webhook_url = webhook_url
+        self.enabled = bool(webhook_url)
+    
+    async def send_notification(
+        self,
+        title: str,
+        description: str,
+        color: int = 0x00ff00,  # Green
+        fields: Optional[list] = None,
+        footer: Optional[str] = None
+    ):
+        """Send a notification to Discord via webhook."""
+        if not self.enabled:
+            return
+        
+        embed = {
+            "title": title,
+            "description": description,
+            "color": color,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+        
+        if fields:
+            embed["fields"] = fields
+        
+        if footer:
+            embed["footer"] = {"text": footer}
+        
+        payload = {"embeds": [embed]}
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    self.webhook_url,
+                    json=payload,
+                    timeout=5.0
+                )
+                response.raise_for_status()
+        except Exception as e:
+            logger.error(f"Failed to send Discord notification: {e}")
+```
+
+**Integration Points**:
+
+1. **Bonus Point Detection** (Hole-in-One, Eagles, etc.)
+   ```python
+   # In scoring.py, after bonus point is created
+   if bonus_type == "hole_in_one":
+       await discord_service.send_notification(
+           title="🎯 HOLE-IN-ONE!",
+           description=f"{player_name} just got a hole-in-one on hole {hole}!",
+           color=0xff0000,  # Red
+           fields=[
+               {"name": "Player", "value": player_name, "inline": True},
+               {"name": "Hole", "value": str(hole), "inline": True},
+               {"name": "Round", "value": f"Round {round_id}", "inline": True},
+           ],
+           footer="All entries with this player earned 3 bonus points!"
+       )
+   ```
+
+2. **Position Changes** (New Leader, Big Moves)
+   ```python
+   # In score_calculator.py, after ranking snapshot
+   if previous_position != current_position:
+       if current_position == 1:  # New leader!
+           await discord_service.send_notification(
+               title="👑 NEW LEADER!",
+               description=f"{entry_name} has taken the lead!",
+               color=0xffd700,  # Gold
+               fields=[
+                   {"name": "Entry", "value": entry_name, "inline": True},
+                   {"name": "Total Points", "value": f"{total_points:.1f}", "inline": True},
+                   {"name": "Previous Leader", "value": previous_leader_name, "inline": False},
+               ]
+           )
+   ```
+
+3. **Round Completion**
+   ```python
+   # After round completes
+   await discord_service.send_notification(
+       title=f"Round {round_id} Complete!",
+       description=f"Round {round_id} has finished. Scores updated!",
+       color=0x0099ff,  # Blue
+       fields=[
+           {"name": "Current Leader", "value": leader_name, "inline": True},
+           {"name": "Leader Points", "value": f"{leader_points:.1f}", "inline": True},
+           {"name": "Entries", "value": str(total_entries), "inline": True},
+       ]
+   )
+   ```
+
+4. **Tournament Events**
+   ```python
+   # Tournament start
+   await discord_service.send_notification(
+       title="🏌️ Tournament Started!",
+       description=f"{tournament_name} is now in progress!",
+       color=0x00ff00,
+       fields=[
+           {"name": "Tournament", "value": tournament_name, "inline": True},
+           {"name": "Year", "value": str(year), "inline": True},
+           {"name": "Entries", "value": str(entry_count), "inline": True},
+       ]
+   )
+   ```
+
+#### 3. Configuration
+
+**Environment Variables**:
+```bash
+# Discord Webhook URL (optional)
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
+DISCORD_ENABLED=true
+
+# Optional: Separate webhooks for different channels
+DISCORD_LEADERBOARD_WEBHOOK_URL=...
+DISCORD_BONUS_WEBHOOK_URL=...
+DISCORD_ROUND_WEBHOOK_URL=...
+```
+
+**Settings Model**:
+```python
+# backend/app/core/config.py
+class Settings:
+    discord_webhook_url: Optional[str] = None
+    discord_enabled: bool = False
+    discord_leaderboard_webhook: Optional[str] = None
+    discord_bonus_webhook: Optional[str] = None
+```
+
+#### 4. Notification Events
+
+**High-Priority Events** (Always Notify):
+- 🎯 **Hole-in-One**: "Scheffler just got a hole-in-one on hole 7!"
+- 🦅 **Double Eagle (Albatross)**: "Rory got a double eagle on hole 15!"
+- 🦅 **Eagle**: "Tiger got an eagle on hole 12!"
+- 👑 **New Leader**: "Entry X has taken the lead with 45.0 points!"
+- 🏁 **Round Complete**: "Round 2 complete! Leaderboard updated."
+
+**Medium-Priority Events** (Configurable):
+- 📈 **Big Position Changes**: "Entry X moved from 15th to 3rd!"
+- 🎯 **Low Score of Day**: "Player X shot the low round today!"
+- 🏆 **Tournament Start/End**: "Tournament has started/ended!"
+- 📊 **Leaderboard Updates**: Periodic leaderboard summaries
+
+**Low-Priority Events** (Optional):
+- ⚡ **Score Calculations**: "Scores have been recalculated"
+- 🔄 **Data Sync**: "Tournament data synced from API"
+- 📝 **Admin Actions**: "Bonus points manually added"
+
+#### 5. Rate Limiting & Batching
+
+**Discord Webhook Limits**:
+- 30 requests per minute per webhook
+- Need to batch notifications if many events occur
+
+**Implementation**:
+```python
+class DiscordService:
+    def __init__(self):
+        self.notification_queue = []
+        self.last_sent = None
+    
+    async def queue_notification(self, notification):
+        """Queue notification for batching."""
+        self.notification_queue.append(notification)
+    
+    async def flush_queue(self):
+        """Send all queued notifications (respecting rate limits)."""
+        # Batch notifications or send individually with delays
+        pass
+```
+
+### Phase 13b: Discord Bot (Advanced)
+
+**Features**:
+- `/leaderboard` - Show current leaderboard
+- `/entry <name>` - Show entry details
+- `/player <name>` - Show player stats
+- `/round <number>` - Show round-specific leaderboard
+- `/subscribe` - Subscribe to notifications
+- `/help` - Show available commands
+
+**Implementation**:
+- Use `discord.py` library
+- Bot token stored in environment variable
+- Commands query database via API
+- Can integrate with existing API endpoints
+
+### Website Integration
+
+**Discord Widget on Website**:
+1. **Discord Server Widget**
+   - Embed Discord server widget on homepage
+   - Shows online members, server info
+   - Link to join Discord server
+
+2. **Discord Link Section**
+   - "Join our Discord" button/link
+   - Show server member count
+   - Display recent notifications (optional)
+
+3. **Notification Settings** (Future)
+   - User preferences for which notifications to receive
+   - Link Discord account to entry
+   - Personalized notifications
+
+### Implementation Steps
+
+**Phase 1: Basic Webhooks** (1-2 days)
+1. Create Discord service with webhook support
+2. Add webhook URL to environment variables
+3. Integrate into bonus point detection
+4. Test with hole-in-one notifications
+
+**Phase 2: Position Tracking** (1 day)
+1. Add position change detection
+2. Notify on new leader
+3. Notify on big position changes
+
+**Phase 3: Round Events** (1 day)
+1. Add round completion notifications
+2. Add tournament start/end notifications
+3. Add periodic leaderboard summaries
+
+**Phase 4: Website Integration** (1 day)
+1. Add Discord server widget to homepage
+2. Add "Join Discord" section
+3. Display server info
+
+**Phase 5: Discord Bot** (2-3 days, Optional)
+1. Set up Discord bot
+2. Implement basic commands
+3. Add interactive features
+
+### Configuration Example
+
+**Admin UI**:
+- Toggle Discord notifications on/off
+- Configure which events to notify
+- Test webhook connection
+- View notification history
+
+### Testing Strategy
+
+1. **Unit Tests**
+   - Test Discord service methods
+   - Test notification formatting
+   - Test rate limiting
+
+2. **Integration Tests**
+   - Test webhook delivery
+   - Test event detection
+   - Test batching logic
+
+3. **Manual Testing**
+   - Create test Discord server
+   - Trigger events manually
+   - Verify notifications appear correctly
+
+### Benefits
+
+- 🎯 **Engagement**: Real-time excitement when events happen
+- 💬 **Community**: Centralized communication hub
+- 📱 **Mobile**: Push notifications via Discord app
+- 🔔 **Alerts**: Never miss important moments
+- 📊 **Transparency**: Everyone sees updates simultaneously
+- 🤖 **Interactive**: Bot commands for quick info
+
+### Technical Considerations
+
+- **Rate Limiting**: Discord webhooks have limits (30/min)
+- **Error Handling**: Graceful degradation if Discord is down
+- **Security**: Keep webhook URLs secret
+- **Batching**: Group notifications to avoid rate limits
+- **Formatting**: Rich embeds for better presentation
+- **Testing**: Use test Discord server during development
+
+### Estimated Implementation Time
+
+- **Phase 13a (Webhooks)**: 3-4 days
+- **Phase 13b (Bot)**: 2-3 days (optional)
+- **Website Integration**: 1 day
+- **Total**: 4-5 days for webhooks + website, 6-8 days with bot
+
+### Future Enhancements
+
+- **Role Assignments**: Auto-assign roles based on leaderboard position
+- **Voice Channel**: Create voice channel for tournament discussions
+- **Threads**: Auto-create threads for each round
+- **Reactions**: Allow reactions to notifications
+- **Custom Commands**: User-defined commands
+- **Analytics**: Track Discord engagement metrics
+
+---
+
+## Phase 14: Email Notifications
 
 ### Features
 - **Automated Emails**
@@ -420,7 +780,7 @@ If bidirectional communication is needed later:
 
 ---
 
-## Phase 14: Tournament History & Analytics
+## Phase 15: Tournament History & Analytics
 
 ### Features
 - **Historical Data**
@@ -450,7 +810,7 @@ If bidirectional communication is needed later:
 
 ---
 
-## Phase 15: Enhanced Admin Features
+## Phase 16: Enhanced Admin Features
 
 ### Features
 - **Advanced Import Options**
@@ -485,7 +845,7 @@ If bidirectional communication is needed later:
 
 ---
 
-## Phase 16: Mobile App (Optional)
+## Phase 17: Mobile App (Optional)
 
 ### Features
 - **Native Mobile App**
@@ -508,7 +868,7 @@ If bidirectional communication is needed later:
 
 ---
 
-## Phase 17: Performance & Scalability
+## Phase 18: Performance & Scalability
 
 ### Features
 - **Caching**
@@ -542,7 +902,7 @@ If bidirectional communication is needed later:
 
 ---
 
-## Phase 18: Advanced Features
+## Phase 19: Advanced Features
 
 ### Features
 - **Entry Draft System**
@@ -577,7 +937,7 @@ If bidirectional communication is needed later:
 
 ---
 
-## Phase 19: Testing & Quality
+## Phase 20: Testing & Quality
 
 ### Features
 - **Comprehensive Testing**
@@ -606,7 +966,7 @@ If bidirectional communication is needed later:
 
 ---
 
-## Phase 20: Documentation & Onboarding
+## Phase 21: Documentation & Onboarding
 
 ### Features
 - **User Documentation**
@@ -635,7 +995,7 @@ If bidirectional communication is needed later:
 
 ---
 
-## Phase 21: Internationalization (i18n)
+## Phase 22: Internationalization (i18n)
 
 ### Features
 - **Multi-Language Support**
@@ -651,7 +1011,7 @@ If bidirectional communication is needed later:
 
 ---
 
-## Phase 22: Accessibility (a11y)
+## Phase 23: Accessibility (a11y)
 
 ### Features
 - **WCAG Compliance**
@@ -691,10 +1051,11 @@ If bidirectional communication is needed later:
 ## Priority Recommendations
 
 ### High Priority (Next 3-6 months)
-1. **User Authentication** - Security and personalization
-2. **Email Notifications** - Engagement and retention
-3. **Tournament History** - Long-term value
-4. **Performance Optimization** - Better UX
+1. **Discord Integration** - Real-time engagement and community building
+2. **User Authentication** - Security and personalization
+3. **Email Notifications** - Engagement and retention
+4. **Tournament History** - Long-term value
+5. **Performance Optimization** - Better UX
 
 ### Medium Priority (6-12 months)
 1. **Real-Time Updates** - Better UX
