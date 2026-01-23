@@ -34,10 +34,15 @@ This will:
 
 ### 1. Sync Tournament Data (if needed)
 
-First, make sure tournament data is synced:
+First, make sure tournament data is synced. **You need to specify the Masters tournament ID**:
+
 ```bash
-curl -X POST "https://masters-production.up.railway.app/api/tournament/sync?year=2026"
+# For 2026 Masters, you need to find the correct tournament ID from Slash Golf API
+# Common Masters IDs: 470 (2024), check API docs for 2026
+curl -X POST "https://masters-production.up.railway.app/api/tournament/sync?year=2026&tourn_id=470"
 ```
+
+**Note**: The default tournament ID (475) is for Valspar Championship, not Masters. You must specify the Masters tournament ID.
 
 ### 2. Generate Test CSV
 
