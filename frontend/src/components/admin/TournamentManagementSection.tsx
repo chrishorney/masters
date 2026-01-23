@@ -188,28 +188,32 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
 
   return (
     <div className="space-y-6">
-      {/* Tournament Info */}
-      <div className="bg-white rounded-lg shadow-md p-4 md:p-6">
-        <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-4">Tournament Information</h2>
-        <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <dt className="text-sm font-medium text-gray-500">Name</dt>
-            <dd className="mt-1 text-sm text-gray-900">{tournament.name}</dd>
+      {tournament && (
+        <>
+          {/* Tournament Info */}
+          <div className="bg-white rounded-lg shadow-md p-4 md:p-6">
+            <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-4">Tournament Information</h2>
+            <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <dt className="text-sm font-medium text-gray-500">Name</dt>
+                <dd className="mt-1 text-sm text-gray-900">{tournament.name}</dd>
+              </div>
+              <div>
+                <dt className="text-sm font-medium text-gray-500">Year</dt>
+                <dd className="mt-1 text-sm text-gray-900">{tournament.year}</dd>
+              </div>
+              <div>
+                <dt className="text-sm font-medium text-gray-500">Current Round</dt>
+                <dd className="mt-1 text-sm text-gray-900">{tournament.current_round}</dd>
+              </div>
+              <div>
+                <dt className="text-sm font-medium text-gray-500">Status</dt>
+                <dd className="mt-1 text-sm text-gray-900">{tournament.status}</dd>
+              </div>
+            </dl>
           </div>
-          <div>
-            <dt className="text-sm font-medium text-gray-500">Year</dt>
-            <dd className="mt-1 text-sm text-gray-900">{tournament.year}</dd>
-          </div>
-          <div>
-            <dt className="text-sm font-medium text-gray-500">Current Round</dt>
-            <dd className="mt-1 text-sm text-gray-900">{tournament.current_round}</dd>
-          </div>
-          <div>
-            <dt className="text-sm font-medium text-gray-500">Status</dt>
-            <dd className="mt-1 text-sm text-gray-900">{tournament.status}</dd>
-          </div>
-        </dl>
-      </div>
+        </>
+      )}
 
       {/* Actions */}
       <div className="bg-white rounded-lg shadow-md p-4 md:p-6">
