@@ -72,22 +72,30 @@ class ScoringService:
         Calculate points based on position and round.
         
         Args:
-            position: Position string (e.g., "1", "T2", "5")
+            position: Position string (e.g., "1", "T2", "5") or integer
             round_id: Round number (1-4)
             is_winner: Whether this is the tournament winner (Sunday only)
             
         Returns:
             Points earned
         """
-        if not position or position.lower() in ["cut", "wd", "dq"]:
+        if not position:
             return 0.0
         
-        # Parse position (handle ties like "T2")
-        try:
-            pos_str = position.replace("T", "").strip()
-            pos = int(pos_str)
-        except (ValueError, AttributeError):
-            return 0.0
+        # Handle both string and integer positions
+        if isinstance(position, int):
+            pos = position
+        else:
+            # Check if it's a status string (cut, wd, dq)
+            if isinstance(position, str) and position.lower() in ["cut", "wd", "dq"]:
+                return 0.0
+            
+            # Parse position (handle ties like "T2")
+            try:
+                pos_str = str(position).replace("T", "").strip()
+                pos = int(pos_str)
+            except (ValueError, AttributeError):
+                return 0.0
         
         rules = self.SCORING_RULES.get(round_id, {})
         
