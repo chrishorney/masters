@@ -10,6 +10,35 @@ from app.services.data_sync import DataSyncService
 router = APIRouter()
 
 
+@router.get("/tournament/list")
+async def list_tournaments(
+    db: Session = Depends(get_db)
+):
+    """List all tournaments in the database."""
+    tournaments = db.query(Tournament).order_by(
+        Tournament.year.desc(),
+        Tournament.start_date.desc()
+    ).all()
+    
+    return {
+        "tournaments": [
+            {
+                "id": t.id,
+                "year": t.year,
+                "tourn_id": t.tourn_id,
+                "org_id": t.org_id,
+                "name": t.name,
+                "start_date": t.start_date.isoformat(),
+                "end_date": t.end_date.isoformat(),
+                "status": t.status,
+                "current_round": t.current_round,
+            }
+            for t in tournaments
+        ],
+        "total": len(tournaments)
+    }
+
+
 @router.get("/tournament/current")
 async def get_current_tournament(
     db: Session = Depends(get_db)
