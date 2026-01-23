@@ -3,7 +3,7 @@
 Generate a test CSV file with 3 users and random players from tournament 2.
 
 Usage:
-    python generate_test_csv.py --tournament-id 2 --api-url https://masters-production.up.railway.app
+    python3 generate_test_csv.py --tournament-id 2 --api-url https://masters-production.up.railway.app
 """
 import argparse
 import sys
