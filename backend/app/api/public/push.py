@@ -110,7 +110,28 @@ async def get_public_key():
             detail="Push notifications are not enabled"
         )
     
-    return {"publicKey": push_service.vapid_public_key}
+    # VAPID public key should be a hex string (65 bytes = 130 hex chars starting with '04')
+    # Convert to base64 URL-safe format for frontend
+    import base64
+    
+    public_key_hex = push_service.vapid_public_key
+    
+    # If it's already hex, convert to bytes then to base64 URL-safe
+    try:
+        # Remove any whitespace
+        public_key_hex = public_key_hex.strip()
+        
+        # Convert hex to bytes
+        public_key_bytes = bytes.fromhex(public_key_hex)
+        
+        # Convert to base64 URL-safe (no padding)
+        public_key_b64 = base64.urlsafe_b64encode(public_key_bytes).decode('utf-8').rstrip('=')
+        
+        return {"publicKey": public_key_b64}
+    except (ValueError, AttributeError) as e:
+        # If conversion fails, return as-is (might already be in correct format)
+        logger.warning(f"Could not convert VAPID public key format: {e}, returning as-is")
+        return {"publicKey": public_key_hex}
 
 
 @router.get("/push/status")
