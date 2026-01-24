@@ -845,26 +845,372 @@ class DiscordService:
 
 ---
 
-## Phase 17: Mobile App (Optional)
+## Phase 17: iOS Native App
 
-### Features
-- **Native Mobile App**
-  - React Native or Flutter app
-  - Push notifications
-  - Offline viewing (cached data)
-  - Better mobile UX
+### Overview
+Develop a native iOS app to provide a better mobile experience for tournament participants. The app will leverage the existing REST API and provide native iOS features like push notifications, offline caching, and a native user experience.
 
-- **Progressive Web App (PWA)**
-  - Installable on mobile
-  - Offline support
-  - Push notifications
-  - App-like experience
+### Technology Stack Options
+
+#### Option 1: SwiftUI (Recommended)
+- **Native iOS Development**
+  - SwiftUI for modern UI
+  - Swift for business logic
+  - Native iOS APIs and features
+  - Best performance and user experience
+  - Full access to iOS features (notifications, widgets, etc.)
+
+#### Option 2: React Native
+- **Cross-Platform Development**
+  - Share codebase with web app
+  - Faster development
+  - Can also target Android later
+  - Requires React Native expertise
+
+#### Option 3: Flutter
+- **Cross-Platform Development**
+  - Single codebase for iOS and Android
+  - Good performance
+  - Modern UI framework
+  - Requires Dart/Flutter expertise
+
+### Core Features
+
+#### 1. Authentication & User Management
+- **Login/Registration**
+  - Secure authentication via API
+  - Biometric authentication (Face ID/Touch ID)
+  - Keychain storage for credentials
+  - Auto-login support
+
+- **User Profile**
+  - View own entry details
+  - Edit profile information
+  - Notification preferences
+  - Tournament history
+
+#### 2. Tournament Information
+- **Home Screen**
+  - Current tournament overview
+  - Tournament dates and status
+  - Current round information
+  - Quick stats (total entries, etc.)
+
+- **Tournament Details**
+  - Full tournament information
+  - Rules and scoring breakdown
+  - Player field information
+  - Tournament schedule
+
+#### 3. Leaderboard
+- **Real-Time Leaderboard**
+  - Live leaderboard updates
+  - Position changes highlighted
+  - Entry details on tap
+  - Filter by round
+  - Search functionality
+
+- **Entry Details**
+  - Full entry breakdown
+  - Player points per round
+  - Bonus points earned
+  - Position history
+  - Points breakdown visualization
+
+#### 4. Push Notifications
+- **Tournament Events**
+  - Hole-in-one alerts
+  - Eagle/double eagle notifications
+  - New leader announcements
+  - Big position changes
+  - Round completion alerts
+
+- **Personal Notifications**
+  - Your entry position changes
+  - Your players' achievements
+  - Tournament start/end
+  - Customizable notification preferences
+
+#### 5. Offline Support
+- **Cached Data**
+  - Cache leaderboard data
+  - Cache entry details
+  - Cache tournament information
+  - Offline viewing capability
+  - Sync when online
+
+#### 6. iOS-Specific Features
+- **Home Screen Widgets**
+  - Leaderboard widget
+  - Entry position widget
+  - Tournament status widget
+  - Quick glance information
+
+- **Siri Shortcuts**
+  - "Show my entry"
+  - "Show leaderboard"
+  - "What's my position?"
+  - Voice-activated queries
+
+- **Apple Watch App** (Optional)
+  - Quick leaderboard view
+  - Entry position
+  - Notifications on watch
+  - Complication support
+
+- **Share Sheet Integration**
+  - Share entry details
+  - Share leaderboard
+  - Share tournament information
+  - Social media integration
+
+### Technical Architecture
+
+#### API Integration
+- **REST API Client**
+  - Use existing `/api` endpoints
+  - JSON parsing and error handling
+  - Authentication token management
+  - Request/response caching
+
+- **Data Models**
+  - Tournament model
+  - Entry model
+  - Player model
+  - Score model
+  - Mapping from API responses
+
+#### State Management
+- **SwiftUI State Management**
+  - `@State` for local state
+  - `@ObservableObject` for shared state
+  - Combine framework for reactive updates
+  - Core Data for local persistence (optional)
+
+#### Networking
+- **URLSession**
+  - HTTP requests to API
+  - Background fetch support
+  - Network reachability monitoring
+  - Request retry logic
+
+#### Local Storage
+- **UserDefaults**
+  - User preferences
+  - Cached tournament ID
+  - Notification settings
+
+- **Core Data / SQLite** (Optional)
+  - Offline leaderboard cache
+  - Entry history
+  - Tournament data cache
+
+### Implementation Phases
+
+#### Phase 17a: Basic App (2-3 weeks)
+1. **Project Setup**
+   - Create Xcode project
+   - Set up project structure
+   - Configure API base URL
+   - Set up authentication flow
+
+2. **Core Screens**
+   - Home screen with tournament info
+   - Leaderboard screen
+   - Entry detail screen
+   - Basic navigation
+
+3. **API Integration**
+   - Tournament endpoints
+   - Leaderboard endpoints
+   - Entry endpoints
+   - Error handling
+
+#### Phase 17b: Enhanced Features (2-3 weeks)
+1. **Push Notifications**
+   - APNs setup
+   - Notification registration
+   - Notification handling
+   - Deep linking
+
+2. **Offline Support**
+   - Data caching
+   - Offline mode
+   - Sync mechanism
+   - Cache invalidation
+
+3. **UI/UX Improvements**
+   - Animations
+   - Loading states
+   - Error states
+   - Pull-to-refresh
+
+#### Phase 17c: iOS-Specific Features (2-3 weeks)
+1. **Widgets**
+   - Leaderboard widget
+   - Entry widget
+   - Widget configuration
+
+2. **Siri Shortcuts**
+   - Intent definitions
+   - Shortcut handlers
+   - Voice responses
+
+3. **Share Integration**
+   - Share extensions
+   - Social media integration
+
+#### Phase 17d: Polish & Testing (1-2 weeks)
+1. **Testing**
+   - Unit tests
+   - UI tests
+   - Integration tests
+   - Beta testing
+
+2. **App Store Submission**
+   - App Store Connect setup
+   - Screenshots and metadata
+   - App review submission
+   - Release management
+
+### Design Considerations
+
+#### UI/UX
+- **Native iOS Design**
+  - Follow Human Interface Guidelines
+  - Use native iOS components
+  - Support Dark Mode
+  - Support Dynamic Type (accessibility)
+
+- **Color Scheme**
+  - Match web app branding
+  - Green theme for Masters
+  - High contrast for readability
+
+- **Navigation**
+  - Tab bar navigation
+  - Navigation stack
+  - Modal presentations
+  - Deep linking support
+
+#### Performance
+- **Optimization**
+  - Lazy loading
+  - Image caching
+  - Efficient data fetching
+  - Background processing
+
+- **Battery Life**
+  - Efficient background fetch
+  - Minimize network calls
+  - Smart caching strategy
+
+### App Store Requirements
+
+#### Prerequisites
+- **Apple Developer Account**
+  - $99/year subscription
+  - App Store Connect access
+  - Certificates and provisioning
+
+#### App Store Guidelines
+- **Content Guidelines**
+  - No gambling/betting content
+  - Appropriate content rating
+  - Privacy policy required
+
+- **Technical Requirements**
+  - iOS 15.0+ support (or latest)
+  - Privacy manifest
+  - App tracking transparency
+  - Data collection disclosure
+
+### Deployment Strategy
+
+#### Development
+- **TestFlight**
+  - Beta testing platform
+  - Internal testing
+  - External beta testers
+  - Feedback collection
+
+#### Production
+- **App Store Release**
+  - Phased rollout option
+  - Automatic updates
+  - Version management
+  - Release notes
+
+### Maintenance
+
+#### Updates
+- **Regular Updates**
+  - Bug fixes
+  - Feature additions
+  - iOS version compatibility
+  - API compatibility
+
+#### Monitoring
+- **Analytics**
+  - App usage analytics
+  - Crash reporting (Firebase/Crashlytics)
+  - Performance monitoring
+  - User feedback
 
 ### Benefits
-- Better mobile experience
-- Native app feel
-- Push notifications
-- Offline access
+
+- 📱 **Better Mobile Experience**: Native iOS feel and performance
+- 🔔 **Push Notifications**: Real-time alerts for important events
+- 📴 **Offline Access**: View cached data without internet
+- ⚡ **Performance**: Native app performance vs web
+- 🎨 **Native UI**: Follows iOS design patterns
+- 📊 **Widgets**: Quick glance information on home screen
+- 🗣️ **Siri Integration**: Voice-activated queries
+- 📱 **Apple Watch**: Optional watch app for quick access
+
+### Estimated Costs
+
+- **Development**: 6-10 weeks (depending on features)
+- **Apple Developer Account**: $99/year
+- **App Store Review**: Free (but time-consuming)
+- **Maintenance**: Ongoing updates and support
+
+### Alternative: Progressive Web App (PWA)
+
+If native iOS app is too complex, consider enhancing the web app as a PWA:
+
+- **PWA Features**
+  - Installable on iOS home screen
+  - Offline support via service workers
+  - Push notifications (limited on iOS)
+  - App-like experience
+  - Faster to implement
+  - No App Store review needed
+
+### Future Enhancements
+
+- **Android App**: If using React Native or Flutter
+- **iPad Optimization**: Tablet-specific UI
+- **Apple Watch App**: Full watch app with complications
+- **macOS App**: Catalyst app for Mac
+- **tvOS App**: Apple TV app for viewing leaderboards
+
+### Timeline Estimate
+
+- **Phase 17a (Basic App)**: 2-3 weeks
+- **Phase 17b (Enhanced Features)**: 2-3 weeks
+- **Phase 17c (iOS Features)**: 2-3 weeks
+- **Phase 17d (Polish & Release)**: 1-2 weeks
+- **Total**: 7-11 weeks for full-featured iOS app
+
+### Recommendations
+
+1. **Start with PWA**: Consider enhancing the web app as a PWA first (faster, cheaper)
+2. **Test Demand**: Gauge user interest before investing in native app
+3. **Use Existing API**: Leverage current REST API (no backend changes needed)
+4. **SwiftUI**: Recommended for modern iOS development
+5. **TestFlight Beta**: Use beta testing to gather feedback before release
+6. **Incremental Release**: Start with core features, add more over time
 
 ---
 
