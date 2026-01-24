@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useCurrentTournament } from '../hooks/useTournament'
+import { InstallPrompt } from './InstallPrompt'
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation()
@@ -179,6 +180,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </footer>
+
+      {/* PWA Install Prompt */}
+      <InstallPrompt />
     </div>
   )
 }

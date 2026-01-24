@@ -1,0 +1,18 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="512" height="512" fill="#16a34a" rx="64"/>
+  
+  <!-- Golf Ball -->
+  <circle cx="256" cy="200" r="80" fill="#ffffff"/>
+  <circle cx="240" cy="190" r="8" fill="#16a34a"/>
+  <circle cx="260" cy="195" r="6" fill="#16a34a"/>
+  <circle cx="250" cy="210" r="5" fill="#16a34a"/>
+  <circle cx="270" cy="205" r="7" fill="#16a34a"/>
+  
+  <!-- Golf Club -->
+  <rect x="240" y="280" width="32" height="120" fill="#8b5a2b" rx="4"/>
+  <rect x="235" y="280" width="42" height="20" fill="#654321" rx="2"/>
+  
+  <!-- Text -->
+  <text x="256" y="440" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="#ffffff" text-anchor="middle">MP</text>
+</svg>

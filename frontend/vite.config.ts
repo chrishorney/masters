@@ -13,4 +13,14 @@ export default defineConfig({
       },
     },
   },
+  // Ensure service worker is copied to dist
+  publicDir: 'public',
+  build: {
+    // Ensure service worker is included in build
+    rollupOptions: {
+      input: {
+        main: './index.html',
+      },
+    },
+  },
 })
