@@ -1,5 +1,6 @@
 /** Update indicator component for real-time updates */
 import { useEffect, useState } from 'react'
+import { formatCentralTimeShort } from '../utils/time'
 
 interface UpdateIndicatorProps {
   lastUpdated?: string
@@ -31,14 +32,8 @@ export function UpdateIndicator({ lastUpdated, isRefetching }: UpdateIndicatorPr
         setTimeAgo(`${diffHour}h ago`)
       }
 
-      // Format the actual timestamp
-      const formatted = updated.toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-      })
+      // Format the actual timestamp in Central Time
+      const formatted = formatCentralTimeShort(updated)
       setFormattedTime(formatted)
     }
 
@@ -60,13 +55,13 @@ export function UpdateIndicator({ lastUpdated, isRefetching }: UpdateIndicatorPr
   if (!lastUpdated) return null
 
   return (
-    <div className="flex items-center space-x-2 text-sm text-gray-500" title={formattedTime ? `Last synced: ${formattedTime}` : ''}>
+    <div className="flex items-center space-x-2 text-sm text-gray-500" title={formattedTime ? `Last synced: ${formattedTime} CT` : ''}>
       <div className="w-2 h-2 bg-green-500 rounded-full" />
       <span>
         Updated {timeAgo}
         {formattedTime && (
           <span className="ml-2 text-xs text-gray-400">
-            ({formattedTime})
+            ({formattedTime} CT)
           </span>
         )}
       </span>

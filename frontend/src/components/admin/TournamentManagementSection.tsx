@@ -4,6 +4,7 @@ import { useCalculateScores } from '../../hooks/useTournament'
 import { tournamentApi, adminApi } from '../../services/api'
 import api from '../../services/api'
 import type { Tournament } from '../../types'
+import { formatCentralTimeShort } from '../../utils/time'
 
 interface TournamentManagementSectionProps {
   tournament?: Tournament
@@ -20,6 +21,7 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
   const [stopHour, setStopHour] = useState(23) // Default 11 PM
   const [activeHours, setActiveHours] = useState<string>('')
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null)
+  const [lastSyncTimestamp, setLastSyncTimestamp] = useState<string | null>(null)
   const [syncYear, setSyncYear] = useState(tournament?.year || 2026)
   const [syncTournId, setSyncTournId] = useState(tournament?.tourn_id || '')
   const [syncOrgId, setSyncOrgId] = useState(tournament?.org_id || '1')
@@ -56,6 +58,9 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
         // Update last sync time if available
         if (status.time_since_last_sync) {
           setLastSyncTime(status.time_since_last_sync)
+        }
+        if (status.last_sync_timestamp) {
+          setLastSyncTimestamp(status.last_sync_timestamp)
         }
       } catch (error) {
         console.error('Failed to check background job status:', error)
@@ -579,6 +584,11 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
                   {lastSyncTime && (
                     <p className="text-xs text-green-600 font-medium">
                       Last sync: {lastSyncTime}
+                      {lastSyncTimestamp && (
+                        <span className="ml-1 text-gray-500">
+                          ({formatCentralTimeShort(lastSyncTimestamp)} CT)
+                        </span>
+                      )}
                     </p>
                   )}
                 </div>
@@ -587,6 +597,11 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
                 <div className="mt-2">
                   <p className="text-xs text-gray-500">
                     Last sync: {lastSyncTime}
+                    {lastSyncTimestamp && (
+                      <span className="ml-1">
+                        ({formatCentralTimeShort(lastSyncTimestamp)} CT)
+                      </span>
+                    )}
                   </p>
                 </div>
               )}

@@ -46,12 +46,14 @@ export function HomePage() {
                 month: 'long',
                 day: 'numeric',
                 year: 'numeric',
+                timeZone: 'America/Chicago'
               })}{' '}
               -{' '}
               {new Date(tournament.end_date).toLocaleDateString('en-US', {
                 month: 'long',
                 day: 'numeric',
                 year: 'numeric',
+                timeZone: 'America/Chicago'
               })}
             </div>
             <div className="mt-2 text-sm text-gray-500">
