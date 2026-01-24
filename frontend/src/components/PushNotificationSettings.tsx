@@ -40,12 +40,24 @@ export function PushNotificationSettings() {
       if (subscription) {
         setIsSubscribed(true);
         setPermission(Notification.permission);
+        setError(null); // Clear any previous errors
       } else {
-        setError('Failed to subscribe. Please check your browser settings.');
+        setError('Failed to subscribe. Please check your browser settings and try again.');
       }
     } catch (error: any) {
       console.error('Error subscribing:', error);
-      setError(error.message || 'Failed to subscribe to push notifications');
+      // Show the actual error message from the subscription function
+      const errorMessage = error.message || 'Failed to subscribe to push notifications';
+      setError(errorMessage);
+      
+      // Provide more specific guidance based on error
+      if (errorMessage.includes('VAPID')) {
+        setError(errorMessage + ' Please contact support if this persists.');
+      } else if (errorMessage.includes('permission')) {
+        setError(errorMessage + ' Go to Settings > Safari > Notifications to enable.');
+      } else if (errorMessage.includes('Service worker')) {
+        setError(errorMessage + ' Try refreshing the page and try again.');
+      }
     } finally {
       setIsLoading(false);
     }

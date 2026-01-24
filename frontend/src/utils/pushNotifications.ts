@@ -82,61 +82,120 @@ export async function subscribeToPushNotifications(): Promise<PushSubscriptionDa
   try {
     // Check if service worker is supported
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-      console.log('Push notifications are not supported in this browser');
-      return null;
+      const error = 'Push notifications are not supported in this browser';
+      console.error(error);
+      throw new Error(error);
     }
 
     // Request permission
     const permission = await requestNotificationPermission();
     if (permission !== 'granted') {
-      console.log('Notification permission denied');
-      return null;
+      const error = `Notification permission ${permission}. Please enable notifications in your browser settings.`;
+      console.error(error);
+      throw new Error(error);
     }
 
     // Get VAPID public key
-    const publicKey = await getVAPIDPublicKey();
+    let publicKey: string;
+    try {
+      publicKey = await getVAPIDPublicKey();
+      console.log('VAPID public key retrieved:', publicKey.substring(0, 20) + '...');
+    } catch (error: any) {
+      const errorMsg = `Failed to get VAPID public key: ${error.message || error}`;
+      console.error(errorMsg);
+      throw new Error(errorMsg);
+    }
     
     // Convert VAPID key to Uint8Array
-    const applicationServerKey = urlBase64ToUint8Array(publicKey);
+    let applicationServerKey: Uint8Array;
+    try {
+      applicationServerKey = urlBase64ToUint8Array(publicKey);
+      console.log('VAPID key converted to Uint8Array, length:', applicationServerKey.length);
+    } catch (error: any) {
+      const errorMsg = `Failed to convert VAPID key: ${error.message || error}`;
+      console.error(errorMsg);
+      throw new Error(errorMsg);
+    }
 
     // Register service worker
-    const registration = await navigator.serviceWorker.ready;
+    let registration: ServiceWorkerRegistration;
+    try {
+      registration = await navigator.serviceWorker.ready;
+      console.log('Service worker ready, scope:', registration.scope);
+    } catch (error: any) {
+      const errorMsg = `Service worker not ready: ${error.message || error}`;
+      console.error(errorMsg);
+      throw new Error(errorMsg);
+    }
 
     // Subscribe to push
-    // Type assertion needed because PushManager expects BufferSource (ArrayBuffer or ArrayBufferView)
-    // Uint8Array is an ArrayBufferView, so we need to assert through unknown first
-    const subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: applicationServerKey as unknown as ArrayBuffer,
-    });
+    let subscription: PushSubscription;
+    try {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: applicationServerKey as unknown as ArrayBuffer,
+      });
+      console.log('Push subscription created, endpoint:', subscription.endpoint.substring(0, 50) + '...');
+    } catch (error: any) {
+      const errorMsg = `Failed to create push subscription: ${error.message || error}. This might be due to invalid VAPID keys or browser compatibility issues.`;
+      console.error(errorMsg, error);
+      throw new Error(errorMsg);
+    }
 
     // Convert subscription to object
+    const p256dhKey = subscription.getKey('p256dh');
+    const authKey = subscription.getKey('auth');
+    
+    if (!p256dhKey || !authKey) {
+      const error = 'Failed to get subscription keys';
+      console.error(error);
+      throw new Error(error);
+    }
+
     const subscriptionData: PushSubscriptionData = {
       endpoint: subscription.endpoint,
       keys: {
-        p256dh: arrayBufferToBase64(subscription.getKey('p256dh')!),
-        auth: arrayBufferToBase64(subscription.getKey('auth')!),
+        p256dh: arrayBufferToBase64(p256dhKey),
+        auth: arrayBufferToBase64(authKey),
       },
     };
 
     // Send subscription to server
-    const response = await fetch('/api/push/subscribe', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(subscriptionData),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to subscribe to push notifications');
+    let response: Response;
+    try {
+      response = await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(subscriptionData),
+      });
+    } catch (error: any) {
+      const errorMsg = `Network error sending subscription: ${error.message || error}`;
+      console.error(errorMsg);
+      throw new Error(errorMsg);
     }
 
-    console.log('Subscribed to push notifications');
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorDetail;
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorDetail = errorJson.detail || errorJson.message || errorText;
+      } catch {
+        errorDetail = errorText || `HTTP ${response.status}`;
+      }
+      const errorMsg = `Server error: ${errorDetail}`;
+      console.error(errorMsg);
+      throw new Error(errorMsg);
+    }
+
+    console.log('Subscribed to push notifications successfully');
     return subscriptionData;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error subscribing to push notifications:', error);
-    return null;
+    // Re-throw with more context for the UI
+    throw error;
   }
 }
 
