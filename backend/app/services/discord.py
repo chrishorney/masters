@@ -2,7 +2,7 @@
 import httpx
 import logging
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -56,7 +56,7 @@ class DiscordService:
             "title": title,
             "description": description,
             "color": color,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         
         if fields:

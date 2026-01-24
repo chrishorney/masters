@@ -191,6 +191,9 @@ class DataSyncService:
         ).first()
         
         if tournament:
+            # Check if round changed (for Discord notifications)
+            old_round = tournament.current_round
+            
             # Update existing
             tournament.name = api_data["name"]
             tournament.start_date = start_date
@@ -202,11 +205,15 @@ class DataSyncService:
             logger.info(f"API returned currentRound: {raw_current_round} (type: {type(raw_current_round)})")
             parsed_round = parse_mongodb_value(raw_current_round) if raw_current_round is not None else 1
             tournament.current_round = parsed_round
-            logger.info(f"Parsed current_round: {parsed_round} (was: {tournament.current_round})")
+            logger.info(f"Parsed current_round: {parsed_round} (was: {old_round})")
             
             # Store API data as JSON string
             tournament.api_data = json.loads(json.dumps(api_data, default=str))
             logger.info(f"Updated tournament: {tournament.name} ({tournament.year}) - Round {parsed_round}")
+            
+            # Notify Discord if round completed (round increased)
+            if old_round and parsed_round > old_round and old_round >= 1:
+                self._notify_discord_round_complete_async(tournament, old_round)
         else:
             # Create new
             # Get currentRound from API - log what we're getting

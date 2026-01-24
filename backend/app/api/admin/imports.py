@@ -37,7 +37,44 @@ async def import_entries(
         file_content = await file.read()
         import_service = ImportService(db)
         rows = import_service.parse_csv(file_content)
+        
+        # Check if this is the first entry import for this tournament
+        from app.models import Entry, Tournament
+        tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+        existing_entries_count = db.query(Entry).filter(Entry.tournament_id == tournament_id).count()
+        is_first_import = existing_entries_count == 0
+        
         results = import_service.import_entries(rows, tournament_id)
+        
+        # Notify Discord if this is the first import (tournament start)
+        if is_first_import and results.get("imported", 0) > 0 and tournament:
+            import asyncio
+            from app.services.discord import get_discord_service
+            
+            async def notify_tournament_start():
+                try:
+                    discord_service = get_discord_service()
+                    if discord_service and discord_service.enabled:
+                        total_entries = db.query(Entry).filter(Entry.tournament_id == tournament_id).count()
+                        await discord_service.notify_tournament_start(
+                            tournament_name=tournament.name,
+                            year=tournament.year,
+                            entry_count=total_entries
+                        )
+                except Exception as e:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"Discord tournament start notification failed (non-critical): {e}")
+            
+            # Fire-and-forget
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.create_task(notify_tournament_start())
+                else:
+                    loop.run_until_complete(notify_tournament_start())
+            except Exception:
+                pass  # Ignore if we can't schedule
         
         return results
     except Exception as e:

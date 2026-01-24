@@ -27,6 +27,9 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
   const [syncOrgId, setSyncOrgId] = useState(tournament?.org_id || '1')
   const [syncRoundId, setSyncRoundId] = useState(1)
   const [syncingRound, setSyncingRound] = useState(false)
+  const [discordStatus, setDiscordStatus] = useState<{ enabled: boolean; webhook_configured: boolean; status: string } | null>(null)
+  const [testingDiscord, setTestingDiscord] = useState(false)
+  const [discordTestResult, setDiscordTestResult] = useState<{ success: boolean; message: string } | null>(null)
   
   const calculateScores = useCalculateScores()
 
@@ -753,6 +756,106 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
           {message.text}
         </div>
       )}
+
+      {/* Discord Integration Testing */}
+      <div className="bg-white rounded-lg shadow-md p-4 md:p-6 mt-6">
+        <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-4">Discord Integration</h2>
+        
+        {/* Check Discord Status */}
+        <div className="mb-4">
+          <button
+            onClick={async () => {
+              try {
+                const status = await adminApi.getDiscordStatus()
+                setDiscordStatus(status)
+              } catch (error: any) {
+                setMessage({ type: 'error', text: `Failed to check Discord status: ${error.message}` })
+              }
+            }}
+            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm md:text-base"
+          >
+            Check Discord Status
+          </button>
+          {discordStatus && (
+            <div className={`mt-3 p-3 rounded-lg ${
+              discordStatus.enabled 
+                ? 'bg-green-50 border border-green-200' 
+                : 'bg-yellow-50 border border-yellow-200'
+            }`}>
+              <p className={`text-sm ${
+                discordStatus.enabled ? 'text-green-800' : 'text-yellow-800'
+              }`}>
+                <strong>Status:</strong> {discordStatus.enabled ? '✅ Enabled' : '❌ Disabled'}
+                {!discordStatus.enabled && (
+                  <span className="block mt-1 text-xs">
+                    Set DISCORD_ENABLED=true and DISCORD_WEBHOOK_URL in environment variables to enable.
+                  </span>
+                )}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Test Notifications */}
+        {discordStatus?.enabled && (
+          <div className="border-t border-gray-200 pt-4 mt-4">
+            <h3 className="font-medium text-gray-900 mb-3">Test Notifications</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Send test notifications to verify Discord integration is working. Check your Discord channel after clicking a button.
+            </p>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {[
+                { type: 'hole_in_one', label: 'Hole-in-One' },
+                { type: 'eagle', label: 'Eagle' },
+                { type: 'double_eagle', label: 'Double Eagle' },
+                { type: 'new_leader', label: 'New Leader' },
+                { type: 'big_move', label: 'Big Move' },
+                { type: 'round_complete', label: 'Round Complete' },
+                { type: 'tournament_start', label: 'Tournament Start' },
+              ].map(({ type, label }) => (
+                <button
+                  key={type}
+                  onClick={async () => {
+                    setTestingDiscord(true)
+                    setDiscordTestResult(null)
+                    try {
+                      const result = await adminApi.testDiscordNotification(
+                        type,
+                        tournament?.id
+                      )
+                      setDiscordTestResult(result)
+                      if (result.success) {
+                        setMessage({ type: 'success', text: result.message })
+                      } else {
+                        setMessage({ type: 'error', text: result.message })
+                      }
+                    } catch (error: any) {
+                      setMessage({ type: 'error', text: `Failed to test notification: ${error.message}` })
+                    } finally {
+                      setTestingDiscord(false)
+                    }
+                  }}
+                  disabled={testingDiscord || !tournament}
+                  className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-xs md:text-sm"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {discordTestResult && (
+              <div className={`mt-4 p-3 rounded-lg ${
+                discordTestResult.success 
+                  ? 'bg-green-50 border border-green-200 text-green-800' 
+                  : 'bg-red-50 border border-red-200 text-red-800'
+              }`}>
+                <p className="text-sm">{discordTestResult.message}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

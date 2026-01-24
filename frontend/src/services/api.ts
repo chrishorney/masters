@@ -136,6 +136,31 @@ export const adminApi = {
     return response.data
   },
 
+  /** Get Discord status */
+  getDiscordStatus: async (): Promise<{
+    enabled: boolean;
+    webhook_configured: boolean;
+    status: string;
+  }> => {
+    const response = await api.get('/admin/discord/status')
+    return response.data
+  },
+
+  /** Test Discord notification */
+  testDiscordNotification: async (
+    notificationType: string,
+    tournamentId?: number
+  ): Promise<{
+    success: boolean;
+    message: string;
+    notification_type: string;
+  }> => {
+    const params: any = { notification_type: notificationType }
+    if (tournamentId) params.tournament_id = tournamentId
+    const response = await api.post('/admin/discord/test', null, { params })
+    return response.data
+  },
+
   /** List bonus points for a tournament */
   listBonusPoints: async (
     tournamentId: number, 
