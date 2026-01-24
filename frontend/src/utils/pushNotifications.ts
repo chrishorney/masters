@@ -36,13 +36,19 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
  */
 export async function getVAPIDPublicKey(): Promise<string> {
   try {
-    const response = await fetch('/api/push/public-key');
+    // Use the same API URL configuration as the rest of the app
+    const API_URL = import.meta.env.VITE_API_URL || '';
+    const API_PREFIX = '/api';
+    const baseURL = API_URL ? `${API_URL}${API_PREFIX}` : API_PREFIX;
+    
+    const response = await fetch(`${baseURL}/push/public-key`);
     if (!response.ok) {
-      throw new Error('Failed to get VAPID public key');
+      const errorText = await response.text();
+      throw new Error(`Failed to get VAPID public key: ${response.status} ${errorText}`);
     }
     const data = await response.json();
     return data.publicKey;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error getting VAPID public key:', error);
     throw error;
   }
@@ -163,7 +169,12 @@ export async function subscribeToPushNotifications(): Promise<PushSubscriptionDa
     // Send subscription to server
     let response: Response;
     try {
-      response = await fetch('/api/push/subscribe', {
+      // Use the same API URL configuration as the rest of the app
+      const API_URL = import.meta.env.VITE_API_URL || '';
+      const API_PREFIX = '/api';
+      const baseURL = API_URL ? `${API_URL}${API_PREFIX}` : API_PREFIX;
+      
+      response = await fetch(`${baseURL}/push/subscribe`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
