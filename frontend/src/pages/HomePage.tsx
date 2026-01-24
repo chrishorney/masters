@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useCurrentTournament } from '../hooks/useTournament'
 import { LoadingSpinner } from '../components/LoadingSpinner'
 import { ErrorMessage } from '../components/ErrorMessage'
+import { formatCentralDate } from '../utils/time'
 
 export function HomePage() {
   const { data: tournament, isLoading, error } = useCurrentTournament()
@@ -116,7 +117,33 @@ export function HomePage() {
           <div>
             <h4 className="text-lg font-semibold text-gray-900 mb-2">2. Player Selection</h4>
             <p className="text-gray-700">
-              Pick any 6 players from the Masters field, submit your picks to the tournament chairman by Wed night (April 10, 2023) 7PM CST.
+              Pick any 6 players from the Masters field, submit your picks to the tournament chairman by{' '}
+              {tournament ? (() => {
+                // Calculate Wednesday before tournament starts (Masters typically starts Thursday)
+                const startDate = new Date(tournament.start_date)
+                const wednesday = new Date(startDate)
+                
+                // Find the Wednesday before the start date
+                // Wednesday is day 3 (0=Sunday, 1=Monday, ..., 3=Wednesday)
+                const startDay = startDate.getDay()
+                
+                // Calculate days to subtract to get to the previous (or same) Wednesday
+                // If startDay is 3 (Wed), subtract 0
+                // If startDay is 4-6 (Thu-Sat), subtract (startDay - 3)
+                // If startDay is 0-2 (Sun-Tue), subtract (startDay + 4)
+                const daysToSubtract = startDay === 3 ? 0 : (startDay > 3 ? startDay - 3 : startDay + 4)
+                
+                wednesday.setDate(startDate.getDate() - daysToSubtract)
+                
+                // Format as "Wed night (Month Day, Year) 7PM CST"
+                const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                const dayName = dayNames[wednesday.getDay()]
+                const monthName = monthNames[wednesday.getMonth()]
+                const day = wednesday.getDate()
+                const year = wednesday.getFullYear()
+                return `${dayName} night (${monthName} ${day}, ${year}) 7PM CST`
+              })() : 'Wednesday night 7PM CST'}.
             </p>
           </div>
 
