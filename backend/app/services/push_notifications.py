@@ -28,7 +28,28 @@ class PushNotificationService:
             logger.warning("Push notifications enabled but VAPID keys not configured")
             self.enabled = False
         
+        # Validate VAPID keys if enabled
         if self.enabled:
+            # Validate public key format (should be hex string, 130 chars for 65 bytes)
+            if self.vapid_public_key:
+                public_key_clean = self.vapid_public_key.strip()
+                if len(public_key_clean) != 130:
+                    logger.warning(f"VAPID public key length is {len(public_key_clean)}, expected 130 hex characters")
+                if not all(c in '0123456789abcdefABCDEF' for c in public_key_clean):
+                    logger.warning("VAPID public key contains invalid hex characters")
+            
+            # Validate private key format (should be hex string, 64 chars for 32 bytes)
+            if self.vapid_private_key:
+                private_key_clean = self.vapid_private_key.strip()
+                if len(private_key_clean) != 64:
+                    logger.warning(f"VAPID private key length is {len(private_key_clean)}, expected 64 hex characters")
+                if not all(c in '0123456789abcdefABCDEF' for c in private_key_clean):
+                    logger.warning("VAPID private key contains invalid hex characters")
+            
+            # Validate email format
+            if self.vapid_email and not self.vapid_email.startswith('mailto:'):
+                logger.warning(f"VAPID email should start with 'mailto:', got: {self.vapid_email[:20]}...")
+            
             logger.info("Push notification service enabled")
         else:
             logger.debug("Push notification service disabled")

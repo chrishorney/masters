@@ -58,15 +58,60 @@ export async function getVAPIDPublicKey(): Promise<string> {
  * Convert VAPID key from base64 URL to Uint8Array
  */
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
+  try {
+    // Validate input
+    if (!base64String || typeof base64String !== 'string') {
+      throw new Error('VAPID key must be a non-empty string');
+    }
+    
+    // Remove any whitespace
+    base64String = base64String.trim();
+    
+    // Validate base64 URL-safe format (alphanumeric, -, _)
+    const base64UrlPattern = /^[A-Za-z0-9_-]+$/;
+    if (!base64UrlPattern.test(base64String)) {
+      throw new Error(`Invalid base64 URL-safe format. String contains invalid characters. Length: ${base64String.length}`);
+    }
+    
+    // Add padding if needed
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    
+    // Validate base64 format after conversion
+    const base64Pattern = /^[A-Za-z0-9+/]+=*$/;
+    if (!base64Pattern.test(base64)) {
+      throw new Error(`Invalid base64 format after conversion. Length: ${base64.length}`);
+    }
+    
+    // Decode base64
+    let rawData: string;
+    try {
+      rawData = window.atob(base64);
+    } catch (error: any) {
+      throw new Error(`Failed to decode base64: ${error.message}. This usually means the VAPID key format is incorrect.`);
+    }
+    
+    // Convert to Uint8Array
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    
+    // Validate output length (should be 65 bytes for uncompressed EC point)
+    if (outputArray.length !== 65) {
+      console.warn(`VAPID key length is ${outputArray.length} bytes, expected 65 bytes for uncompressed EC point`);
+    }
+    
+    // Validate it starts with 0x04 (uncompressed point indicator)
+    if (outputArray[0] !== 0x04) {
+      console.warn(`VAPID key does not start with 0x04 (uncompressed point), got 0x${outputArray[0].toString(16).padStart(2, '0')}`);
+    }
+    
+    return outputArray;
+  } catch (error: any) {
+    console.error('Error converting VAPID key:', error);
+    throw new Error(`VAPID key conversion failed: ${error.message}`);
   }
-  return outputArray;
 }
 
 /**

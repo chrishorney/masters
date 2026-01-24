@@ -121,17 +121,46 @@ async def get_public_key():
         # Remove any whitespace
         public_key_hex = public_key_hex.strip()
         
+        # Validate hex string
+        if not all(c in '0123456789abcdefABCDEF' for c in public_key_hex):
+            raise ValueError(f"Invalid hex characters in VAPID public key. Key length: {len(public_key_hex)}")
+        
+        # Check expected length (65 bytes = 130 hex chars for uncompressed EC point)
+        if len(public_key_hex) != 130:
+            logger.warning(f"VAPID public key length is {len(public_key_hex)}, expected 130 hex characters (65 bytes)")
+        
         # Convert hex to bytes
         public_key_bytes = bytes.fromhex(public_key_hex)
+        
+        # Validate byte length
+        if len(public_key_bytes) != 65:
+            logger.warning(f"VAPID public key byte length is {len(public_key_bytes)}, expected 65 bytes")
+        
+        # Validate it starts with 0x04 (uncompressed point indicator)
+        if public_key_bytes[0] != 0x04:
+            logger.warning(f"VAPID public key does not start with 0x04 (uncompressed point), got 0x{public_key_bytes[0]:02x}")
         
         # Convert to base64 URL-safe (no padding)
         public_key_b64 = base64.urlsafe_b64encode(public_key_bytes).decode('utf-8').rstrip('=')
         
-        return {"publicKey": public_key_b64}
+        logger.debug(f"VAPID public key converted: hex length={len(public_key_hex)}, bytes={len(public_key_bytes)}, base64 length={len(public_key_b64)}")
+        
+        return {
+            "publicKey": public_key_b64,
+            "debug": {
+                "hex_length": len(public_key_hex),
+                "byte_length": len(public_key_bytes),
+                "base64_length": len(public_key_b64),
+                "starts_with_04": public_key_bytes[0] == 0x04
+            } if logger.level <= logging.DEBUG else None
+        }
     except (ValueError, AttributeError) as e:
-        # If conversion fails, return as-is (might already be in correct format)
-        logger.warning(f"Could not convert VAPID public key format: {e}, returning as-is")
-        return {"publicKey": public_key_hex}
+        # If conversion fails, log detailed error
+        logger.error(f"Could not convert VAPID public key format: {e}. Key value (first 20 chars): {public_key_hex[:20] if public_key_hex else 'None'}...")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Invalid VAPID public key format: {str(e)}. Please check your VAPID_PUBLIC_KEY environment variable."
+        )
 
 
 @router.get("/push/status")
