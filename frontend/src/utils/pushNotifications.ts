@@ -227,7 +227,12 @@ export async function unsubscribeFromPushNotifications(): Promise<boolean> {
 
       // Notify server
       try {
-        await fetch('/api/push/unsubscribe', {
+        // Use the same API URL configuration as the rest of the app
+        const API_URL = import.meta.env.VITE_API_URL || '';
+        const API_PREFIX = '/api';
+        const baseURL = API_URL ? `${API_URL}${API_PREFIX}` : API_PREFIX;
+        
+        await fetch(`${baseURL}/push/unsubscribe`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
