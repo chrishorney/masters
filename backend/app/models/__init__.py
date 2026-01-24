@@ -7,6 +7,7 @@ from .score_snapshot import ScoreSnapshot
 from .daily_score import DailyScore
 from .bonus_point import BonusPoint
 from .ranking_snapshot import RankingSnapshot
+from .push_subscription import PushSubscription
 
 __all__ = [
     "Tournament",
@@ -17,4 +18,5 @@ __all__ = [
     "DailyScore",
     "BonusPoint",
     "RankingSnapshot",
+    "PushSubscription",
 ]

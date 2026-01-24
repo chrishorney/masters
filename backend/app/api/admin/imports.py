@@ -61,6 +61,33 @@ async def import_entries(
                             year=tournament.year,
                             entry_count=total_entries
                         )
+                        
+                        # Also send push notification
+                        try:
+                            from app.services.push_notifications import get_push_service
+                            from app.models import PushSubscription
+                            
+                            push_service = get_push_service()
+                            if push_service.enabled:
+                                subscriptions = db.query(PushSubscription).filter(
+                                    PushSubscription.active == True
+                                ).all()
+                                
+                                if subscriptions:
+                                    title = "🏌️ Tournament Started!"
+                                    body = f"{tournament.name} ({tournament.year}) has begun with {total_entries} entries!"
+                                    
+                                    for sub in subscriptions:
+                                        push_service.send_notification(
+                                            subscription=sub.subscription_data,
+                                            title=title,
+                                            body=body,
+                                            url="/"
+                                        )
+                        except Exception as push_error:
+                            import logging
+                            logger = logging.getLogger(__name__)
+                            logger.warning(f"Push notification for tournament start failed (non-critical): {push_error}")
                 except Exception as e:
                     import logging
                     logger = logging.getLogger(__name__)

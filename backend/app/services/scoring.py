@@ -478,6 +478,13 @@ class ScoringService:
                             round_id=round_id,
                             tournament=tournament
                         )
+                        
+                        # Send push notification for special bonuses (fire-and-forget, non-blocking)
+                        self._notify_push_bonus_async(
+                            bonus=bonus,
+                            round_id=round_id,
+                            tournament=tournament
+                        )
             
             self.db.commit()
             return existing_score
@@ -529,6 +536,13 @@ class ScoringService:
                         
                         # Send Discord notification for special bonuses (fire-and-forget, non-blocking)
                         self._notify_discord_bonus_async(
+                            bonus=bonus,
+                            round_id=round_id,
+                            tournament=tournament
+                        )
+                        
+                        # Send push notification for special bonuses (fire-and-forget, non-blocking)
+                        self._notify_push_bonus_async(
                             bonus=bonus,
                             round_id=round_id,
                             tournament=tournament
@@ -591,3 +605,85 @@ class ScoringService:
                 round_id=round_id,
                 tournament_name=tournament.name
             )
+    
+    def _notify_push_bonus_async(
+        self,
+        bonus: Dict[str, Any],
+        round_id: int,
+        tournament: Tournament
+    ):
+        """
+        Send push notification for bonus points (fire-and-forget, non-blocking).
+        
+        Args:
+            bonus: Bonus point dictionary
+            round_id: Round number
+            tournament: Tournament model
+        """
+        import asyncio
+        
+        async def notify():
+            try:
+                from app.services.push_notifications import get_push_service
+                from app.models import PushSubscription
+                
+                push_service = get_push_service()
+                if not push_service.enabled:
+                    return
+                
+                bonus_type = bonus.get("bonus_type")
+                player_id = bonus.get("player_id")
+                hole = bonus.get("hole")
+                
+                # Only notify for special bonuses (hole-in-one, eagles)
+                if bonus_type not in ["hole_in_one", "double_eagle", "eagle"]:
+                    return
+                
+                if not player_id:
+                    return
+                
+                # Get player name
+                player = self.db.query(Player).filter(Player.player_id == player_id).first()
+                player_name = player.full_name if player else f"Player {player_id}"
+                
+                # Format notification
+                if bonus_type == "hole_in_one":
+                    title = "🎯 Hole-in-One!"
+                    body = f"{player_name} just got a hole-in-one on hole {hole or '?'}!"
+                elif bonus_type == "double_eagle":
+                    title = "🦅 Double Eagle!"
+                    body = f"{player_name} got a double eagle on hole {hole or '?'}!"
+                elif bonus_type == "eagle":
+                    title = "🦅 Eagle!"
+                    body = f"{player_name} got an eagle on hole {hole or '?'}!"
+                else:
+                    return
+                
+                # Get all active subscriptions
+                subscriptions = self.db.query(PushSubscription).filter(
+                    PushSubscription.active == True
+                ).all()
+                
+                if not subscriptions:
+                    return
+                
+                # Send to all subscribers
+                for sub in subscriptions:
+                    push_service.send_notification(
+                        subscription=sub.subscription_data,
+                        title=title,
+                        body=body,
+                        url="/leaderboard"
+                    )
+            except Exception as e:
+                logger.warning(f"Push notification failed (non-critical): {e}")
+        
+        # Fire-and-forget
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(notify())
+            else:
+                loop.run_until_complete(notify())
+        except Exception as e:
+            logger.debug(f"Could not schedule push notification: {e}")

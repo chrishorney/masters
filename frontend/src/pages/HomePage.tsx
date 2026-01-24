@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useCurrentTournament } from '../hooks/useTournament'
 import { LoadingSpinner } from '../components/LoadingSpinner'
 import { ErrorMessage } from '../components/ErrorMessage'
+import { PushNotificationSettings } from '../components/PushNotificationSettings'
 
 export function HomePage() {
   const { data: tournament, isLoading, error } = useCurrentTournament()

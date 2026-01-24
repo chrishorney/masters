@@ -1,6 +1,6 @@
 """Application configuration."""
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Optional
 
 
 class Settings(BaseSettings):
@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     # Discord Integration (optional)
     discord_webhook_url: str = "https://discord.com/api/webhooks/1464311605084028931/qPXmTCWouXiB6Ahz6wIZWCJhV0OwlArZh-Qqoaibi8OEow_uS_9bAP-Pgz2atpGnfFHz"
     discord_enabled: bool = False
+    
+    # Push Notifications (PWA)
+    push_notifications_enabled: bool = False
+    vapid_public_key: Optional[str] = None
+    vapid_private_key: Optional[str] = None
+    vapid_email: Optional[str] = None
     
     class Config:
         env_file = ".env"

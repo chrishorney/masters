@@ -362,12 +362,26 @@ class ScoreCalculatorService:
                             round_id=round_id,
                             tournament_name=tournament.name
                         )
+                        # Also send push notification
+                        self._notify_push_new_leader_async(
+                            entry_name=current_leader["entry_name"],
+                            total_points=current_leader["total_points"],
+                            round_id=round_id,
+                            tournament_name=tournament.name
+                        )
             else:
                 # First snapshot for this round - notify if there's a leader
                 await self.discord_service.notify_new_leader(
                     entry_name=current_leader["entry_name"],
                     total_points=current_leader["total_points"],
                     previous_leader_name=None,
+                    round_id=round_id,
+                    tournament_name=tournament.name
+                )
+                # Also send push notification
+                self._notify_push_new_leader_async(
+                    entry_name=current_leader["entry_name"],
+                    total_points=current_leader["total_points"],
                     round_id=round_id,
                     tournament_name=tournament.name
                 )
@@ -390,6 +404,14 @@ class ScoreCalculatorService:
                     # Notify if moved 5+ positions
                     if position_change >= 5:
                         await self.discord_service.notify_big_position_change(
+                            entry_name=entry_data["entry_name"],
+                            old_position=previous_position,
+                            new_position=current_position,
+                            total_points=entry_data["total_points"],
+                            round_id=round_id
+                        )
+                        # Also send push notification
+                        self._notify_push_big_move_async(
                             entry_name=entry_data["entry_name"],
                             old_position=previous_position,
                             new_position=current_position,

@@ -685,6 +685,31 @@ class DataSyncService:
                         total_entries=len(entries),
                         tournament_name=tournament.name
                     )
+                    
+                    # Also send push notification
+                    try:
+                        from app.services.push_notifications import get_push_service
+                        from app.models import PushSubscription
+                        
+                        push_service = get_push_service()
+                        if push_service.enabled:
+                            subscriptions = self.db.query(PushSubscription).filter(
+                                PushSubscription.active == True
+                            ).all()
+                            
+                            if subscriptions:
+                                title = f"🏁 Round {completed_round} Complete!"
+                                body = f"Round {completed_round} finished. {leader['entry_name']} leads with {leader['total_points']:.1f} points."
+                                
+                                for sub in subscriptions:
+                                    push_service.send_notification(
+                                        subscription=sub.subscription_data,
+                                        title=title,
+                                        body=body,
+                                        url="/leaderboard"
+                                    )
+                    except Exception as push_error:
+                        logger.warning(f"Push notification for round complete failed (non-critical): {push_error}")
             except Exception as e:
                 logger.warning(f"Discord round completion notification failed (non-critical): {e}")
         
