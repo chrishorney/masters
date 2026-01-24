@@ -195,6 +195,11 @@ export function HomePage() {
           </div>
         </div>
       </div>
+
+      {/* Push Notification Settings */}
+      <div className="mt-8">
+        <PushNotificationSettings />
+      </div>
     </div>
   )
 }
