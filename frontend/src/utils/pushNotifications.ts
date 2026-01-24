@@ -103,9 +103,10 @@ export async function subscribeToPushNotifications(): Promise<PushSubscriptionDa
     const registration = await navigator.serviceWorker.ready;
 
     // Subscribe to push
+    // Type assertion needed because PushManager expects ArrayBuffer, not SharedArrayBuffer
     const subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: applicationServerKey,
+      applicationServerKey: applicationServerKey as ArrayBuffer,
     });
 
     // Convert subscription to object
