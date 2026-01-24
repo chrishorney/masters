@@ -1,0 +1,8 @@
+# Placeholder for icon-192x192.png
+
+This file should be replaced with a proper 192x192 PNG icon.
+
+Quick options:
+1. Use online tool: https://realfavicongenerator.net/ (upload icon.svg)
+2. Use icon.svg and convert with any image editor
+3. Install Pillow: pip3 install Pillow, then run: python3 scripts/create-icons.py

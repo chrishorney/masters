@@ -24,24 +24,32 @@ Add these to your `.env` file (or Railway/Vercel environment variables):
 ```bash
 # Discord Integration (optional)
 DISCORD_ENABLED=false
-DISCORD_WEBHOOK_URL=
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/1464311605084028931/qPXmTCWouXiB6Ahz6wIZWCJhV0OwlArZh-Qqoaibi8OEow_uS_9bAP-Pgz2atpGnfFHz
 ```
 
 ### Setting Up Discord Webhook
 
 1. **Create Discord Server** (or use existing)
-2. **Create Channel** for notifications (e.g., `#tournament-updates`)
+2. **Choose Channel** for notifications (e.g., `#announcements`, `#tournament-updates`)
+   - **Important**: Each webhook is tied to a specific channel
+   - To change channels, create a new webhook for the desired channel
 3. **Create Webhook**:
-   - Go to Server Settings → Integrations → Webhooks
-   - Click "New Webhook"
+   - Go to the channel where you want notifications
+   - Click the gear icon (⚙️) next to the channel name → "Integrations"
+   - OR go to Server Settings → Integrations → Webhooks
+   - Click "New Webhook" or "Create Webhook"
    - Name it (e.g., "Tournament Bot")
-   - Select the channel
-   - Copy the webhook URL
-4. **Add to Environment**:
+   - **Select the channel** you want (e.g., `#announcements`)
+   - Click "Copy Webhook URL"
+4. **Add to Environment** (Railway/Vercel):
    ```bash
    DISCORD_ENABLED=true
    DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN
    ```
+5. **Update in Railway**:
+   - Go to your Railway project → Variables
+   - Update `DISCORD_WEBHOOK_URL` with the new webhook URL
+   - Railway will automatically redeploy
 
 ## How It Works
 

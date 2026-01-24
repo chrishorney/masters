@@ -630,3 +630,70 @@ class DataSyncService:
             return str(score_to_par)
         else:
             return f"+{score_to_par}"
+    
+    def _notify_discord_round_complete_async(
+        self,
+        tournament: Tournament,
+        completed_round: int
+    ):
+        """
+        Notify Discord about round completion (fire-and-forget, non-blocking).
+        
+        Args:
+            tournament: Tournament model
+            completed_round: Round number that just completed
+        """
+        import asyncio
+        
+        async def notify():
+            try:
+                from app.services.discord import get_discord_service
+                discord_service = get_discord_service()
+                
+                if not discord_service or not discord_service.enabled:
+                    return
+                
+                # Get current leader
+                from app.models import Entry, DailyScore
+                entries = self.db.query(Entry).filter(
+                    Entry.tournament_id == tournament.id
+                ).all()
+                
+                if not entries:
+                    return
+                
+                leaderboard_data = []
+                for entry in entries:
+                    daily_scores = self.db.query(DailyScore).filter(
+                        DailyScore.entry_id == entry.id
+                    ).order_by(DailyScore.round_id).all()
+                    
+                    total_points = sum(score.total_points for score in daily_scores)
+                    leaderboard_data.append({
+                        "entry_name": entry.participant.name if entry.participant else "Unknown",
+                        "total_points": total_points
+                    })
+                
+                leaderboard_data.sort(key=lambda x: x["total_points"], reverse=True)
+                
+                if leaderboard_data:
+                    leader = leaderboard_data[0]
+                    await discord_service.notify_round_complete(
+                        round_id=completed_round,
+                        leader_name=leader["entry_name"],
+                        leader_points=leader["total_points"],
+                        total_entries=len(entries),
+                        tournament_name=tournament.name
+                    )
+            except Exception as e:
+                logger.warning(f"Discord round completion notification failed (non-critical): {e}")
+        
+        # Fire-and-forget
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(notify())
+            else:
+                loop.run_until_complete(notify())
+        except Exception as e:
+            logger.debug(f"Could not schedule Discord notification: {e}")

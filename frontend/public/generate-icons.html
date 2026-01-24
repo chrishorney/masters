@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Generate PWA Icons</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        canvas {
+            border: 1px solid #ccc;
+            margin: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            background: #16a34a;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #15803d;
+        }
+    </style>
+</head>
+<body>
+    <h1>Generate PWA Icons</h1>
+    <p>This tool will generate placeholder icons for the PWA. Click the buttons below to download.</p>
+    
+    <div>
+        <h2>192x192 Icon</h2>
+        <canvas id="canvas192" width="192" height="192"></canvas>
+        <br>
+        <button onclick="downloadIcon(192)">Download 192x192.png</button>
+    </div>
+    
+    <div>
+        <h2>512x512 Icon</h2>
+        <canvas id="canvas512" width="512" height="512"></canvas>
+        <br>
+        <button onclick="downloadIcon(512)">Download 512x512.png</button>
+    </div>
+
+    <script>
+        function drawIcon(canvas, size) {
+            const ctx = canvas.getContext('2d');
+            
+            // Green background
+            ctx.fillStyle = '#16a34a';
+            ctx.fillRect(0, 0, size, size);
+            
+            // White text "MP"
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `bold ${size / 4}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('MP', size / 2, size / 2);
+        }
+        
+        function downloadIcon(size) {
+            const canvas = document.getElementById(`canvas${size}`);
+            canvas.toBlob(function(blob) {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `icon-${size}x${size}.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            });
+        }
+        
+        // Draw icons on load
+        window.onload = function() {
+            drawIcon(document.getElementById('canvas192'), 192);
+            drawIcon(document.getElementById('canvas512'), 512);
+        };
+    </script>
+</body>
+</html>
