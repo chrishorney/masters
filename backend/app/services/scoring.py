@@ -66,7 +66,8 @@ class ScoringService:
         self,
         position: Optional[str],
         round_id: int,
-        is_winner: bool = False
+        is_winner: bool = False,
+        status: Optional[str] = None
     ) -> float:
         """
         Calculate points based on position and round.
@@ -114,6 +115,9 @@ class ScoringService:
             return float(rules.get("top_25", 0))
         elif round_id >= 2 and rules.get("made_cut"):
             # Made cut but outside top 25 (Friday-Sunday only)
+            # Only award if player actually made the cut (status not "cut", "wd", or "dq")
+            if status and status.lower() in ["cut", "wd", "dq"]:
+                return 0.0
             return float(rules.get("made_cut", 0))
         
         return 0.0
@@ -207,7 +211,7 @@ class ScoringService:
                     pass
             
             is_winner = (is_final_round and str(player_id) == winner_id)
-            points = self.calculate_position_points(position, round_id, is_winner)
+            points = self.calculate_position_points(position, round_id, is_winner, status)
             
             points_breakdown[f"player{i}"] = {
                 "player_id": player_id,
