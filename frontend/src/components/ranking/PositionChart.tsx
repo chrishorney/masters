@@ -53,9 +53,9 @@ export function PositionChart({ snapshots, entryNames }: PositionChartProps) {
             <line
               key={`grid-${position}`}
               x1="50"
-              y1={350 - (position - 1) * (300 / maxPosition)}
+              y1={50 + (position - 1) * (300 / maxPosition)}
               x2="750"
-              y2={350 - (position - 1) * (300 / maxPosition)}
+              y2={50 + (position - 1) * (300 / maxPosition)}
               stroke="#E5E7EB"
               strokeWidth="1"
               strokeDasharray="4 4"
@@ -67,7 +67,7 @@ export function PositionChart({ snapshots, entryNames }: PositionChartProps) {
             <text
               key={`label-${position}`}
               x="45"
-              y={355 - (position - 1) * (300 / maxPosition)}
+              y={55 + (position - 1) * (300 / maxPosition)}
               textAnchor="end"
               className="text-xs fill-gray-600"
             >
@@ -80,7 +80,7 @@ export function PositionChart({ snapshots, entryNames }: PositionChartProps) {
             const color = colors[idx % colors.length]
             const points = entry.snapshots.map(snapshot => {
               const x = 50 + ((new Date(snapshot.timestamp).getTime() - minTimestamp) / timeRange) * 700
-              const y = 350 - (snapshot.position - 1) * (300 / maxPosition)
+              const y = 50 + (snapshot.position - 1) * (300 / maxPosition)
               return `${x},${y}`
             }).join(' ')
 
@@ -96,7 +96,7 @@ export function PositionChart({ snapshots, entryNames }: PositionChartProps) {
                 {/* Dots for each point */}
                 {entry.snapshots.map(snapshot => {
                   const x = 50 + ((new Date(snapshot.timestamp).getTime() - minTimestamp) / timeRange) * 700
-                  const y = 350 - (snapshot.position - 1) * (300 / maxPosition)
+                  const y = 50 + (snapshot.position - 1) * (300 / maxPosition)
                   return (
                     <circle
                       key={snapshot.id}
