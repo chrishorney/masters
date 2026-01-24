@@ -5,7 +5,7 @@ from typing import Optional
 from datetime import datetime
 
 from app.database import get_db
-from app.models import Tournament, Entry, DailyScore
+from app.models import Tournament, Entry, DailyScore, ScoreSnapshot
 from app.services.score_calculator import ScoreCalculatorService
 
 router = APIRouter()
@@ -138,6 +138,15 @@ async def get_leaderboard(
     for i, item in enumerate(leaderboard, start=1):
         item["rank"] = i
     
+    # Get the most recent score snapshot to get actual last sync time
+    last_snapshot = db.query(ScoreSnapshot).filter(
+        ScoreSnapshot.tournament_id == tournament_id
+    ).order_by(ScoreSnapshot.timestamp.desc()).first()
+    
+    last_updated = datetime.now().isoformat()
+    if last_snapshot:
+        last_updated = last_snapshot.timestamp.isoformat()
+    
     return {
         "tournament": {
             "id": tournament.id,
@@ -150,5 +159,5 @@ async def get_leaderboard(
             "current_round": tournament.current_round,
         },
         "entries": leaderboard,
-        "last_updated": datetime.now().isoformat()
+        "last_updated": last_updated
     }

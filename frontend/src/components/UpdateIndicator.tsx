@@ -8,6 +8,7 @@ interface UpdateIndicatorProps {
 
 export function UpdateIndicator({ lastUpdated, isRefetching }: UpdateIndicatorProps) {
   const [timeAgo, setTimeAgo] = useState<string>('')
+  const [formattedTime, setFormattedTime] = useState<string>('')
 
   useEffect(() => {
     if (!lastUpdated) return
@@ -29,6 +30,16 @@ export function UpdateIndicator({ lastUpdated, isRefetching }: UpdateIndicatorPr
         const diffHour = Math.floor(diffMin / 60)
         setTimeAgo(`${diffHour}h ago`)
       }
+
+      // Format the actual timestamp
+      const formatted = updated.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      })
+      setFormattedTime(formatted)
     }
 
     updateTimeAgo()
@@ -49,9 +60,16 @@ export function UpdateIndicator({ lastUpdated, isRefetching }: UpdateIndicatorPr
   if (!lastUpdated) return null
 
   return (
-    <div className="flex items-center space-x-2 text-sm text-gray-500">
+    <div className="flex items-center space-x-2 text-sm text-gray-500" title={formattedTime ? `Last synced: ${formattedTime}` : ''}>
       <div className="w-2 h-2 bg-green-500 rounded-full" />
-      <span>Updated {timeAgo}</span>
+      <span>
+        Updated {timeAgo}
+        {formattedTime && (
+          <span className="ml-2 text-xs text-gray-400">
+            ({formattedTime})
+          </span>
+        )}
+      </span>
     </div>
   )
 }
