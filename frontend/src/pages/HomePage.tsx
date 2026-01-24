@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { useCurrentTournament } from '../hooks/useTournament'
 import { LoadingSpinner } from '../components/LoadingSpinner'
 import { ErrorMessage } from '../components/ErrorMessage'
-import { formatCentralDate } from '../utils/time'
 
 export function HomePage() {
   const { data: tournament, isLoading, error } = useCurrentTournament()
