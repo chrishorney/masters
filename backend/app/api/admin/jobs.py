@@ -1,6 +1,6 @@
 """Admin endpoints for background jobs."""
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -145,11 +145,21 @@ async def get_job_status(
     ).order_by(ScoreSnapshot.timestamp.desc()).first()
     
     if last_snapshot:
-        result["last_sync_timestamp"] = last_snapshot.timestamp.isoformat()
+        # Ensure timestamp is in UTC for proper timezone conversion on frontend
+        timestamp = last_snapshot.timestamp
+        if timestamp.tzinfo is None:
+            # Make it timezone-aware as UTC (database typically stores UTC)
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+        result["last_sync_timestamp"] = timestamp.isoformat()
         result["last_sync_round"] = last_snapshot.round_id
         
-        # Calculate time since last sync
-        time_diff = datetime.now() - last_snapshot.timestamp
+        # Calculate time since last sync (use UTC for both)
+        now_utc = datetime.now(timezone.utc)
+        if last_snapshot.timestamp.tzinfo is None:
+            snapshot_utc = last_snapshot.timestamp.replace(tzinfo=timezone.utc)
+        else:
+            snapshot_utc = last_snapshot.timestamp
+        time_diff = now_utc - snapshot_utc
         total_seconds = int(time_diff.total_seconds())
         
         if total_seconds < 60:

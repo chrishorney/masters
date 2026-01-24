@@ -19,7 +19,19 @@ export function formatCentralTime(
     timeZone: 'America/Chicago'
   }
 ): string {
-  const date = typeof dateString === 'string' ? new Date(dateString) : dateString
+  let date: Date
+  if (typeof dateString === 'string') {
+    // If the string doesn't have timezone info, assume it's UTC
+    // This handles timezone-naive ISO strings from the backend
+    if (!dateString.includes('Z') && !dateString.includes('+') && !dateString.includes('-', 10)) {
+      // No timezone indicator - assume UTC and append 'Z'
+      date = new Date(dateString + 'Z')
+    } else {
+      date = new Date(dateString)
+    }
+  } else {
+    date = dateString
+  }
   return date.toLocaleString('en-US', {
     ...options,
     timeZone: 'America/Chicago'

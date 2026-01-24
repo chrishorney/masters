@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.database import get_db
 from app.models import Tournament, Entry, DailyScore, ScoreSnapshot
@@ -143,9 +143,17 @@ async def get_leaderboard(
         ScoreSnapshot.tournament_id == tournament_id
     ).order_by(ScoreSnapshot.timestamp.desc()).first()
     
-    last_updated = datetime.now().isoformat()
+    # Ensure timestamp is in UTC for proper timezone conversion on frontend
     if last_snapshot:
-        last_updated = last_snapshot.timestamp.isoformat()
+        # If timestamp is timezone-naive, assume it's UTC (database typically stores UTC)
+        timestamp = last_snapshot.timestamp
+        if timestamp.tzinfo is None:
+            # Make it timezone-aware as UTC
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+        last_updated = timestamp.isoformat()
+    else:
+        # Use UTC for current time
+        last_updated = datetime.now(timezone.utc).isoformat()
     
     return {
         "tournament": {
