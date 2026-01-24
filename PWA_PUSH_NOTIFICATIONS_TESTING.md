@@ -243,8 +243,34 @@ Once everything works in testing:
 | Chrome | ✅ | ✅ | Full support |
 | Firefox | ✅ | ✅ | Full support |
 | Edge | ✅ | ✅ | Full support |
-| Safari | ✅ | ⚠️ | iOS 16.4+ only, requires PWA install |
+| Safari | ✅ | ⚠️ | **iOS 16.4+ only, requires PWA install to home screen** |
 | Opera | ✅ | ✅ | Full support |
+
+### ⚠️ Important: Safari on iPhone Limitations
+
+**Safari on iPhone has special requirements for push notifications:**
+
+1. **iOS Version**: Requires iOS 16.4 or later
+2. **PWA Installation Required**: Push notifications **DO NOT work** in regular Safari browser on iPhone. The PWA must be:
+   - Installed to the home screen (Add to Home Screen)
+   - Opened from the home screen icon (not from Safari)
+3. **No Browser Support**: Unlike Chrome/Firefox, Safari on iOS does not support push notifications when browsing the website normally
+
+**How to Enable Push Notifications on iPhone:**
+
+1. Open your website in Safari on iPhone
+2. Tap the Share button (square with arrow)
+3. Scroll down and tap "Add to Home Screen"
+4. Give it a name and tap "Add"
+5. **Open the app from the home screen icon** (not from Safari)
+6. Now you can subscribe to push notifications
+7. Notifications will work even when the app is closed
+
+**Alternative for iPhone Users:**
+
+If users can't install the PWA or are on iOS < 16.4, they can:
+- Use Chrome or Firefox on iPhone (if available)
+- Use the website normally (notifications won't work, but all other features will)
 
 ## Next Steps
 

@@ -69,6 +69,10 @@ export function PushNotificationSettings() {
     }
   };
 
+  // Check if we're on iOS Safari (which has special requirements)
+  const isIOSSafari = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+  const isStandalone = (window.navigator as any).standalone || window.matchMedia('(display-mode: standalone)').matches;
+
   if (!isSupported) {
     return (
       <div className="bg-white rounded-lg shadow-md p-4 md:p-6">
@@ -77,6 +81,37 @@ export function PushNotificationSettings() {
         </h3>
         <p className="text-sm text-gray-600">
           Push notifications are not supported in this browser.
+        </p>
+      </div>
+    );
+  }
+
+  // Show special message for iOS Safari users
+  if (isIOSSafari && !isStandalone) {
+    return (
+      <div className="bg-white rounded-lg shadow-md p-4 md:p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          Push Notifications
+        </h3>
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-sm text-blue-800 font-medium mb-2">
+            📱 iPhone Users: Install the App First
+          </p>
+          <p className="text-sm text-blue-700 mb-3">
+            Push notifications on iPhone require the app to be installed to your home screen.
+          </p>
+          <ol className="text-sm text-blue-700 list-decimal list-inside space-y-1 ml-2">
+            <li>Tap the Share button (□↑) in Safari</li>
+            <li>Scroll down and tap "Add to Home Screen"</li>
+            <li>Open the app from your home screen</li>
+            <li>Then return here to enable notifications</li>
+          </ol>
+          <p className="text-xs text-blue-600 mt-3">
+            Note: Requires iOS 16.4 or later
+          </p>
+        </div>
+        <p className="text-sm text-gray-600">
+          All other features work normally in Safari - only push notifications require installation.
         </p>
       </div>
     );
