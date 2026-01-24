@@ -19,6 +19,7 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
   const [startHour, setStartHour] = useState(6) // Default 6 AM
   const [stopHour, setStopHour] = useState(23) // Default 11 PM
   const [activeHours, setActiveHours] = useState<string>('')
+  const [lastSyncTime, setLastSyncTime] = useState<string | null>(null)
   const [syncYear, setSyncYear] = useState(tournament?.year || 2026)
   const [syncTournId, setSyncTournId] = useState(tournament?.tourn_id || '')
   const [syncOrgId, setSyncOrgId] = useState(tournament?.org_id || '1')
@@ -51,6 +52,10 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
           setStartHour(status.start_hour)
           setStopHour(status.stop_hour)
           setActiveHours(status.active_hours || `${status.start_hour}:00 - ${status.stop_hour}:59`)
+        }
+        // Update last sync time if available
+        if (status.time_since_last_sync) {
+          setLastSyncTime(status.time_since_last_sync)
         }
       } catch (error) {
         console.error('Failed to check background job status:', error)
@@ -571,6 +576,25 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
                       Active hours: {activeHours}
                     </p>
                   )}
+                  {lastSyncTime && (
+                    <p className="text-xs text-green-600 font-medium">
+                      Last sync: {lastSyncTime}
+                    </p>
+                  )}
+                </div>
+              )}
+              {!backgroundJobRunning && lastSyncTime && (
+                <div className="mt-2">
+                  <p className="text-xs text-gray-500">
+                    Last sync: {lastSyncTime}
+                  </p>
+                </div>
+              )}
+              {!backgroundJobRunning && !lastSyncTime && (
+                <div className="mt-2">
+                  <p className="text-xs text-gray-500 italic">
+                    No syncs yet. Start the job to begin automatic syncing.
+                  </p>
                 </div>
               )}
             </div>
@@ -611,33 +635,33 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs text-gray-600 mb-1">Start Hour</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="23"
+                  <select
                     value={startHour}
-                    onChange={(e) => setStartHour(parseInt(e.target.value) || 6)}
+                    onChange={(e) => setStartHour(parseInt(e.target.value))}
                     disabled={backgroundJobRunning}
                     className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed w-full"
-                  />
-                  <span className="text-xs text-gray-500 mt-1 block">
-                    {startHour === 0 ? '12 AM' : startHour < 12 ? `${startHour} AM` : startHour === 12 ? '12 PM' : `${startHour - 12} PM`}
-                  </span>
+                  >
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <option key={i} value={i}>
+                        {i === 0 ? '12 AM' : i < 12 ? `${i} AM` : i === 12 ? '12 PM' : `${i - 12} PM`} ({i}:00)
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs text-gray-600 mb-1">Stop Hour</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="23"
+                  <select
                     value={stopHour}
-                    onChange={(e) => setStopHour(parseInt(e.target.value) || 23)}
+                    onChange={(e) => setStopHour(parseInt(e.target.value))}
                     disabled={backgroundJobRunning}
                     className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed w-full"
-                  />
-                  <span className="text-xs text-gray-500 mt-1 block">
-                    {stopHour === 0 ? '12 AM' : stopHour < 12 ? `${stopHour} AM` : stopHour === 12 ? '12 PM' : `${stopHour - 12} PM`}
-                  </span>
+                  >
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <option key={i} value={i}>
+                        {i === 0 ? '12 AM' : i < 12 ? `${i} AM` : i === 12 ? '12 PM' : `${i - 12} PM`} ({i}:00)
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <p className="text-xs text-gray-500 mt-2">
@@ -683,6 +707,22 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
                 Monitor your RapidAPI usage to avoid exceeding limits.
               </p>
             </div>
+
+            {/* Troubleshooting Note */}
+            {!backgroundJobRunning && (
+              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-xs text-blue-800">
+                  <strong>ℹ️ Troubleshooting:</strong> If automatic sync stops working:
+                </p>
+                <ul className="text-xs text-blue-700 mt-1 ml-4 list-disc">
+                  <li>Check Railway logs for error messages</li>
+                  <li>Verify the tournament is within active hours</li>
+                  <li>Ensure the tournament dates are correct</li>
+                  <li>Try stopping and restarting the job</li>
+                  <li>Note: Jobs stop if the server restarts (Railway deployments)</li>
+                </ul>
+              </div>
+            )}
           </div>
           )}
         </div>

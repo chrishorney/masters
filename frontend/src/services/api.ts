@@ -122,10 +122,13 @@ export const adminApi = {
   /** Get background job status */
   getBackgroundJobStatus: async (tournamentId: number): Promise<{ 
     running: boolean; 
-    status: string; 
+    status: string;
     start_hour?: number;
     stop_hour?: number;
     active_hours?: string;
+    time_since_last_sync?: string;
+    last_sync_timestamp?: string;
+    last_sync_round?: number;
   }> => {
     const response = await api.get('/admin/jobs/status', {
       params: { tournament_id: tournamentId },
