@@ -1214,6 +1214,369 @@ If native iOS app is too complex, consider enhancing the web app as a PWA:
 
 ---
 
+## Phase 17.5: Progressive Web App (PWA)
+
+### Overview
+Transform the existing web application into a Progressive Web App (PWA) that can be installed on users' devices and provides native app-like features including push notifications, offline support, and an app-like experience. This is a faster and more cost-effective alternative to native app development.
+
+### What is a PWA?
+A Progressive Web App is a web application that uses modern web technologies to provide an app-like experience:
+- **Installable**: Can be added to home screen on mobile and desktop
+- **Offline Support**: Works without internet connection (with cached data)
+- **Push Notifications**: Receive notifications even when browser is closed
+- **App-like Experience**: Full-screen, no browser UI
+- **Fast Loading**: Service workers for instant loading
+- **Responsive**: Works on all devices
+
+### Core PWA Features
+
+#### 1. Web App Manifest
+- **Installation Prompt**
+  - "Add to Home Screen" functionality
+  - Custom app icon and splash screen
+  - App name and description
+  - Theme colors and display mode
+  - Start URL and scope
+
+- **Manifest Configuration**
+  ```json
+  {
+    "name": "Eldorado Masters Pool",
+    "short_name": "Masters Pool",
+    "description": "13th Annual Eldorado Masters Golf Tournament Pool",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#16a34a",
+    "icons": [
+      {
+        "src": "/icon-192x192.png",
+        "sizes": "192x192",
+        "type": "image/png"
+      },
+      {
+        "src": "/icon-512x512.png",
+        "sizes": "512x512",
+        "type": "image/png"
+      }
+    ]
+  }
+  ```
+
+#### 2. Service Worker
+- **Offline Support**
+  - Cache API responses
+  - Cache static assets (HTML, CSS, JS, images)
+  - Serve cached content when offline
+  - Background sync for data updates
+
+- **Caching Strategies**
+  - **Cache First**: Static assets (CSS, JS, images)
+  - **Network First**: API calls (leaderboard, scores)
+  - **Stale While Revalidate**: Best of both worlds
+  - **Cache with Network Fallback**: Offline-first approach
+
+- **Service Worker Lifecycle**
+  - Registration on first visit
+  - Installation and activation
+  - Update mechanism
+  - Background sync
+
+#### 3. Push Notifications
+- **Web Push API**
+  - Subscribe users to push notifications
+  - Send notifications from server
+  - Handle notification clicks
+  - Notification actions (buttons)
+
+- **Notification Types**
+  - Tournament events (hole-in-one, eagles)
+  - Leaderboard updates
+  - Position changes
+  - Round completions
+  - Tournament start/end
+
+- **Implementation**
+  - **Frontend**: Service worker handles notifications
+  - **Backend**: Push notification service (Firebase Cloud Messaging or similar)
+  - **User Permission**: Request notification permission
+  - **Subscription Management**: Store subscription tokens
+
+#### 4. Offline Functionality
+- **Offline Viewing**
+  - Cache leaderboard data
+  - Cache entry details
+  - Cache tournament information
+  - View cached data when offline
+
+- **Offline Indicators**
+  - Show "Offline" badge
+  - Display last updated time
+  - Queue actions for when online
+  - Background sync when connection restored
+
+#### 5. App-like Experience
+- **Standalone Mode**
+  - Full-screen display (no browser UI)
+  - Custom splash screen
+  - App-like navigation
+  - Smooth transitions
+
+- **Mobile Optimizations**
+  - Touch gestures
+  - Swipe navigation
+  - Pull-to-refresh
+  - Bottom navigation bar
+
+### Implementation Steps
+
+#### Step 1: Web App Manifest (1 day)
+1. Create `manifest.json` file
+2. Add app icons (192x192, 512x512)
+3. Configure theme colors
+4. Set display mode to "standalone"
+5. Link manifest in HTML
+
+#### Step 2: Service Worker Setup (2-3 days)
+1. **Service Worker Registration**
+   - Register service worker on app load
+   - Handle installation and activation
+   - Update mechanism
+
+2. **Caching Strategy**
+   - Cache static assets
+   - Cache API responses
+   - Implement cache invalidation
+   - Handle cache updates
+
+3. **Offline Support**
+   - Serve cached content when offline
+   - Show offline indicator
+   - Queue failed requests
+
+#### Step 3: Push Notifications (3-4 days)
+1. **Frontend Setup**
+   - Request notification permission
+   - Subscribe to push notifications
+   - Handle notification clicks
+   - Service worker notification handler
+
+2. **Backend Integration**
+   - Set up push notification service
+   - Store subscription tokens
+   - Send notifications from server
+   - Integrate with existing Discord/notification system
+
+3. **Notification UI**
+   - Notification settings page
+   - Enable/disable notifications
+   - Notification preferences
+   - Test notification button
+
+#### Step 4: Offline Features (2-3 days)
+1. **Data Caching**
+   - Cache leaderboard on load
+   - Cache entry details
+   - Cache tournament info
+   - Cache expiration logic
+
+2. **Offline UI**
+   - Offline indicator
+   - Last updated timestamp
+   - Queue actions for sync
+   - Background sync
+
+#### Step 5: Polish & Testing (2-3 days)
+1. **Testing**
+   - Test on iOS Safari
+   - Test on Android Chrome
+   - Test on desktop browsers
+   - Test offline functionality
+   - Test push notifications
+
+2. **Optimization**
+   - Performance optimization
+   - Bundle size optimization
+   - Image optimization
+   - Loading performance
+
+### Technical Implementation
+
+#### Service Worker Example
+```javascript
+// service-worker.js
+const CACHE_NAME = 'masters-pool-v1';
+const urlsToCache = [
+  '/',
+  '/static/css/main.css',
+  '/static/js/main.js',
+  '/api/tournament/current',
+  '/api/scores/leaderboard'
+];
+
+// Install event
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(urlsToCache))
+  );
+});
+
+// Fetch event
+self.addEventListener('fetch', (event) => {
+  event.respondWith(
+    caches.match(event.request)
+      .then((response) => {
+        // Return cached version or fetch from network
+        return response || fetch(event.request);
+      })
+  );
+});
+
+// Push notification
+self.addEventListener('push', (event) => {
+  const data = event.data.json();
+  const options = {
+    body: data.body,
+    icon: '/icon-192x192.png',
+    badge: '/icon-192x192.png',
+    data: data.url
+  };
+  
+  event.waitUntil(
+    self.registration.showNotification(data.title, options)
+  );
+});
+
+// Notification click
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.openWindow(event.notification.data || '/')
+  );
+});
+```
+
+#### Push Notification Backend
+```python
+# backend/app/services/push_notifications.py
+import requests
+from typing import List, Dict
+
+class PushNotificationService:
+    def __init__(self):
+        self.vapid_public_key = os.getenv('VAPID_PUBLIC_KEY')
+        self.vapid_private_key = os.getenv('VAPID_PRIVATE_KEY')
+    
+    def send_notification(
+        self,
+        subscription: Dict,
+        title: str,
+        body: str,
+        url: str = None
+    ):
+        """Send push notification to a subscription."""
+        payload = {
+            "title": title,
+            "body": body,
+            "url": url or "/"
+        }
+        
+        # Send using web-push library
+        webpush(
+            subscription_info=subscription,
+            data=json.dumps(payload),
+            vapid_private_key=self.vapid_private_key,
+            vapid_claims={"sub": "mailto:admin@example.com"}
+        )
+```
+
+### Browser Support
+
+#### Full Support
+- ✅ Chrome (Android & Desktop)
+- ✅ Edge (Desktop)
+- ✅ Firefox (Desktop)
+- ✅ Safari (iOS 16.4+, macOS)
+
+#### Limited Support
+- ⚠️ Safari (iOS < 16.4): Limited PWA features
+- ⚠️ Firefox (Android): Limited push notifications
+
+### Benefits
+
+- 📱 **Installable**: Add to home screen on all devices
+- 🔔 **Push Notifications**: Real-time alerts (better on Android, limited on iOS)
+- 📴 **Offline Access**: View cached data without internet
+- ⚡ **Fast Loading**: Instant loading with service workers
+- 💰 **Cost Effective**: No app store fees or review process
+- 🔄 **Easy Updates**: Updates automatically when users visit
+- 🌐 **Cross-Platform**: Works on iOS, Android, and desktop
+- 📦 **No Installation**: Users can use immediately in browser
+
+### Limitations
+
+- **iOS Limitations**:
+  - Push notifications require iOS 16.4+
+  - Limited offline support
+  - No background sync
+  - Must be added to home screen manually
+
+- **General Limitations**:
+  - Not in app stores (but can be installed)
+  - Limited access to device features
+  - Dependent on browser support
+
+### Comparison: PWA vs Native App
+
+| Feature | PWA | Native iOS App |
+|---------|-----|----------------|
+| Development Time | 1-2 weeks | 7-11 weeks |
+| Cost | Low | Medium-High |
+| App Store | No | Yes |
+| Updates | Instant | App Store review |
+| Offline | Limited | Full |
+| Push Notifications | Limited on iOS | Full |
+| Device Features | Limited | Full |
+| Cross-Platform | Yes | iOS only |
+
+### Recommended Approach
+
+1. **Start with PWA**: Faster to implement, test user interest
+2. **Gather Feedback**: See how users respond to PWA
+3. **Consider Native**: If PWA limitations are significant, develop native app
+4. **Hybrid Approach**: PWA for most users, native app for power users
+
+### Implementation Timeline
+
+- **Week 1**: Manifest + Service Worker (3-4 days)
+- **Week 2**: Push Notifications (3-4 days)
+- **Week 3**: Offline Features + Polish (3-4 days)
+- **Total**: 2-3 weeks for full PWA implementation
+
+### Testing Checklist
+
+- [ ] Installable on iOS Safari
+- [ ] Installable on Android Chrome
+- [ ] Installable on desktop browsers
+- [ ] Offline functionality works
+- [ ] Push notifications work (test on Android)
+- [ ] Service worker updates correctly
+- [ ] Cache invalidation works
+- [ ] Performance is good
+- [ ] Icons and splash screen display correctly
+
+### Future Enhancements
+
+- **Background Sync**: Sync data when connection restored
+- **Share Target**: Receive shared content from other apps
+- **File System Access**: Save/load data files
+- **Periodic Background Sync**: Update data in background
+- **Web Share API**: Native share functionality
+- **Badge API**: Show unread count on app icon
+
+---
+
 ## Phase 18: Performance & Scalability
 
 ### Features
