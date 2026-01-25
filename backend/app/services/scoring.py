@@ -115,8 +115,12 @@ class ScoringService:
             return float(rules.get("top_25", 0))
         elif round_id >= 2 and rules.get("made_cut"):
             # Made cut but outside top 25 (Friday-Sunday only)
-            # Only award if player actually made the cut (status not "cut", "wd", or "dq")
-            if status and status.lower() in ["cut", "wd", "dq"]:
+            # Only award if player actually made the cut (status not "cut", "wd", "dq", or "unknown")
+            # "unknown" status typically means player was cut and not in leaderboard
+            if not status or status.lower() in ["cut", "wd", "dq", "unknown"]:
+                return 0.0
+            # Status should be "complete" or "active" for players who made the cut
+            if status.lower() not in ["complete", "active"]:
                 return 0.0
             return float(rules.get("made_cut", 0))
         
