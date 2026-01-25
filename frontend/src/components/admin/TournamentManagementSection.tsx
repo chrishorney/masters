@@ -599,6 +599,29 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
                       )}
                     </p>
                   )}
+                  {debugInfo && (
+                    <div className="mt-2 p-2 bg-blue-50 rounded text-xs border border-blue-200">
+                      <p className="font-semibold text-blue-900 mb-1">Debug Info:</p>
+                      <p className="text-blue-800">Current hour: {debugInfo.current_hour}:00</p>
+                      {debugInfo.within_active_hours !== undefined && (
+                        <p className="text-blue-800">
+                          Within active hours: <span className={debugInfo.within_active_hours ? 'text-green-700 font-semibold' : 'text-red-700 font-semibold'}>
+                            {debugInfo.within_active_hours ? 'Yes ✓' : 'No ✗'}
+                          </span>
+                        </p>
+                      )}
+                      {debugInfo.tournament_active !== undefined && (
+                        <p className="text-blue-800">
+                          Tournament active: <span className={debugInfo.tournament_active ? 'text-green-700 font-semibold' : 'text-red-700 font-semibold'}>
+                            {debugInfo.tournament_active ? 'Yes ✓' : 'No ✗'}
+                          </span>
+                        </p>
+                      )}
+                      {debugInfo.task_status && (
+                        <p className="text-blue-800">Task status: {debugInfo.task_status}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
               {!backgroundJobRunning && lastSyncTime && (
