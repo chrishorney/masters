@@ -76,10 +76,16 @@ class ScoringService:
             position: Position string (e.g., "1", "T2", "5") or integer
             round_id: Round number (1-4)
             is_winner: Whether this is the tournament winner (Sunday only)
+            status: Player status (cut, wd, dq, complete, active, etc.)
             
         Returns:
             Points earned
         """
+        # If player was cut, withdrawn, or disqualified, they get 0 points
+        # This check happens FIRST, before checking position
+        if status and status.lower() in ["cut", "wd", "dq"]:
+            return 0.0
+        
         if not position:
             return 0.0
         
