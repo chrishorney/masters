@@ -136,7 +136,10 @@ class BackgroundJobService:
                         # Only run during active tournament days
                         today = now.date()
                         if tournament.start_date <= today <= tournament.end_date:
-                            logger.info(f"Running background sync for tournament {tournament_id}")
+                            logger.info(
+                                f"Running background sync for tournament {tournament_id} "
+                                f"(Round {tournament.current_round}, {now.strftime('%Y-%m-%d %H:%M:%S')})"
+                            )
                             
                             # Create fresh services with fresh DB session
                             sync_service = DataSyncService(db)
@@ -144,6 +147,7 @@ class BackgroundJobService:
                             
                             # Sync tournament data
                             try:
+                                logger.info(f"Syncing tournament data for {tournament.name}...")
                                 sync_results = sync_service.sync_tournament_data(
                                     org_id=tournament.org_id,
                                     tourn_id=tournament.tourn_id,
@@ -152,8 +156,11 @@ class BackgroundJobService:
                                 
                                 if sync_results.get("errors"):
                                     logger.warning(f"Sync completed with errors: {sync_results['errors']}")
+                                else:
+                                    logger.info(f"Sync completed successfully. Players: {sync_results.get('players_synced', 0)}, Scorecards: {sync_results.get('scorecards_fetched', 0)}")
                                 
                                 # Calculate scores for current round
+                                logger.info(f"Calculating scores for Round {tournament.current_round}...")
                                 calc_results = calculator.calculate_scores_for_tournament(
                                     tournament_id=tournament_id,
                                     round_id=tournament.current_round
@@ -161,7 +168,8 @@ class BackgroundJobService:
                                 
                                 if calc_results.get("success"):
                                     logger.info(
-                                        f"Calculated scores for {calc_results.get('entries_processed', 0)} entries"
+                                        f"Calculated scores for {calc_results.get('entries_processed', 0)} entries "
+                                        f"(updated: {calc_results.get('entries_updated', 0)})"
                                     )
                                 else:
                                     logger.warning(f"Score calculation failed: {calc_results.get('message')}")
@@ -174,7 +182,10 @@ class BackgroundJobService:
                                     self.running = False
                                     break
                         else:
-                            logger.debug(f"Tournament not active today (start: {tournament.start_date}, end: {tournament.end_date})")
+                            logger.info(
+                                f"Tournament not active today "
+                                f"(start: {tournament.start_date}, end: {tournament.end_date}, today: {today})"
+                            )
                     
                     finally:
                         # Always close the database session

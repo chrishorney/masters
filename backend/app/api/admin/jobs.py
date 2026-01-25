@@ -14,13 +14,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Global job service instance (in production, use proper job queue like Celery)
+# NOTE: This is in-memory and will be lost on server restart
 _job_services: dict[int, BackgroundJobService] = {}
 
 
 @router.post("/jobs/start")
 async def start_background_job(
     tournament_id: int = Query(..., description="Tournament ID"),
-    interval_seconds: int = Query(60, description="Update interval in seconds"),
+    interval_seconds: int = Query(300, description="Update interval in seconds (default: 300 = 5 minutes)"),
     start_hour: int = Query(6, description="Hour to start syncing (0-23, default: 6 = 6 AM)"),
     stop_hour: int = Query(23, description="Hour to stop syncing (0-23, default: 23 = 11 PM)"),
     db: Session = Depends(get_db)
@@ -35,18 +36,28 @@ async def start_background_job(
     if not (0 <= start_hour <= 23) or not (0 <= stop_hour <= 23):
         raise HTTPException(status_code=400, detail="Hours must be between 0 and 23")
     
-    # Check if job already running
+    # Validate interval
+    if interval_seconds < 60:
+        raise HTTPException(status_code=400, detail="Interval must be at least 60 seconds")
+    
+    # Check if job already running - stop it first if it exists
     if tournament_id in _job_services:
-        return {
-            "message": "Background job already running",
-            "tournament_id": tournament_id,
-            "status": "running"
-        }
+        existing_job = _job_services[tournament_id]
+        if existing_job.running:
+            logger.info(f"Stopping existing job for tournament {tournament_id} before starting new one")
+            await existing_job.stop()
+        del _job_services[tournament_id]
     
     # Create and start job service
+    # NOTE: We pass the db session, but the job will create its own sessions
     job_service = BackgroundJobService(db)
     await job_service.start(tournament_id, interval_seconds, start_hour, stop_hour)
     _job_services[tournament_id] = job_service
+    
+    logger.info(
+        f"Background job started for tournament {tournament_id}: "
+        f"interval={interval_seconds}s, hours={start_hour:02d}:00-{stop_hour:02d}:59"
+    )
     
     return {
         "message": "Background job started",
@@ -55,7 +66,8 @@ async def start_background_job(
         "start_hour": start_hour,
         "stop_hour": stop_hour,
         "active_hours": f"{start_hour:02d}:00 - {stop_hour:02d}:59",
-        "status": "started"
+        "status": "started",
+        "warning": "Job is in-memory and will be lost on server restart. Use a proper job queue (like Celery) for production."
     }
 
 
@@ -79,6 +91,8 @@ async def stop_background_job(
     # Remove from running jobs - this prevents any automatic restart
     del _job_services[tournament_id]
     
+    logger.info(f"Background job stopped for tournament {tournament_id}")
+    
     return {
         "message": "Background job stopped permanently. It will not restart automatically.",
         "tournament_id": tournament_id,
@@ -100,11 +114,13 @@ async def get_job_status(
         - last_sync_timestamp: ISO timestamp of the most recent sync (if any)
         - last_sync_round: Round number of the most recent sync (if any)
         - time_since_last_sync: Human-readable time since last sync (if any)
+        - debug_info: Additional debugging information
     """
     is_in_dict = tournament_id in _job_services
     
     # Check if task is actually running (not just in dictionary)
     is_actually_running = False
+    task_status = None
     if is_in_dict:
         job_service = _job_services[tournament_id]
         # Check if service thinks it's running AND task exists and is not done
@@ -113,23 +129,39 @@ async def get_job_status(
                 # Check if task is done or cancelled
                 if not job_service._task.done():
                     is_actually_running = True
+                    task_status = "running"
                 else:
                     # Task is done but service thinks it's running - clean up
+                    task_status = f"done (exception: {job_service._task.exception()})" if job_service._task.exception() else "done"
                     logger.warning(f"Job service for tournament {tournament_id} has completed task but running flag is True. Cleaning up.")
                     job_service.running = False
                     if tournament_id in _job_services:
                         del _job_services[tournament_id]
             else:
                 # No task but service thinks it's running - clean up
+                task_status = "no_task"
                 logger.warning(f"Job service for tournament {tournament_id} has no task but running flag is True. Cleaning up.")
                 job_service.running = False
                 if tournament_id in _job_services:
                     del _job_services[tournament_id]
+        else:
+            task_status = "not_running"
+    
+    # Get tournament info for debugging
+    tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    now = datetime.now()
+    current_hour = now.hour
     
     result = {
         "tournament_id": tournament_id,
         "running": is_actually_running,
-        "status": "running" if is_actually_running else "stopped"
+        "status": "running" if is_actually_running else "stopped",
+        "debug_info": {
+            "in_job_services_dict": is_in_dict,
+            "task_status": task_status,
+            "current_hour": current_hour,
+            "current_time": now.isoformat(),
+        }
     }
     
     # Add time info if running
@@ -138,6 +170,24 @@ async def get_job_status(
         result["start_hour"] = getattr(job_service, 'start_hour', 6)
         result["stop_hour"] = getattr(job_service, 'stop_hour', 23)
         result["active_hours"] = f"{result['start_hour']:02d}:00 - {result['stop_hour']:02d}:59"
+        
+        # Check if within active hours
+        if hasattr(job_service, '_is_within_active_hours'):
+            within_hours = job_service._is_within_active_hours(
+                current_hour, 
+                result["start_hour"], 
+                result["stop_hour"]
+            )
+            result["debug_info"]["within_active_hours"] = within_hours
+        
+        # Check if tournament is active
+        if tournament:
+            today = now.date()
+            is_active = tournament.start_date <= today <= tournament.end_date
+            result["debug_info"]["tournament_active"] = is_active
+            result["debug_info"]["tournament_start_date"] = tournament.start_date.isoformat()
+            result["debug_info"]["tournament_end_date"] = tournament.end_date.isoformat()
+            result["debug_info"]["tournament_current_round"] = tournament.current_round
     
     # Get last sync timestamp from most recent ScoreSnapshot
     last_snapshot = db.query(ScoreSnapshot).filter(
