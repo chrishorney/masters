@@ -260,24 +260,34 @@ class ScoringService:
             position = self.get_player_position(leaderboard_data, player_id)
             status = self.get_player_status(leaderboard_data, player_id)
             
-            # For rounds 3-4, check if player was cut in Round 2
-            # If a player was cut after Round 2, they should not get "made cut" points
-            # The API might not include cut players in later round leaderboards,
-            # so we need to check previous rounds
-            if round_id >= 3 and status == "unknown":
-                # Player not in current round leaderboard - check if they were cut in Round 2
-                prev_status = self.get_player_status_from_previous_round(
+            # For rounds 3-4, ALWAYS check if player was cut in Round 2
+            # Cut happens after Round 2, so if a player was cut in Round 2,
+            # they should get 0 points in Round 3 and 4, regardless of what
+            # the current round's leaderboard shows
+            if round_id >= 3:
+                # Check Round 2 to see if player was cut
+                cut_status = self.get_player_status_from_previous_round(
                     tournament.id,
                     str(player_id),
                     round_id
                 )
-                if prev_status and prev_status in ["cut", "wd", "dq"]:
-                    # Player was cut/withdrawn/disqualified in a previous round
-                    status = prev_status
-                    logger.debug(
-                        f"Player {player_id} not in Round {round_id} leaderboard, "
-                        f"but was {prev_status} in previous round. Setting status to {prev_status}."
+                if cut_status and cut_status in ["cut", "wd", "dq"]:
+                    # Player was cut/withdrawn/disqualified in Round 2
+                    # They get 0 points for Round 3 and 4
+                    status = cut_status
+                    position = None  # Clear position so no points are awarded
+                    logger.info(
+                        f"Player {player_id} was {cut_status} in Round 2. "
+                        f"Setting to 0 points for Round {round_id}."
                     )
+                elif status == "unknown":
+                    # Player not in current round leaderboard - check if they were cut
+                    if cut_status and cut_status in ["cut", "wd", "dq"]:
+                        status = cut_status
+                        logger.debug(
+                            f"Player {player_id} not in Round {round_id} leaderboard, "
+                            f"but was {cut_status} in previous round. Setting status to {cut_status}."
+                        )
             
             # Skip if player didn't play this round (for rebuys)
             if round_id >= 3 and player_id in entry.rebuy_player_ids:
