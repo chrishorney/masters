@@ -22,6 +22,7 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
   const [activeHours, setActiveHours] = useState<string>('')
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null)
   const [lastSyncTimestamp, setLastSyncTimestamp] = useState<string | null>(null)
+  const [debugInfo, setDebugInfo] = useState<any>(null)
   const [syncYear, setSyncYear] = useState(tournament?.year || 2026)
   const [syncTournId, setSyncTournId] = useState(tournament?.tourn_id || '')
   const [syncOrgId, setSyncOrgId] = useState(tournament?.org_id || '1')
@@ -64,6 +65,10 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
         }
         if (status.last_sync_timestamp) {
           setLastSyncTimestamp(status.last_sync_timestamp)
+        }
+        // Store debug info
+        if (status.debug_info) {
+          setDebugInfo(status.debug_info)
         }
       } catch (error) {
         console.error('Failed to check background job status:', error)

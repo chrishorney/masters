@@ -129,6 +129,7 @@ export const adminApi = {
     time_since_last_sync?: string;
     last_sync_timestamp?: string;
     last_sync_round?: number;
+    debug_info?: any;
   }> => {
     const response = await api.get('/admin/jobs/status', {
       params: { tournament_id: tournamentId },
