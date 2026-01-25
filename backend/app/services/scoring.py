@@ -146,6 +146,64 @@ class ScoringService:
                 return row.get("status", "unknown")
         return "unknown"
     
+    def get_player_status_from_previous_round(
+        self,
+        tournament_id: int,
+        player_id: str,
+        current_round: int
+    ) -> Optional[str]:
+        """
+        Get player's status from a previous round (useful for checking if player was cut).
+        
+        This is important because:
+        - Cut happens after Round 2 (Friday)
+        - Players cut in Round 2 should not get "made cut" points in Round 3 or 4
+        - The API might not include cut players in later round leaderboards
+        
+        Returns:
+            Status string from previous round, or None if not found
+        """
+        if current_round <= 1:
+            return None
+        
+        # Check Round 2 first (where cut happens)
+        # If player was cut in Round 2, they're cut for all subsequent rounds
+        from app.models import ScoreSnapshot
+        round2_snapshot = self.db.query(ScoreSnapshot).filter(
+            ScoreSnapshot.tournament_id == tournament_id,
+            ScoreSnapshot.round_id == 2
+        ).order_by(ScoreSnapshot.timestamp.desc()).first()
+        
+        if round2_snapshot and round2_snapshot.leaderboard_data:
+            rows = round2_snapshot.leaderboard_data.get("leaderboardRows", [])
+            for row in rows:
+                if str(row.get("playerId")) == str(player_id):
+                    status = row.get("status", "").lower()
+                    if status in ["cut", "wd", "dq"]:
+                        return status
+                    # If player made the cut in Round 2, they're good for later rounds
+                    # (unless they withdraw/disqualify later)
+                    break
+        
+        # Also check the round immediately before current (in case of late withdrawals)
+        if current_round > 2:
+            prev_round = current_round - 1
+            prev_snapshot = self.db.query(ScoreSnapshot).filter(
+                ScoreSnapshot.tournament_id == tournament_id,
+                ScoreSnapshot.round_id == prev_round
+            ).order_by(ScoreSnapshot.timestamp.desc()).first()
+            
+            if prev_snapshot and prev_snapshot.leaderboard_data:
+                rows = prev_snapshot.leaderboard_data.get("leaderboardRows", [])
+                for row in rows:
+                    if str(row.get("playerId")) == str(player_id):
+                        status = row.get("status", "").lower()
+                        if status in ["cut", "wd", "dq"]:
+                            return status
+                        break
+        
+        return None
+    
     def calculate_daily_base_points(
         self,
         entry: Entry,
@@ -197,6 +255,25 @@ class ScoringService:
         for i, player_id in enumerate(player_ids, 1):
             position = self.get_player_position(leaderboard_data, player_id)
             status = self.get_player_status(leaderboard_data, player_id)
+            
+            # For rounds 3-4, check if player was cut in Round 2
+            # If a player was cut after Round 2, they should not get "made cut" points
+            # The API might not include cut players in later round leaderboards,
+            # so we need to check previous rounds
+            if round_id >= 3 and status == "unknown":
+                # Player not in current round leaderboard - check if they were cut in Round 2
+                prev_status = self.get_player_status_from_previous_round(
+                    tournament.id,
+                    str(player_id),
+                    round_id
+                )
+                if prev_status and prev_status in ["cut", "wd", "dq"]:
+                    # Player was cut/withdrawn/disqualified in a previous round
+                    status = prev_status
+                    logger.debug(
+                        f"Player {player_id} not in Round {round_id} leaderboard, "
+                        f"but was {prev_status} in previous round. Setting status to {prev_status}."
+                    )
             
             # Skip if player didn't play this round (for rebuys)
             if round_id >= 3 and player_id in entry.rebuy_player_ids:
