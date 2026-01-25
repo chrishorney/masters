@@ -230,6 +230,132 @@ async def diagnose_tournament(
     return result
 
 
+@router.get("/diagnostics/tournament/{tournament_id}/round/{round_id}/cut-status")
+async def check_cut_status(
+    tournament_id: int,
+    round_id: int,
+    player_name: Optional[str] = Query(None, description="Player name to check (e.g., 'Adam Long')"),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Check cut status for players in a specific round.
+    
+    This helps diagnose why cut players might be getting points incorrectly.
+    Shows comparison between Round 2 (where cut happens) and current round.
+    """
+    tournament = db.query(Tournament).filter(
+        Tournament.id == tournament_id
+    ).first()
+    
+    if not tournament:
+        raise HTTPException(status_code=404, detail="Tournament not found")
+    
+    # Get snapshot for this round
+    snapshot = db.query(ScoreSnapshot).filter(
+        ScoreSnapshot.tournament_id == tournament_id,
+        ScoreSnapshot.round_id == round_id
+    ).order_by(ScoreSnapshot.timestamp.desc()).first()
+    
+    if not snapshot:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"No snapshot found for tournament {tournament_id}, round {round_id}"
+        )
+    
+    # Get Round 2 snapshot (where cut happens)
+    round2_snapshot = db.query(ScoreSnapshot).filter(
+        ScoreSnapshot.tournament_id == tournament_id,
+        ScoreSnapshot.round_id == 2
+    ).order_by(ScoreSnapshot.timestamp.desc()).first()
+    
+    result = {
+        "tournament_id": tournament_id,
+        "round_id": round_id,
+        "round2_snapshot_exists": bool(round2_snapshot),
+        "current_round_players": [],
+        "round2_cut_players": [],
+        "player_status_comparison": []
+    }
+    
+    # Find player ID if name provided
+    player_id_to_check = None
+    if player_name:
+        player = db.query(Player).filter(
+            Player.full_name.ilike(f"%{player_name}%")
+        ).first()
+        if player:
+            player_id_to_check = player.player_id
+    
+    # Get all players from current round
+    if snapshot.leaderboard_data:
+        rows = snapshot.leaderboard_data.get("leaderboardRows", [])
+        for row in rows:
+            player_id_str = str(row.get("playerId"))
+            if player_id_to_check and player_id_str != str(player_id_to_check):
+                continue
+            
+            position = row.get("position")
+            status = row.get("status", "unknown")
+            name = f"{row.get('firstName', '')} {row.get('lastName', '')}".strip()
+            
+            # Check Round 2 status
+            round2_status = None
+            round2_position = None
+            if round2_snapshot and round2_snapshot.leaderboard_data:
+                round2_rows = round2_snapshot.leaderboard_data.get("leaderboardRows", [])
+                for r2_row in round2_rows:
+                    if str(r2_row.get("playerId")) == player_id_str:
+                        round2_status = r2_row.get("status", "unknown")
+                        round2_position = r2_row.get("position")
+                        break
+            
+            was_cut_in_round2 = round2_status and round2_status.lower() in ["cut", "wd", "dq"]
+            
+            result["current_round_players"].append({
+                "player_id": player_id_str,
+                "name": name,
+                "position": position,
+                "status": status,
+                "round2_status": round2_status,
+                "round2_position": round2_position,
+                "was_cut_in_round2": was_cut_in_round2,
+                "should_get_points": not was_cut_in_round2
+            })
+            
+            if player_id_to_check and player_id_str == str(player_id_to_check):
+                result["player_status_comparison"] = [{
+                    "player_id": player_id_str,
+                    "name": name,
+                    "round2_status": round2_status,
+                    "round2_position": round2_position,
+                    "current_round_status": status,
+                    "current_round_position": position,
+                    "was_cut_in_round2": was_cut_in_round2,
+                    "should_get_points": not was_cut_in_round2,
+                    "explanation": "Player was cut in Round 2, so should get 0 points in Round 3 and 4" if was_cut_in_round2 else "Player made the cut, can earn points"
+                }]
+    
+    # Get all cut players from Round 2
+    if round2_snapshot and round2_snapshot.leaderboard_data:
+        round2_rows = round2_snapshot.leaderboard_data.get("leaderboardRows", [])
+        for row in round2_rows:
+            status = row.get("status", "").lower()
+            if status in ["cut", "wd", "dq"]:
+                player_id_str = str(row.get("playerId"))
+                if player_id_to_check and player_id_str != str(player_id_to_check):
+                    continue
+                
+                name = f"{row.get('firstName', '')} {row.get('lastName', '')}".strip()
+                result["round2_cut_players"].append({
+                    "player_id": player_id_str,
+                    "name": name,
+                    "status": status,
+                    "position": row.get("position")
+                })
+    
+    return result
+
+
 @router.post("/diagnostics/tournament/{tournament_id}/clear")
 async def clear_tournament_data(
     tournament_id: int,
