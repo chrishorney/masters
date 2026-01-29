@@ -419,18 +419,37 @@ class ScoringService:
             
             # Eagles, double eagles, hole in one from scorecard
             player_scorecards = scorecard_data.get(player_id_str, [])
+            if not player_scorecards:
+                logger.debug(f"No scorecard data found for player {player_id_str} in entry {entry.id}")
+            else:
+                logger.debug(f"Processing {len(player_scorecards)} scorecard(s) for player {player_id_str}")
+            
             for scorecard in player_scorecards:
-                if scorecard.get("roundId") == round_id:
+                # Parse roundId from MongoDB format if needed
+                scorecard_round_id = parse_mongodb_value(scorecard.get("roundId"))
+                logger.debug(
+                    f"Checking scorecard for player {player_id_str}: "
+                    f"scorecard_round_id={scorecard_round_id}, target_round_id={round_id}"
+                )
+                
+                if scorecard_round_id == round_id:
                     holes = scorecard.get("holes", {})
+                    logger.debug(f"Found {len(holes)} holes in scorecard for player {player_id_str}, round {round_id}")
+                    
                     for hole_num, hole_data in holes.items():
-                        hole_score = hole_data.get("holeScore")
-                        par = hole_data.get("par")
+                        # Parse hole score and par from MongoDB format if needed
+                        hole_score = parse_mongodb_value(hole_data.get("holeScore"))
+                        par = parse_mongodb_value(hole_data.get("par"))
                         
-                        if hole_score and par:
+                        if hole_score is not None and par is not None:
                             score_to_par = hole_score - par
                             
                             # Hole in one (always par 3)
                             if hole_score == 1 and par == 3:
+                                logger.info(
+                                    f"Detected hole-in-one for player {player_id_str} on hole {hole_num} "
+                                    f"(entry {entry.id})"
+                                )
                                 bonuses.append({
                                     "player_id": player_id_str,
                                     "bonus_type": "hole_in_one",
@@ -439,6 +458,10 @@ class ScoringService:
                                 })
                             # Double eagle (3 under par)
                             elif score_to_par == -3:
+                                logger.info(
+                                    f"Detected double eagle for player {player_id_str} on hole {hole_num} "
+                                    f"(entry {entry.id})"
+                                )
                                 bonuses.append({
                                     "player_id": player_id_str,
                                     "bonus_type": "double_eagle",
@@ -447,12 +470,21 @@ class ScoringService:
                                 })
                             # Eagle (2 under par)
                             elif score_to_par == -2:
+                                logger.info(
+                                    f"Detected eagle for player {player_id_str} on hole {hole_num} "
+                                    f"(score: {hole_score}, par: {par}, entry {entry.id})"
+                                )
                                 bonuses.append({
                                     "player_id": player_id_str,
                                     "bonus_type": "eagle",
                                     "points": 2.0,
                                     "hole": int(hole_num)
                                 })
+                else:
+                    logger.debug(
+                        f"Skipping scorecard for player {player_id_str}: "
+                        f"round mismatch (scorecard round {scorecard_round_id} != target round {round_id})"
+                    )
         
         # All 6 make weekend bonus (Saturday only, round 3)
         # Only applies if all 6 ORIGINAL players made the cut (not rebuy players)

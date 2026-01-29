@@ -70,6 +70,31 @@ class ScoreCalculatorService:
         leaderboard_data = snapshot.leaderboard_data
         scorecard_data = snapshot.scorecard_data or {}
         
+        # Merge scorecard data from all snapshots for this round to ensure we have complete data
+        # This is important because scorecards might have been fetched in earlier snapshots
+        # but not in the latest one (if player didn't improve by 2+ strokes)
+        all_snapshots = self.db.query(ScoreSnapshot).filter(
+            ScoreSnapshot.tournament_id == tournament_id,
+            ScoreSnapshot.round_id == round_id
+        ).order_by(ScoreSnapshot.timestamp.desc()).all()
+        
+        # Merge scorecard data from all snapshots (later snapshots override earlier ones)
+        # Since we're iterating in descending timestamp order, later snapshots will naturally override
+        merged_scorecard_data = {}
+        for snap in all_snapshots:
+            if snap.scorecard_data:
+                for player_id, scorecards in snap.scorecard_data.items():
+                    # Later snapshots (iterated first) will override earlier ones
+                    merged_scorecard_data[player_id] = scorecards
+        
+        # Use merged data (fallback to snapshot data if merge didn't add anything)
+        if merged_scorecard_data:
+            scorecard_data = merged_scorecard_data
+            logger.debug(
+                f"Merged scorecard data from {len(all_snapshots)} snapshots for round {round_id}. "
+                f"Total players with scorecards: {len(merged_scorecard_data)}"
+            )
+        
         # Get all entries for this tournament
         entries = self.db.query(Entry).filter(
             Entry.tournament_id == tournament_id

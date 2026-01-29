@@ -642,6 +642,80 @@ async def fix_tournament_data(
     return result
 
 
+@router.get("/diagnostics/tournament/{tournament_id}/round/{round_id}/player/{player_id}/scorecard")
+async def check_player_scorecard(
+    tournament_id: int,
+    round_id: int,
+    player_id: str,
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Check scorecard data for a specific player in a round.
+    Useful for debugging why bonuses aren't being awarded.
+    """
+    result = {
+        "tournament_id": tournament_id,
+        "round_id": round_id,
+        "player_id": player_id,
+        "scorecard_found": False,
+        "scorecard_data": None,
+        "eagles": [],
+        "albatrosses": [],
+        "hole_in_ones": [],
+        "snapshots_checked": 0
+    }
+    
+    # Get all snapshots for this round
+    snapshots = db.query(ScoreSnapshot).filter(
+        ScoreSnapshot.tournament_id == tournament_id,
+        ScoreSnapshot.round_id == round_id
+    ).order_by(ScoreSnapshot.timestamp.desc()).all()
+    
+    result["snapshots_checked"] = len(snapshots)
+    
+    # Check each snapshot for scorecard data
+    for snapshot in snapshots:
+        if snapshot.scorecard_data and player_id in snapshot.scorecard_data:
+            result["scorecard_found"] = True
+            scorecards = snapshot.scorecard_data[player_id]
+            result["scorecard_data"] = scorecards
+            
+            # Parse scorecards to find bonuses
+            from app.services.data_sync import parse_mongodb_value
+            for scorecard in scorecards:
+                scorecard_round_id = parse_mongodb_value(scorecard.get("roundId"))
+                if scorecard_round_id == round_id:
+                    holes = scorecard.get("holes", {})
+                    for hole_num, hole_data in holes.items():
+                        hole_score = parse_mongodb_value(hole_data.get("holeScore"))
+                        par = parse_mongodb_value(hole_data.get("par"))
+                        
+                        if hole_score is not None and par is not None:
+                            score_to_par = hole_score - par
+                            
+                            if hole_score == 1 and par == 3:
+                                result["hole_in_ones"].append({
+                                    "hole": int(hole_num),
+                                    "score": hole_score,
+                                    "par": par
+                                })
+                            elif score_to_par == -3:
+                                result["albatrosses"].append({
+                                    "hole": int(hole_num),
+                                    "score": hole_score,
+                                    "par": par
+                                })
+                            elif score_to_par == -2:
+                                result["eagles"].append({
+                                    "hole": int(hole_num),
+                                    "score": hole_score,
+                                    "par": par
+                                })
+            break  # Found scorecard, no need to check older snapshots
+    
+    return result
+
+
 @router.get("/diagnostics/tournament/{tournament_id}/round/{round_id}")
 async def diagnose_round(
     tournament_id: int,
