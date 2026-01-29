@@ -1,5 +1,5 @@
 """Admin authentication endpoints."""
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel
 from jose import jwt
 from datetime import datetime, timedelta
