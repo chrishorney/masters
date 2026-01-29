@@ -3,6 +3,7 @@ import { useCurrentTournament, useLeaderboard, useCalculateScores } from '../hoo
 import { LoadingSpinner } from '../components/LoadingSpinner'
 import { ErrorMessage } from '../components/ErrorMessage'
 import { UpdateIndicator } from '../components/UpdateIndicator'
+import { DiscordInvite } from '../components/DiscordInvite'
 import type { LeaderboardEntry } from '../types'
 
 export function LeaderboardPage() {
@@ -55,13 +56,16 @@ export function LeaderboardPage() {
             {tournamentInfo.name} • Round {tournamentInfo.current_round}
           </p>
         </div>
-        <button
-          onClick={handleCalculateScores}
-          disabled={calculateScores.isPending}
-          className="w-full md:w-auto px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
-        >
-          {calculateScores.isPending ? 'Calculating...' : 'Recalculate Scores'}
-        </button>
+        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+          <DiscordInvite />
+          <button
+            onClick={handleCalculateScores}
+            disabled={calculateScores.isPending}
+            className="w-full sm:w-auto px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
+          >
+            {calculateScores.isPending ? 'Calculating...' : 'Recalculate Scores'}
+          </button>
+        </div>
       </div>
 
       {/* Mobile Card View */}

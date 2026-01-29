@@ -119,10 +119,12 @@ async def test_discord_notification(
 @router.get("/discord/status")
 async def get_discord_status():
     """Get Discord integration status."""
+    from app.config import settings
     discord_service = get_discord_service()
     
     return {
         "enabled": discord_service.enabled,
         "webhook_configured": bool(discord_service.webhook_url),
+        "invite_url": settings.discord_invite_url,
         "status": "enabled" if discord_service.enabled else "disabled"
     }

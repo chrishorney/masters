@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     # Discord Integration (optional)
     discord_webhook_url: str = "https://discord.com/api/webhooks/1464311605084028931/qPXmTCWouXiB6Ahz6wIZWCJhV0OwlArZh-Qqoaibi8OEow_uS_9bAP-Pgz2atpGnfFHz"
     discord_enabled: bool = False
+    discord_invite_url: Optional[str] = None  # Discord server invite link (e.g., https://discord.gg/xxxxx)
     
     # Push Notifications (PWA)
     push_notifications_enabled: bool = False

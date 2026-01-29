@@ -4,6 +4,7 @@ import { useCurrentTournament } from '../hooks/useTournament'
 import { LoadingSpinner } from '../components/LoadingSpinner'
 import { ErrorMessage } from '../components/ErrorMessage'
 import { PushNotificationSettings } from '../components/PushNotificationSettings'
+import { DiscordInvite } from '../components/DiscordInvite'
 
 export function HomePage() {
   const { data: tournament, isLoading, error } = useCurrentTournament()
@@ -100,6 +101,11 @@ export function HomePage() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Discord Invite */}
+      <div className="mb-8 flex justify-center">
+        <DiscordInvite />
       </div>
 
       {/* Rules Section */}
