@@ -142,3 +142,20 @@ export interface RankingAnalytics {
   }>
   total_snapshots: number
 }
+
+export interface TournamentLeaderboardPlayer {
+  position: string
+  player_name: string
+  score: string
+  status: string
+  player_id: string
+}
+
+export interface TournamentLeaderboardResponse {
+  tournament: Tournament
+  leaderboard: TournamentLeaderboardPlayer[]
+  round_id?: number
+  snapshot_timestamp?: string
+  view_type?: 'current' | 'round_snapshot'
+  last_updated?: string
+}

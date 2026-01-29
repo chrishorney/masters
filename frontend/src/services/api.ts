@@ -3,6 +3,7 @@ import axios from 'axios'
 import type {
   Tournament,
   LeaderboardResponse,
+  TournamentLeaderboardResponse,
   Player,
 } from '../types'
 
@@ -68,6 +69,22 @@ export const scoresApi = {
   /** Get leaderboard snapshot for a specific round */
   getRoundLeaderboard: async (tournamentId: number, roundId: number): Promise<LeaderboardResponse> => {
     const response = await api.get(`/scores/leaderboard/round/${roundId}`, {
+      params: { tournament_id: tournamentId },
+    })
+    return response.data
+  },
+
+  /** Get tournament leaderboard (golfers, not pool entries) */
+  getTournamentLeaderboard: async (tournamentId: number): Promise<TournamentLeaderboardResponse> => {
+    const response = await api.get('/scores/tournament-leaderboard', {
+      params: { tournament_id: tournamentId },
+    })
+    return response.data
+  },
+
+  /** Get tournament leaderboard snapshot for a specific round */
+  getRoundTournamentLeaderboard: async (tournamentId: number, roundId: number): Promise<TournamentLeaderboardResponse> => {
+    const response = await api.get(`/scores/tournament-leaderboard/round/${roundId}`, {
       params: { tournament_id: tournamentId },
     })
     return response.data

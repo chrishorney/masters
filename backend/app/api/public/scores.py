@@ -172,103 +172,55 @@ async def get_leaderboard(
     }
 
 
-@router.get("/scores/leaderboard/round/{round_id}")
-async def get_round_leaderboard(
-    round_id: int,
+@router.get("/scores/tournament-leaderboard")
+async def get_tournament_leaderboard(
     tournament_id: int = Query(..., description="Tournament ID"),
     db: Session = Depends(get_db)
 ):
     """
-    Get leaderboard snapshot for a specific round.
-    
-    This returns the leaderboard as it was at the end of that round,
-    showing only scores up to and including that round.
+    Get the actual tournament leaderboard (golfers, not pool entries).
+    Returns the most recent leaderboard from ScoreSnapshot.
     """
     # Get tournament
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     if not tournament:
         raise HTTPException(status_code=404, detail="Tournament not found")
     
-    # Validate round
-    if not (1 <= round_id <= 4):
-        raise HTTPException(status_code=400, detail="Round must be between 1 and 4")
-    
-    # Get the latest snapshot for this round (should be end-of-round snapshot)
+    # Get the most recent snapshot
     snapshot = db.query(ScoreSnapshot).filter(
-        ScoreSnapshot.tournament_id == tournament_id,
-        ScoreSnapshot.round_id == round_id
+        ScoreSnapshot.tournament_id == tournament_id
     ).order_by(ScoreSnapshot.timestamp.desc()).first()
     
-    if not snapshot:
+    if not snapshot or not snapshot.leaderboard_data:
         raise HTTPException(
             status_code=404,
-            detail=f"No snapshot found for tournament {tournament_id}, round {round_id}"
+            detail="No leaderboard data available. Please sync tournament data."
         )
     
-    # Get all entries for tournament
-    entries = db.query(Entry).filter(Entry.tournament_id == tournament_id).all()
+    # Extract leaderboard rows from snapshot
+    leaderboard_rows = snapshot.leaderboard_data.get("leaderboardRows", [])
     
-    leaderboard = []
-    
-    for entry in entries:
-        # Get daily scores up to and including this round only
-        daily_scores = db.query(DailyScore).filter(
-            DailyScore.entry_id == entry.id,
-            DailyScore.round_id <= round_id
-        ).order_by(DailyScore.round_id).all()
+    # Format leaderboard with position, name, and score
+    formatted_leaderboard = []
+    for row in leaderboard_rows:
+        position = row.get("position", "")
+        first_name = row.get("firstName", "")
+        last_name = row.get("lastName", "")
+        full_name = f"{first_name} {last_name}".strip()
+        score_str = row.get("currentRoundScore", "")
+        status = row.get("status", "").lower()
         
-        # Calculate total points up to this round
-        total_points = sum(score.total_points for score in daily_scores)
+        # Skip withdrawn/disqualified players
+        if status in ["wd", "dq"]:
+            continue
         
-        leaderboard.append({
-            "entry": {
-                "id": entry.id,
-                "participant_id": entry.participant_id,
-                "tournament_id": entry.tournament_id,
-                "player1_id": entry.player1_id,
-                "player2_id": entry.player2_id,
-                "player3_id": entry.player3_id,
-                "player4_id": entry.player4_id,
-                "player5_id": entry.player5_id,
-                "player6_id": entry.player6_id,
-                "rebuy_player_ids": entry.rebuy_player_ids or [],
-                "rebuy_type": entry.rebuy_type,
-                "rebuy_original_player_ids": entry.rebuy_original_player_ids or [],
-                "weekend_bonus_earned": entry.weekend_bonus_earned,
-                "weekend_bonus_forfeited": entry.weekend_bonus_forfeited,
-                "created_at": entry.created_at.isoformat(),
-                "updated_at": entry.updated_at.isoformat(),
-                "participant": {
-                    "id": entry.participant.id,
-                    "name": entry.participant.name,
-                    "email": entry.participant.email,
-                    "entry_date": entry.participant.entry_date.isoformat(),
-                    "paid": entry.participant.paid,
-                }
-            },
-            "total_points": total_points,
-            "daily_scores": [
-                {
-                    "id": score.id,
-                    "entry_id": score.entry_id,
-                    "round_id": score.round_id,
-                    "date": score.date.isoformat(),
-                    "base_points": score.base_points,
-                    "bonus_points": score.bonus_points,
-                    "total_points": score.total_points,
-                    "details": score.details,
-                    "calculated_at": score.calculated_at.isoformat(),
-                }
-                for score in daily_scores
-            ]
+        formatted_leaderboard.append({
+            "position": position,
+            "player_name": full_name,
+            "score": score_str,
+            "status": status,
+            "player_id": str(row.get("playerId", ""))
         })
-    
-    # Sort by total points descending
-    leaderboard.sort(key=lambda x: x["total_points"], reverse=True)
-    
-    # Add rank
-    for i, item in enumerate(leaderboard, start=1):
-        item["rank"] = i
     
     # Get snapshot timestamp
     timestamp = snapshot.timestamp
@@ -286,9 +238,88 @@ async def get_round_leaderboard(
             "status": tournament.status,
             "current_round": tournament.current_round,
         },
-        "entries": leaderboard,
+        "leaderboard": formatted_leaderboard,
+        "round_id": snapshot.round_id,
+        "last_updated": timestamp.isoformat(),
+        "view_type": "current"
+    }
+
+
+@router.get("/scores/tournament-leaderboard/round/{round_id}")
+async def get_round_tournament_leaderboard(
+    round_id: int,
+    tournament_id: int = Query(..., description="Tournament ID"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get tournament leaderboard snapshot for a specific round.
+    Returns the leaderboard as it was at the end of that round.
+    """
+    # Get tournament
+    tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    if not tournament:
+        raise HTTPException(status_code=404, detail="Tournament not found")
+    
+    # Validate round
+    if not (1 <= round_id <= 4):
+        raise HTTPException(status_code=400, detail="Round must be between 1 and 4")
+    
+    # Get the latest snapshot for this round
+    snapshot = db.query(ScoreSnapshot).filter(
+        ScoreSnapshot.tournament_id == tournament_id,
+        ScoreSnapshot.round_id == round_id
+    ).order_by(ScoreSnapshot.timestamp.desc()).first()
+    
+    if not snapshot or not snapshot.leaderboard_data:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No snapshot found for tournament {tournament_id}, round {round_id}"
+        )
+    
+    # Extract leaderboard rows from snapshot
+    leaderboard_rows = snapshot.leaderboard_data.get("leaderboardRows", [])
+    
+    # Format leaderboard with position, name, and score
+    formatted_leaderboard = []
+    for row in leaderboard_rows:
+        position = row.get("position", "")
+        first_name = row.get("firstName", "")
+        last_name = row.get("lastName", "")
+        full_name = f"{first_name} {last_name}".strip()
+        score_str = row.get("currentRoundScore", "")
+        status = row.get("status", "").lower()
+        
+        # Skip withdrawn/disqualified players
+        if status in ["wd", "dq"]:
+            continue
+        
+        formatted_leaderboard.append({
+            "position": position,
+            "player_name": full_name,
+            "score": score_str,
+            "status": status,
+            "player_id": str(row.get("playerId", ""))
+        })
+    
+    # Get snapshot timestamp
+    timestamp = snapshot.timestamp
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+    
+    return {
+        "tournament": {
+            "id": tournament.id,
+            "year": tournament.year,
+            "tourn_id": tournament.tourn_id,
+            "name": tournament.name,
+            "start_date": tournament.start_date.isoformat(),
+            "end_date": tournament.end_date.isoformat(),
+            "status": tournament.status,
+            "current_round": tournament.current_round,
+        },
+        "leaderboard": formatted_leaderboard,
         "round_id": round_id,
         "snapshot_timestamp": timestamp.isoformat(),
-        "view_type": "round_snapshot",  # Indicates this is a round snapshot
-        "last_updated": timestamp.isoformat()  # When this snapshot was taken
+        "view_type": "round_snapshot",
+        "last_updated": timestamp.isoformat()
     }
