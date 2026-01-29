@@ -96,25 +96,49 @@ export function DiscordWidget() {
           <p className="text-gray-500 text-sm">Loading Discord server...</p>
         </div>
       )}
-      <div className="w-full" style={{ minHeight: '400px' }}>
-        <iframe
-          src={widgetUrl}
-          width="100%"
-          height="400"
-          allowTransparency={true}
-          frameBorder="0"
-          className="rounded-lg border-0"
-          title="Discord Server Widget"
-          onLoad={() => {
-            setIframeLoaded(true)
-            setError(null)
-          }}
-          onError={() => {
-            setError('Failed to load Discord widget. Check server widget settings in Discord.')
-            setIframeLoaded(false)
-          }}
-          style={{ border: 'none' }}
-        />
+      <div className="w-full">
+        {/* Mobile: Use smaller height, Desktop: Full height */}
+        <div className="md:hidden">
+          <iframe
+            src={widgetUrl}
+            width="100%"
+            height="300"
+            allowTransparency={true}
+            frameBorder="0"
+            className="rounded-lg border-0 w-full"
+            title="Discord Server Widget"
+            onLoad={() => {
+              setIframeLoaded(true)
+              setError(null)
+            }}
+            onError={() => {
+              setError('Failed to load Discord widget. Check server widget settings in Discord.')
+              setIframeLoaded(false)
+            }}
+            style={{ border: 'none', minHeight: '300px' }}
+          />
+        </div>
+        {/* Desktop: Full height widget */}
+        <div className="hidden md:block">
+          <iframe
+            src={widgetUrl}
+            width="100%"
+            height="400"
+            allowTransparency={true}
+            frameBorder="0"
+            className="rounded-lg border-0 w-full"
+            title="Discord Server Widget"
+            onLoad={() => {
+              setIframeLoaded(true)
+              setError(null)
+            }}
+            onError={() => {
+              setError('Failed to load Discord widget. Check server widget settings in Discord.')
+              setIframeLoaded(false)
+            }}
+            style={{ border: 'none', minHeight: '400px' }}
+          />
+        </div>
       </div>
       {error && (
         <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
