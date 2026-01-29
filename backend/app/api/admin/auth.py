@@ -51,7 +51,7 @@ async def login(request: LoginRequest):
     }
 
 
-@router.post("/auth/verify")
+@router.get("/auth/verify")
 async def verify_token(token: str):
     """Verify if a token is valid."""
     try:
