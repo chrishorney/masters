@@ -60,12 +60,28 @@ class BackgroundJobService:
         It must be explicitly started again via the start() method.
         """
         self.running = False
+        
         if self._task:
-            self._task.cancel()
             try:
-                await self._task
-            except asyncio.CancelledError:
-                pass
+                # Check if task is already done
+                if self._task.done():
+                    logger.debug("Task was already done, no need to cancel")
+                else:
+                    # Cancel the task
+                    self._task.cancel()
+                    try:
+                        # Wait for cancellation to complete (with timeout)
+                        await asyncio.wait_for(self._task, timeout=5.0)
+                    except asyncio.CancelledError:
+                        logger.debug("Task cancelled successfully")
+                    except asyncio.TimeoutError:
+                        logger.warning("Task cancellation timed out, but continuing with stop")
+                    except Exception as e:
+                        logger.warning(f"Exception while waiting for task cancellation: {e}")
+            except Exception as e:
+                logger.error(f"Error during task cancellation: {e}", exc_info=True)
+                # Continue anyway - we've set running=False
+        
         logger.info("Background job stopped permanently (will not auto-restart)")
     
     def _is_within_active_hours(self, current_hour: int, start_hour: int, stop_hour: int) -> bool:

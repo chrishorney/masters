@@ -84,20 +84,61 @@ async def stop_background_job(
     again via the /jobs/start endpoint.
     """
     if tournament_id not in _job_services:
-        raise HTTPException(status_code=404, detail="Background job not found")
+        # Job might have already stopped or doesn't exist
+        # Check if it's actually running by checking the status
+        logger.warning(f"Job service not found in dictionary for tournament {tournament_id}")
+        return {
+            "message": "Background job is not running or has already stopped.",
+            "tournament_id": tournament_id,
+            "status": "stopped"
+        }
     
     job_service = _job_services[tournament_id]
-    await job_service.stop()
-    # Remove from running jobs - this prevents any automatic restart
-    del _job_services[tournament_id]
     
-    logger.info(f"Background job stopped for tournament {tournament_id}")
-    
-    return {
-        "message": "Background job stopped permanently. It will not restart automatically.",
-        "tournament_id": tournament_id,
-        "status": "stopped"
-    }
+    try:
+        # Check if job is actually running before trying to stop
+        if not job_service.running:
+            logger.info(f"Job for tournament {tournament_id} is already stopped")
+            # Clean up anyway
+            del _job_services[tournament_id]
+            return {
+                "message": "Background job was already stopped.",
+                "tournament_id": tournament_id,
+                "status": "stopped"
+            }
+        
+        # Stop the job
+        await job_service.stop()
+        
+        # Remove from running jobs - this prevents any automatic restart
+        if tournament_id in _job_services:
+            del _job_services[tournament_id]
+        
+        logger.info(f"Background job stopped for tournament {tournament_id}")
+        
+        return {
+            "message": "Background job stopped permanently. It will not restart automatically.",
+            "tournament_id": tournament_id,
+            "status": "stopped"
+        }
+    except Exception as e:
+        logger.error(f"Error stopping background job for tournament {tournament_id}: {e}", exc_info=True)
+        
+        # Try to clean up even if stop() failed
+        if tournament_id in _job_services:
+            try:
+                job_service.running = False
+                if hasattr(job_service, '_task') and job_service._task:
+                    job_service._task.cancel()
+            except Exception as cleanup_error:
+                logger.error(f"Error during cleanup: {cleanup_error}")
+            finally:
+                del _job_services[tournament_id]
+        
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to stop background job: {str(e)}"
+        )
 
 
 @router.get("/jobs/status")
