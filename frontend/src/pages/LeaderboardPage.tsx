@@ -4,6 +4,7 @@ import { LoadingSpinner } from '../components/LoadingSpinner'
 import { ErrorMessage } from '../components/ErrorMessage'
 import { UpdateIndicator } from '../components/UpdateIndicator'
 import { DiscordInvite } from '../components/DiscordInvite'
+import { DiscordWidget } from '../components/DiscordWidget'
 import type { LeaderboardEntry } from '../types'
 
 export function LeaderboardPage() {
@@ -119,6 +120,11 @@ export function LeaderboardPage() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Discord Widget */}
+      <div className="mt-8">
+        <DiscordWidget />
       </div>
 
       {/* Last Updated */}

@@ -26,6 +26,23 @@ async def get_discord_invite():
     }
 
 
+@router.get("/discord/widget")
+async def get_discord_widget():
+    """Get Discord server widget info (public endpoint)."""
+    from app.config import settings
+    
+    if not settings.discord_server_id:
+        raise HTTPException(
+            status_code=404,
+            detail="Discord server ID not configured"
+        )
+    
+    return {
+        "server_id": settings.discord_server_id,
+        "widget_url": f"https://discord.com/widget?id={settings.discord_server_id}&theme=dark"
+    }
+
+
 @router.get("/tournament/list")
 async def list_tournaments(
     db: Session = Depends(get_db)

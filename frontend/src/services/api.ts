@@ -23,6 +23,11 @@ export const discordApi = {
     const response = await api.get('/discord/invite')
     return response.data
   },
+  /** Get Discord widget info (public) */
+  getWidgetInfo: async (): Promise<{ server_id: string; widget_url: string }> => {
+    const response = await api.get('/discord/widget')
+    return response.data
+  },
 }
 
 // Tournament endpoints
