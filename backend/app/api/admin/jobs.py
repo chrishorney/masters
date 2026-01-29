@@ -1,6 +1,6 @@
 """Admin endpoints for background jobs."""
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -228,9 +228,9 @@ async def get_job_status(
             )
             result["debug_info"]["within_active_hours"] = within_hours
         
-        # Check if tournament is active
+        # Check if tournament is active (using Central Time date)
         if tournament:
-            today = now.date()
+            today = now_ct.date()
             is_active = tournament.start_date <= today <= tournament.end_date
             result["debug_info"]["tournament_active"] = is_active
             result["debug_info"]["tournament_start_date"] = tournament.start_date.isoformat()
@@ -241,6 +241,11 @@ async def get_job_status(
     last_snapshot = db.query(ScoreSnapshot).filter(
         ScoreSnapshot.tournament_id == tournament_id
     ).order_by(ScoreSnapshot.timestamp.desc()).first()
+    
+    # Check for recent syncs to detect if job might be running but lost from memory
+    recent_sync_threshold = timedelta(minutes=10)  # Consider syncs within 10 minutes as "recent"
+    might_be_running = False
+    sync_interval_estimate = None
     
     if last_snapshot:
         # Ensure timestamp is in UTC for proper timezone conversion on frontend
@@ -260,6 +265,22 @@ async def get_job_status(
         time_diff = now_utc - snapshot_utc
         total_seconds = int(time_diff.total_seconds())
         
+        # Check if sync is recent (within threshold)
+        if time_diff < recent_sync_threshold:
+            might_be_running = True
+            # Try to estimate sync interval by looking at last 2 snapshots
+            second_last_snapshot = db.query(ScoreSnapshot).filter(
+                ScoreSnapshot.tournament_id == tournament_id
+            ).order_by(ScoreSnapshot.timestamp.desc()).offset(1).first()
+            
+            if second_last_snapshot:
+                second_timestamp = second_last_snapshot.timestamp
+                if second_timestamp.tzinfo is None:
+                    second_timestamp = second_timestamp.replace(tzinfo=timezone.utc)
+                interval_seconds = int((snapshot_utc - second_timestamp).total_seconds())
+                if 60 <= interval_seconds <= 600:  # Between 1 min and 10 min
+                    sync_interval_estimate = interval_seconds
+        
         if total_seconds < 60:
             result["time_since_last_sync"] = f"{total_seconds} seconds ago"
         elif total_seconds < 3600:
@@ -275,6 +296,19 @@ async def get_job_status(
         result["last_sync_timestamp"] = None
         result["last_sync_round"] = None
         result["time_since_last_sync"] = "Never"
+    
+    # Add warning if job might be running but not in memory
+    if might_be_running and not is_actually_running:
+        result["warning"] = (
+            "Recent syncs detected but job not in memory. "
+            "This may indicate the server restarted and the job was lost. "
+            "Please restart the automatic sync."
+        )
+        result["debug_info"]["might_be_running"] = True
+        if sync_interval_estimate:
+            result["debug_info"]["estimated_sync_interval_seconds"] = sync_interval_estimate
+    else:
+        result["debug_info"]["might_be_running"] = False
     
     return result
 
