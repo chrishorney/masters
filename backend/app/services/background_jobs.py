@@ -1,8 +1,9 @@
 """Background job service for automatic score updates."""
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
+from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import OperationalError
 
@@ -11,6 +12,9 @@ from app.services.data_sync import DataSyncService
 from app.services.score_calculator import ScoreCalculatorService
 
 logger = logging.getLogger(__name__)
+
+# Central Time zone
+CENTRAL_TZ = ZoneInfo("America/Chicago")
 
 
 class BackgroundJobService:
@@ -176,25 +180,26 @@ class BackgroundJobService:
                         # Reset error counter on success
                         consecutive_errors = 0
                     
-                        # Check if within active hours
-                        now = datetime.now()
-                        current_hour = now.hour
+                        # Check if within active hours (using Central Time)
+                        now_utc = datetime.now(timezone.utc)
+                        now_ct = now_utc.astimezone(CENTRAL_TZ)
+                        current_hour = now_ct.hour
                         
                         if not self._is_within_active_hours(current_hour, start_hour, stop_hour):
                             logger.debug(
                                 f"Skipping sync - outside active hours "
-                                f"(current: {current_hour:02d}:00, active: {start_hour:02d}:00-{stop_hour:02d}:59)"
+                                f"(current: {current_hour:02d}:00 CT, active: {start_hour:02d}:00-{stop_hour:02d}:59 CT)"
                             )
                             db.close()
                             await asyncio.sleep(interval_seconds)
                             continue
                         
-                        # Only run during active tournament days
-                        today = now.date()
+                        # Only run during active tournament days (using Central Time date)
+                        today = now_ct.date()
                         if tournament.start_date <= today <= tournament.end_date:
                             logger.info(
                                 f"Running background sync for tournament {tournament_id} "
-                                f"(Round {tournament.current_round}, {now.strftime('%Y-%m-%d %H:%M:%S')})"
+                                f"(Round {tournament.current_round}, {now_ct.strftime('%Y-%m-%d %H:%M:%S')} CT)"
                             )
                             
                             # Close the outer session before starting sync/calc to free up connections

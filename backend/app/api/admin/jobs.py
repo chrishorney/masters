@@ -1,6 +1,7 @@
 """Admin endpoints for background jobs."""
 import logging
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -10,6 +11,9 @@ from app.models import Tournament, ScoreSnapshot
 from app.services.background_jobs import BackgroundJobService
 
 logger = logging.getLogger(__name__)
+
+# Central Time zone
+CENTRAL_TZ = ZoneInfo("America/Chicago")
 
 router = APIRouter()
 
@@ -188,10 +192,11 @@ async def get_job_status(
         else:
             task_status = "not_running"
     
-    # Get tournament info for debugging
+    # Get tournament info for debugging (using Central Time)
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
-    now = datetime.now()
-    current_hour = now.hour
+    now_utc = datetime.now(timezone.utc)
+    now_ct = now_utc.astimezone(CENTRAL_TZ)
+    current_hour = now_ct.hour
     
     result = {
         "tournament_id": tournament_id,
@@ -201,7 +206,9 @@ async def get_job_status(
             "in_job_services_dict": is_in_dict,
             "task_status": task_status,
             "current_hour": current_hour,
-            "current_time": now.isoformat(),
+            "current_hour_timezone": "CT",
+            "current_time": now_ct.isoformat(),
+            "current_time_utc": now_utc.isoformat(),
         }
     }
     
