@@ -67,10 +67,10 @@ export function HomePage() {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid md:grid-cols-2 gap-6 mb-12">
+      <div className="mb-12">
         <Link
           to="/leaderboard"
-          className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow group"
+          className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow group max-w-md mx-auto"
         >
           <div className="flex items-center justify-between">
             <div>
@@ -86,22 +86,6 @@ export function HomePage() {
             </div>
           </div>
         </Link>
-
-        {tournament && (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                  Tournament Info
-                </h3>
-                <p className="text-gray-600">
-                  {tournament.year} Masters Tournament
-                </p>
-              </div>
-              <div className="text-3xl">🏆</div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Discord Invite */}
