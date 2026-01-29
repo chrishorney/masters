@@ -1,6 +1,8 @@
 """Service for importing SmartSheet data (CSV/Excel)."""
 import csv
 import io
+import unicodedata
+import re
 from typing import List, Dict, Any, Tuple, Optional
 from sqlalchemy.orm import Session
 
@@ -13,9 +15,37 @@ class ImportService:
     def __init__(self, db: Session):
         self.db = db
     
+    def normalize_name(self, name: str) -> str:
+        """
+        Normalize a name by removing accents and special characters.
+        
+        Examples:
+        - "Ludvig Åberg" -> "Ludvig Aberg"
+        - "Nicolai Højgaard" -> "Nicolai Hojgaard"
+        - "José María" -> "Jose Maria"
+        
+        Args:
+            name: Name to normalize
+            
+        Returns:
+            Normalized name with special characters converted to ASCII equivalents
+        """
+        # Remove accents/diacritics using Unicode normalization
+        # NFD = Normalization Form Decomposed (separates base characters from combining marks)
+        normalized = unicodedata.normalize('NFD', name)
+        # Remove combining characters (accents, diacritics)
+        ascii_name = ''.join(
+            char for char in normalized
+            if unicodedata.category(char) != 'Mn'  # Mn = Mark, Nonspacing (accents)
+        )
+        # Convert to lowercase and strip whitespace
+        return ascii_name.lower().strip()
+    
     def match_player_name(self, player_name: str, tournament_id: int) -> Optional[str]:
         """
         Match a player name to a player ID.
+        
+        Handles special characters by normalizing them (e.g., "Ludvig Aberg" matches "Ludvig Åberg").
         
         Args:
             player_name: Player name from SmartSheet
@@ -26,8 +56,9 @@ class ImportService:
         """
         # Normalize the input name
         player_name = player_name.strip()
+        normalized_input = self.normalize_name(player_name)
         
-        # Try exact match first
+        # Try exact match first (case-insensitive)
         player = self.db.query(Player).filter(
             Player.full_name.ilike(player_name)
         ).first()
@@ -35,7 +66,15 @@ class ImportService:
         if player:
             return player.player_id
         
-        # Try matching by first and last name separately
+        # Try normalized match (handles special characters)
+        # Get all players and compare normalized names
+        all_players = self.db.query(Player).all()
+        for player in all_players:
+            normalized_db = self.normalize_name(player.full_name)
+            if normalized_db == normalized_input:
+                return player.player_id
+        
+        # Try matching by first and last name separately (exact)
         name_parts = player_name.split(maxsplit=1)
         if len(name_parts) == 2:
             first_name, last_name = name_parts
@@ -46,6 +85,16 @@ class ImportService:
             
             if player:
                 return player.player_id
+            
+            # Try normalized first/last name match
+            normalized_first = self.normalize_name(first_name.strip())
+            normalized_last = self.normalize_name(last_name.strip())
+            
+            for player in all_players:
+                db_first = self.normalize_name(player.first_name)
+                db_last = self.normalize_name(player.last_name)
+                if db_first == normalized_first and db_last == normalized_last:
+                    return player.player_id
         
         # Try searching in tournament leaderboard (if available)
         from app.models import ScoreSnapshot
@@ -60,13 +109,26 @@ class ImportService:
                 last_name = row.get("lastName", "").strip()
                 full_name = f"{first_name} {last_name}".strip()
                 
+                # Exact match
                 if full_name.lower() == player_name.lower():
                     return str(row.get("playerId"))
                 
-                # Try matching parts
+                # Normalized match
+                normalized_db = self.normalize_name(full_name)
+                if normalized_db == normalized_input:
+                    return str(row.get("playerId"))
+                
+                # Try matching parts (exact)
                 if len(name_parts) == 2:
                     if (first_name.lower() == name_parts[0].lower().strip() and
                         last_name.lower() == name_parts[1].lower().strip()):
+                        return str(row.get("playerId"))
+                    
+                    # Try matching parts (normalized)
+                    normalized_row_first = self.normalize_name(first_name)
+                    normalized_row_last = self.normalize_name(last_name)
+                    if (normalized_row_first == normalized_first and
+                        normalized_row_last == normalized_last):
                         return str(row.get("playerId"))
         
         return None
