@@ -141,6 +141,7 @@ export const adminApi = {
   getDiscordStatus: async (): Promise<{
     enabled: boolean;
     webhook_configured: boolean;
+    invite_url?: string;
     status: string;
   }> => {
     const response = await api.get('/admin/discord/status')
