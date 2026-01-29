@@ -144,7 +144,12 @@ export const adminApi = {
     invite_url?: string;
     status: string;
   }> => {
-    const response = await api.get('/admin/discord/status')
+    const response = await api.get<{
+      enabled: boolean;
+      webhook_configured: boolean;
+      invite_url?: string;
+      status: string;
+    }>('/admin/discord/status')
     return response.data
   },
 
