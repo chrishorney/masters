@@ -52,7 +52,7 @@ async def login(request: LoginRequest):
 
 
 @router.get("/auth/verify")
-async def verify_token(token: str):
+async def verify_token(token: str = Query(..., description="JWT token to verify")):
     """Verify if a token is valid."""
     try:
         payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
