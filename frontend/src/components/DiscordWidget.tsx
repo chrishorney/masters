@@ -101,16 +101,19 @@ export function DiscordWidget() {
           src={widgetUrl}
           width="100%"
           height="400"
-          allowTransparency
+          allowTransparency={true}
           frameBorder="0"
-          sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms"
-          className="rounded-lg"
+          className="rounded-lg border-0"
           title="Discord Server Widget"
-          onLoad={() => setIframeLoaded(true)}
+          onLoad={() => {
+            setIframeLoaded(true)
+            setError(null)
+          }}
           onError={() => {
             setError('Failed to load Discord widget. Check server widget settings in Discord.')
             setIframeLoaded(false)
           }}
+          style={{ border: 'none' }}
         />
       </div>
       {error && (
