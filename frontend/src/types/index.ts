@@ -70,6 +70,9 @@ export interface LeaderboardResponse {
   tournament: Tournament
   entries: LeaderboardEntry[]
   last_updated?: string
+  view_type?: 'current' | 'round_snapshot'
+  round_id?: number
+  snapshot_timestamp?: string
 }
 
 export interface Player {

@@ -65,6 +65,14 @@ export const scoresApi = {
     return response.data
   },
 
+  /** Get leaderboard snapshot for a specific round */
+  getRoundLeaderboard: async (tournamentId: number, roundId: number): Promise<LeaderboardResponse> => {
+    const response = await api.get(`/scores/leaderboard/round/${roundId}`, {
+      params: { tournament_id: tournamentId },
+    })
+    return response.data
+  },
+
   /** Calculate scores for tournament */
   calculateScores: async (tournamentId: number, roundId?: number): Promise<{ success: boolean; message: string }> => {
     const params: any = { tournament_id: tournamentId }
