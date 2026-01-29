@@ -267,11 +267,6 @@ class BackgroundJobService:
                                 f"Tournament not active today "
                                 f"(start: {tournament.start_date}, end: {tournament.end_date}, today: {today})"
                             )
-                        else:
-                            logger.info(
-                                f"Tournament not active today "
-                                f"(start: {tournament.start_date}, end: {tournament.end_date}, today: {today})"
-                            )
                     
                     finally:
                         # Always close the database session
