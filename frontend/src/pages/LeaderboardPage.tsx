@@ -1,5 +1,5 @@
 /** Leaderboard page */
-import { useCurrentTournament, useLeaderboard, useCalculateScores } from '../hooks/useTournament'
+import { useCurrentTournament, useLeaderboard } from '../hooks/useTournament'
 import { LoadingSpinner } from '../components/LoadingSpinner'
 import { ErrorMessage } from '../components/ErrorMessage'
 import { UpdateIndicator } from '../components/UpdateIndicator'
@@ -16,13 +16,6 @@ export function LeaderboardPage() {
     refetch,
     isRefetching
   } = useLeaderboard(tournament?.id)
-  
-  const calculateScores = useCalculateScores()
-
-  const handleCalculateScores = async () => {
-    if (!tournament) return
-    await calculateScores.mutateAsync({ tournamentId: tournament.id })
-  }
 
   if (tournamentLoading || leaderboardLoading) {
     return (
@@ -59,13 +52,6 @@ export function LeaderboardPage() {
         </div>
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
           <DiscordInvite />
-          <button
-            onClick={handleCalculateScores}
-            disabled={calculateScores.isPending}
-            className="w-full sm:w-auto px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
-          >
-            {calculateScores.isPending ? 'Calculating...' : 'Recalculate Scores'}
-          </button>
         </div>
       </div>
 
