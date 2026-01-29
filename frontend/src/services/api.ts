@@ -16,6 +16,15 @@ const api = axios.create({
   },
 })
 
+// Public Discord endpoint
+export const discordApi = {
+  /** Get Discord invite URL (public) */
+  getInviteUrl: async (): Promise<{ invite_url: string }> => {
+    const response = await api.get('/discord/invite')
+    return response.data
+  },
+}
+
 // Tournament endpoints
 export const tournamentApi = {
   /** Get current tournament */

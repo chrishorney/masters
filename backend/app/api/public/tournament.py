@@ -10,6 +10,22 @@ from app.services.data_sync import DataSyncService
 router = APIRouter()
 
 
+@router.get("/discord/invite")
+async def get_discord_invite():
+    """Get Discord server invite URL (public endpoint)."""
+    from app.config import settings
+    
+    if not settings.discord_invite_url:
+        raise HTTPException(
+            status_code=404,
+            detail="Discord invite URL not configured"
+        )
+    
+    return {
+        "invite_url": settings.discord_invite_url
+    }
+
+
 @router.get("/tournament/list")
 async def list_tournaments(
     db: Session = Depends(get_db)

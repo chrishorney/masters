@@ -1,6 +1,6 @@
 /** Discord invite component */
 import { useState, useEffect } from 'react'
-import { adminApi } from '../services/api'
+import { discordApi } from '../services/api'
 
 export function DiscordInvite() {
   const [inviteUrl, setInviteUrl] = useState<string | null>(null)
@@ -9,12 +9,13 @@ export function DiscordInvite() {
   useEffect(() => {
     const fetchDiscordInfo = async () => {
       try {
-        const status = await adminApi.getDiscordStatus()
-        if (status.invite_url) {
-          setInviteUrl(status.invite_url)
+        const response = await discordApi.getInviteUrl()
+        if (response.invite_url) {
+          setInviteUrl(response.invite_url)
         }
-      } catch (error) {
-        console.error('Failed to fetch Discord invite URL:', error)
+      } catch (error: any) {
+        // Silently fail - invite URL might not be configured
+        console.debug('Discord invite URL not available:', error.response?.status === 404 ? 'Not configured' : error.message)
       } finally {
         setLoading(false)
       }
