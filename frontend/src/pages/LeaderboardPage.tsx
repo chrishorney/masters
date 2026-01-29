@@ -80,11 +80,6 @@ export function LeaderboardPage() {
             <LeaderboardCard key={entry.entry.id} entry={entry} rank={index + 1} />
           ))
         )}
-        
-        {/* Discord Widget - Mobile */}
-        <div className="mt-6">
-          <DiscordWidget />
-        </div>
       </div>
 
       {/* Desktop Table View */}
