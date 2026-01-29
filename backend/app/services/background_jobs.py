@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import OperationalError
 
 from app.models import Tournament, ScoreSnapshot
 from app.services.data_sync import DataSyncService
@@ -79,6 +80,45 @@ class BackgroundJobService:
         else:
             # Wraps around midnight (e.g., 22-6 means 10 PM to 6 AM)
             return current_hour >= start_hour or current_hour <= stop_hour
+    
+    def _is_connection_pool_error(self, error: Exception) -> bool:
+        """Check if error is a connection pool exhaustion error."""
+        error_str = str(error).lower()
+        return (
+            "maxclientsinsessionmode" in error_str or
+            "max clients reached" in error_str or
+            "connection pool" in error_str or
+            "pool_size" in error_str
+        )
+    
+    async def _retry_with_backoff(self, func, max_retries: int = 3, base_delay: float = 2.0):
+        """
+        Retry a function with exponential backoff, especially for connection pool errors.
+        
+        Args:
+            func: Async function to retry
+            max_retries: Maximum number of retries
+            base_delay: Base delay in seconds for exponential backoff
+        """
+        for attempt in range(max_retries):
+            try:
+                return await func()
+            except (OperationalError, Exception) as e:
+                if attempt == max_retries - 1:
+                    # Last attempt, re-raise
+                    raise
+                
+                # Check if it's a connection pool error
+                if self._is_connection_pool_error(e):
+                    delay = base_delay * (2 ** attempt)  # Exponential backoff
+                    logger.warning(
+                        f"Connection pool error (attempt {attempt + 1}/{max_retries}). "
+                        f"Retrying in {delay:.1f} seconds..."
+                    )
+                    await asyncio.sleep(delay)
+                else:
+                    # Not a connection pool error, re-raise immediately
+                    raise
 
     async def _run_loop(
         self, 
@@ -141,41 +181,66 @@ class BackgroundJobService:
                                 f"(Round {tournament.current_round}, {now.strftime('%Y-%m-%d %H:%M:%S')})"
                             )
                             
-                            # Create fresh services with fresh DB session
-                            sync_service = DataSyncService(db)
-                            calculator = ScoreCalculatorService(db)
+                            # Close the outer session before starting sync/calc to free up connections
+                            db.close()
                             
-                            # Sync tournament data
+                            # Sync tournament data with retry logic for connection pool errors
                             try:
-                                logger.info(f"Syncing tournament data for {tournament.name}...")
-                                sync_results = sync_service.sync_tournament_data(
-                                    org_id=tournament.org_id,
-                                    tourn_id=tournament.tourn_id,
-                                    year=tournament.year
-                                )
+                                async def sync_and_calculate():
+                                    # Create a fresh session for this attempt
+                                    from app.database import SessionLocal
+                                    retry_db = SessionLocal()
+                                    
+                                    try:
+                                        sync_service = DataSyncService(retry_db)
+                                        calculator = ScoreCalculatorService(retry_db)
+                                        
+                                        logger.info(f"Syncing tournament data for {tournament.name}...")
+                                        sync_results = sync_service.sync_tournament_data(
+                                            org_id=tournament.org_id,
+                                            tourn_id=tournament.tourn_id,
+                                            year=tournament.year
+                                        )
+                                        
+                                        if sync_results.get("errors"):
+                                            logger.warning(f"Sync completed with errors: {sync_results['errors']}")
+                                        else:
+                                            logger.info(f"Sync completed successfully. Players: {sync_results.get('players_synced', 0)}, Scorecards: {sync_results.get('scorecards_fetched', 0)}")
+                                        
+                                        # Calculate scores for current round
+                                        logger.info(f"Calculating scores for Round {tournament.current_round}...")
+                                        calc_results = calculator.calculate_scores_for_tournament(
+                                            tournament_id=tournament_id,
+                                            round_id=tournament.current_round
+                                        )
+                                        
+                                        if calc_results.get("success"):
+                                            logger.info(
+                                                f"Calculated scores for {calc_results.get('entries_processed', 0)} entries "
+                                                f"(updated: {calc_results.get('entries_updated', 0)})"
+                                            )
+                                        else:
+                                            logger.warning(f"Score calculation failed: {calc_results.get('message')}")
+                                        
+                                        return sync_results, calc_results
+                                    finally:
+                                        # Always close the retry session
+                                        retry_db.close()
                                 
-                                if sync_results.get("errors"):
-                                    logger.warning(f"Sync completed with errors: {sync_results['errors']}")
-                                else:
-                                    logger.info(f"Sync completed successfully. Players: {sync_results.get('players_synced', 0)}, Scorecards: {sync_results.get('scorecards_fetched', 0)}")
-                                
-                                # Calculate scores for current round
-                                logger.info(f"Calculating scores for Round {tournament.current_round}...")
-                                calc_results = calculator.calculate_scores_for_tournament(
-                                    tournament_id=tournament_id,
-                                    round_id=tournament.current_round
-                                )
-                                
-                                if calc_results.get("success"):
-                                    logger.info(
-                                        f"Calculated scores for {calc_results.get('entries_processed', 0)} entries "
-                                        f"(updated: {calc_results.get('entries_updated', 0)})"
-                                    )
-                                else:
-                                    logger.warning(f"Score calculation failed: {calc_results.get('message')}")
+                                # Retry with exponential backoff for connection pool errors
+                                await self._retry_with_backoff(sync_and_calculate, max_retries=3, base_delay=2.0)
                             
                             except Exception as e:
-                                logger.error(f"Error in background job sync/calc: {e}", exc_info=True)
+                                error_msg = str(e)
+                                if self._is_connection_pool_error(e):
+                                    logger.error(
+                                        f"Connection pool exhausted after retries. "
+                                        f"This may indicate too many concurrent connections. "
+                                        f"Error: {error_msg}"
+                                    )
+                                else:
+                                    logger.error(f"Error in background job sync/calc: {e}", exc_info=True)
+                                
                                 consecutive_errors += 1
                                 if consecutive_errors >= max_consecutive_errors:
                                     logger.error(f"Too many consecutive errors ({consecutive_errors}). Stopping job.")
@@ -186,10 +251,19 @@ class BackgroundJobService:
                                 f"Tournament not active today "
                                 f"(start: {tournament.start_date}, end: {tournament.end_date}, today: {today})"
                             )
+                        else:
+                            logger.info(
+                                f"Tournament not active today "
+                                f"(start: {tournament.start_date}, end: {tournament.end_date}, today: {today})"
+                            )
                     
                     finally:
                         # Always close the database session
-                        db.close()
+                        # Use try/except in case session was already closed
+                        try:
+                            db.close()
+                        except Exception:
+                            pass  # Session may already be closed
                     
                     # Wait for next interval
                     await asyncio.sleep(interval_seconds)

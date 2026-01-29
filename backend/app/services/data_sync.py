@@ -331,7 +331,9 @@ class DataSyncService:
         )
         self.db.add(snapshot)
         self.db.commit()
-        self.db.refresh(snapshot)
+        # Refresh is not necessary - we already have the object with its ID after commit
+        # Removing refresh to avoid unnecessary connection pool usage
+        self.db.flush()  # Ensure the ID is available without a full refresh
         
         logger.info(f"Saved score snapshot for tournament {tournament_id}, round {round_id}")
         return snapshot
