@@ -1,14 +1,30 @@
 /** Admin dashboard page */
 import { useState } from 'react'
 import { useCurrentTournament } from '../hooks/useTournament'
+import { useAdminAuth } from '../hooks/useAdminAuth'
 import { LoadingSpinner } from '../components/LoadingSpinner'
+import { AdminLogin } from '../components/admin/AdminLogin'
 import { ImportSection } from '../components/admin/ImportSection'
 import { BonusPointsSection } from '../components/admin/BonusPointsSection'
 import { TournamentManagementSection } from '../components/admin/TournamentManagementSection'
 
 export function AdminPage() {
   const { data: tournament, isLoading, error } = useCurrentTournament()
+  const { isAuthenticated, isChecking, checkAuth } = useAdminAuth()
   const [activeTab, setActiveTab] = useState<'import' | 'bonus' | 'tournament'>('tournament')
+
+  // Show login if not authenticated
+  if (isChecking) {
+    return (
+      <div className="flex justify-center items-center min-h-[60vh]">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return <AdminLogin onLogin={checkAuth} />
+  }
 
   if (isLoading) {
     return (

@@ -60,7 +60,7 @@ async def root():
 
 # Import and include routers
 from app.api.public import tournament, scores, entries, health, ranking_history, validation, push
-from app.api.admin import bonus_points, players, imports, jobs, diagnostics, discord, push as push_admin
+from app.api.admin import bonus_points, players, imports, jobs, diagnostics, discord, push as push_admin, auth
 app.include_router(health.router, prefix=settings.api_prefix, tags=["health"])
 app.include_router(tournament.router, prefix=settings.api_prefix, tags=["tournament"])
 app.include_router(scores.router, prefix=settings.api_prefix, tags=["scores"])
@@ -68,6 +68,7 @@ app.include_router(entries.router, prefix=settings.api_prefix, tags=["entries"])
 app.include_router(ranking_history.router, prefix=settings.api_prefix, tags=["ranking-history"])
 app.include_router(validation.router, prefix=settings.api_prefix, tags=["validation"])
 app.include_router(push.router, prefix=settings.api_prefix, tags=["push"])
+app.include_router(auth.router, prefix=f"{settings.api_prefix}/admin", tags=["admin"])
 app.include_router(bonus_points.router, prefix=f"{settings.api_prefix}/admin", tags=["admin"])
 app.include_router(players.router, prefix=f"{settings.api_prefix}/admin", tags=["admin"])
 app.include_router(imports.router, prefix=f"{settings.api_prefix}/admin", tags=["admin"])

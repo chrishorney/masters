@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     vapid_private_key: Optional[str] = None
     vapid_email: Optional[str] = None
     
+    # Admin Password
+    admin_password: str = "Eldo"
+    
     class Config:
         env_file = ".env"
         case_sensitive = False
