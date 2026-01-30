@@ -235,6 +235,25 @@ export const adminApi = {
     const response = await api.delete(`/admin/bonus-points/${bonusPointId}`)
     return response.data
   },
+
+  /** Check all entry players for bonuses (manual) */
+  checkAllPlayersForBonuses: async (
+    tournamentId: number,
+    roundId?: number
+  ): Promise<{
+    success: boolean;
+    message: string;
+    players_checked: number;
+    scorecards_fetched: number;
+    entries_processed: number;
+    new_bonuses_found: number;
+    errors: string[];
+  }> => {
+    const params: any = { tournament_id: tournamentId }
+    if (roundId) params.round_id = roundId
+    const response = await api.post('/admin/bonus-check/check-all-players', null, { params })
+    return response.data
+  },
 }
 
 // Ranking history endpoints

@@ -31,6 +31,7 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
   const [discordStatus, setDiscordStatus] = useState<{ enabled: boolean; webhook_configured: boolean; status: string } | null>(null)
   const [testingDiscord, setTestingDiscord] = useState(false)
   const [discordTestResult, setDiscordTestResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [checkingBonuses, setCheckingBonuses] = useState(false)
   
   const calculateScores = useCalculateScores()
 
@@ -479,6 +480,43 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
                 className="w-full md:w-auto px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
               >
                 {calculating ? 'Calculating...' : 'Calculate Scores'}
+              </button>
+            </div>
+          )}
+
+          {/* Check All Players for Bonuses */}
+          {tournament && (
+            <div className="border-b border-gray-200 pb-4">
+              <h3 className="font-medium text-gray-900 mb-2">Check All Players for Bonuses</h3>
+              <p className="text-sm text-gray-600 mb-3">
+                Manually fetch scorecards for all entry players and check for eagles, albatrosses, and hole-in-ones.
+                This is a backup to catch bonuses that might have been missed by the automatic 2+ stroke improvement detection.
+                <span className="block mt-1 text-orange-600 font-semibold">Note: This will make API calls for all entry players (~50-100 calls).</span>
+              </p>
+              <button
+                onClick={async () => {
+                  if (!tournament) return
+                  setCheckingBonuses(true)
+                  setMessage(null)
+                  try {
+                    const result = await adminApi.checkAllPlayersForBonuses(tournament.id, tournament.current_round)
+                    setMessage({
+                      type: result.success ? 'success' : 'error',
+                      text: result.message || `Checked ${result.players_checked} players, found ${result.new_bonuses_found} bonuses.`
+                    })
+                  } catch (error: any) {
+                    setMessage({
+                      type: 'error',
+                      text: error.response?.data?.detail || 'Failed to check players for bonuses'
+                    })
+                  } finally {
+                    setCheckingBonuses(false)
+                  }
+                }}
+                disabled={checkingBonuses || !tournament}
+                className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
+              >
+                {checkingBonuses ? 'Checking...' : 'Check All Players for Bonuses'}
               </button>
             </div>
           )}

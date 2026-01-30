@@ -383,6 +383,11 @@ class DataSyncService:
             scorecards_fetched = 0
             for player_info in players_to_fetch:
                 player_id = player_info["player_id"]
+                
+                # Skip if we already have scorecard data for this player
+                if player_id in scorecard_data:
+                    continue
+                
                 try:
                     scorecards = self.api_client.get_scorecard(
                         player_id=player_id,
@@ -392,10 +397,15 @@ class DataSyncService:
                     )
                     scorecard_data[player_id] = scorecards
                     scorecards_fetched += 1
-                    logger.info(
-                        f"Fetched scorecard for player {player_id} "
-                        f"(improvement: {player_info['improvement']} strokes)"
-                    )
+                    reason = player_info.get("reason", "improvement")
+                    improvement = player_info.get("improvement", 0)
+                    if reason == "entry_player_backup":
+                        logger.info(f"Fetched scorecard for entry player {player_id} (backup sync)")
+                    else:
+                        logger.info(
+                            f"Fetched scorecard for player {player_id} "
+                            f"(improvement: {improvement} strokes)"
+                        )
                 except Exception as e:
                     error_msg = f"Failed to fetch scorecard for player {player_id}: {e}"
                     logger.warning(error_msg)
