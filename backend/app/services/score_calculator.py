@@ -78,14 +78,38 @@ class ScoreCalculatorService:
             ScoreSnapshot.round_id == round_id
         ).order_by(ScoreSnapshot.timestamp.desc()).all()
         
-        # Merge scorecard data from all snapshots (later snapshots override earlier ones)
-        # Since we're iterating in descending timestamp order, later snapshots will naturally override
+        # Merge scorecard data from all snapshots for the round
+        # We need to merge scorecard lists, not just overwrite, to ensure we have all rounds
         merged_scorecard_data = {}
         for snap in all_snapshots:
             if snap.scorecard_data:
                 for player_id, scorecards in snap.scorecard_data.items():
-                    # Later snapshots (iterated first) will override earlier ones
-                    merged_scorecard_data[player_id] = scorecards
+                    # Ensure scorecards is a list
+                    if isinstance(scorecards, dict):
+                        scorecards = [scorecards]  # Wrap single dict in list
+                    
+                    if player_id not in merged_scorecard_data:
+                        merged_scorecard_data[player_id] = []
+                    
+                    # Merge scorecards, avoiding duplicates for the same round
+                    from app.services.data_sync import parse_mongodb_value
+                    for new_scorecard in scorecards:
+                        new_round_id = parse_mongodb_value(new_scorecard.get("roundId"))
+                        if new_round_id == round_id:  # Only merge scorecards for the target round
+                            # Check if a scorecard for this player and round already exists
+                            existing_scorecard_index = -1
+                            for i, existing_sc in enumerate(merged_scorecard_data[player_id]):
+                                existing_round_id = parse_mongodb_value(existing_sc.get("roundId"))
+                                if existing_round_id == new_round_id:
+                                    existing_scorecard_index = i
+                                    break
+                            
+                            if existing_scorecard_index != -1:
+                                # Replace existing scorecard with the newer one (later snapshot)
+                                merged_scorecard_data[player_id][existing_scorecard_index] = new_scorecard
+                            else:
+                                # Add new scorecard
+                                merged_scorecard_data[player_id].append(new_scorecard)
         
         # Use merged data (fallback to snapshot data if merge didn't add anything)
         if merged_scorecard_data:

@@ -446,7 +446,13 @@ class ScoringService:
             if not player_scorecards:
                 logger.debug(f"No scorecard data found for player {player_id_str} in entry {entry.id}")
             else:
-                logger.debug(f"Processing {len(player_scorecards)} scorecard(s) for player {player_id_str}")
+                # Ensure player_scorecards is a list
+                if isinstance(player_scorecards, dict):
+                    player_scorecards = [player_scorecards]  # Wrap single dict in list
+                logger.info(
+                    f"Processing {len(player_scorecards)} scorecard(s) for player {player_id_str} "
+                    f"in entry {entry.id} for round {round_id}"
+                )
             
             for scorecard in player_scorecards:
                 # Parse roundId from MongoDB format if needed
@@ -495,8 +501,8 @@ class ScoringService:
                             # Eagle (2 under par)
                             elif score_to_par == -2:
                                 logger.info(
-                                    f"Detected eagle for player {player_id_str} on hole {hole_num} "
-                                    f"(score: {hole_score}, par: {par}, entry {entry.id})"
+                                    f"✅ DETECTED EAGLE for player {player_id_str} on hole {hole_num} "
+                                    f"(score: {hole_score}, par: {par}, entry {entry.id}, round {round_id})"
                                 )
                                 bonuses.append({
                                     "player_id": player_id_str,
