@@ -642,6 +642,127 @@ async def fix_tournament_data(
     return result
 
 
+@router.get("/diagnostics/tournament/{tournament_id}/round/{round_id}/bonuses")
+async def get_round_bonuses_diagnostic(
+    tournament_id: int,
+    round_id: int,
+    player_id: Optional[str] = Query(None, description="Specific player ID to check"),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Diagnose bonus points for a round.
+    Shows all bonuses awarded, low score leader, and any missing bonuses.
+    """
+    result = {
+        "tournament_id": tournament_id,
+        "round_id": round_id,
+        "low_score_leader": None,
+        "low_score_value": None,
+        "low_score_display": None,
+        "bonuses_found": [],
+        "entries_with_player": [],
+        "issues": []
+    }
+    
+    tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    if not tournament:
+        result["issues"].append(f"Tournament {tournament_id} not found")
+        return result
+    
+    # Get snapshot for this round
+    snapshot = db.query(ScoreSnapshot).filter(
+        ScoreSnapshot.tournament_id == tournament_id,
+        ScoreSnapshot.round_id == round_id
+    ).order_by(ScoreSnapshot.timestamp.desc()).first()
+    
+    if not snapshot or not snapshot.leaderboard_data:
+        result["issues"].append(f"No snapshot found for Round {round_id}")
+        return result
+    
+    # Find low score leader (check all players, not just "complete")
+    leaderboard_rows = snapshot.leaderboard_data.get("leaderboardRows", [])
+    low_score_player = None
+    low_score_value = None
+    low_score_display = None
+    
+    for row in leaderboard_rows:
+        status = row.get("status", "").lower()
+        if status in ["wd", "dq"]:
+            continue
+        
+        current_round_score = row.get("currentRoundScore", "")
+        if not current_round_score:
+            continue
+        
+        try:
+            if current_round_score.startswith("-"):
+                score = -int(current_round_score[1:])
+            elif current_round_score.startswith("+"):
+                score = int(current_round_score[1:])
+            elif current_round_score == "E":
+                score = 0
+            else:
+                continue
+            
+            if low_score_value is None or score < low_score_value:
+                low_score_value = score
+                low_score_player = str(row.get("playerId"))
+                low_score_display = current_round_score
+        except (ValueError, AttributeError):
+            continue
+    
+    result["low_score_leader"] = low_score_player
+    result["low_score_value"] = low_score_value
+    result["low_score_display"] = low_score_display
+    
+    # Get all bonuses for this round
+    from app.models import BonusPoint, Entry
+    bonuses = db.query(BonusPoint).filter(
+        BonusPoint.entry_id.in_(
+            db.query(Entry.id).filter(Entry.tournament_id == tournament_id)
+        ),
+        BonusPoint.round_id == round_id
+    ).all()
+    
+    for bonus in bonuses:
+        entry = db.query(Entry).filter(Entry.id == bonus.entry_id).first()
+        result["bonuses_found"].append({
+            "entry_id": bonus.entry_id,
+            "participant_name": entry.participant.name if entry and entry.participant else "Unknown",
+            "bonus_type": bonus.bonus_type,
+            "player_id": bonus.player_id,
+            "hole": bonus.hole,
+            "points": bonus.points,
+            "awarded_at": bonus.awarded_at.isoformat() if bonus.awarded_at else None
+        })
+    
+    # If specific player requested, check entries with that player
+    if player_id:
+        entries = db.query(Entry).filter(Entry.tournament_id == tournament_id).all()
+        for entry in entries:
+            player_ids = [
+                str(entry.player1_id), str(entry.player2_id), str(entry.player3_id),
+                str(entry.player4_id), str(entry.player5_id), str(entry.player6_id)
+            ]
+            if player_id in player_ids:
+                # Check if this entry has bonuses for this player
+                player_bonuses = [b for b in bonuses if b.player_id == player_id and b.entry_id == entry.id]
+                result["entries_with_player"].append({
+                    "entry_id": entry.id,
+                    "participant_name": entry.participant.name if entry.participant else "Unknown",
+                    "has_bonuses": len(player_bonuses) > 0,
+                    "bonuses": [
+                        {
+                            "type": b.bonus_type,
+                            "points": b.points,
+                            "hole": b.hole
+                        } for b in player_bonuses
+                    ]
+                })
+    
+    return result
+
+
 @router.get("/diagnostics/tournament/{tournament_id}/round/{round_id}/player/{player_id}/scorecard")
 async def check_player_scorecard(
     tournament_id: int,

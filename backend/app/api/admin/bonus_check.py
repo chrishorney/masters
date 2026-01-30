@@ -144,17 +144,17 @@ async def check_all_entry_players_for_bonuses(
                 
                 entries_processed += 1
                 
-                # Count bonuses for this entry in this round
+                # Count bonuses for this entry in this round (after recalculation)
                 from app.models import BonusPoint
                 bonuses = db.query(BonusPoint).filter(
                     BonusPoint.entry_id == entry.id,
                     BonusPoint.round_id == round_id
                 ).all()
                 
-                # Note: We can't easily determine if bonuses are "new" without tracking state
-                # So we'll just report total bonuses found
-                if bonuses:
-                    new_bonuses_found += len(bonuses)
+                # Count bonuses by type
+                for bonus in bonuses:
+                    if bonus.bonus_type in ["eagle", "double_eagle", "hole_in_one", "low_score"]:
+                        new_bonuses_found += 1
                 
             except Exception as e:
                 error_msg = f"Error processing entry {entry.id}: {e}"

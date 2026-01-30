@@ -383,27 +383,47 @@ class ScoringService:
         # For now, we'll implement what we can determine from the data
         
         # Low score of day
+        # Find the player with the lowest score (best score) for this round
+        # Check all players, not just those with status "complete" (round might still be in progress)
         low_score_player = None
         low_score_value = None
         for row in rows:
-            if row.get("status") == "complete":
-                current_round_score = row.get("currentRoundScore", "")
-                # Parse score (e.g., "-5", "+2", "E")
-                try:
-                    if current_round_score.startswith("-"):
-                        score = -int(current_round_score[1:])
-                    elif current_round_score.startswith("+"):
-                        score = int(current_round_score[1:])
-                    elif current_round_score == "E":
-                        score = 0
-                    else:
-                        continue
-                    
-                    if low_score_value is None or score < low_score_value:
-                        low_score_value = score
-                        low_score_player = str(row.get("playerId"))
-                except (ValueError, AttributeError):
+            # Skip withdrawn/disqualified players
+            status = row.get("status", "").lower()
+            if status in ["wd", "dq"]:
+                continue
+            
+            current_round_score = row.get("currentRoundScore", "")
+            if not current_round_score:
+                continue
+            
+            # Parse score (e.g., "-5", "+2", "E")
+            try:
+                if current_round_score.startswith("-"):
+                    score = -int(current_round_score[1:])
+                elif current_round_score.startswith("+"):
+                    score = int(current_round_score[1:])
+                elif current_round_score == "E":
+                    score = 0
+                else:
                     continue
+                
+                # Lower score is better (more negative is better)
+                if low_score_value is None or score < low_score_value:
+                    low_score_value = score
+                    low_score_player = str(row.get("playerId"))
+                    logger.debug(
+                        f"Found new low score: {current_round_score} (parsed: {score}) "
+                        f"for player {low_score_player} in round {round_id}"
+                    )
+            except (ValueError, AttributeError) as e:
+                logger.debug(f"Could not parse score '{current_round_score}': {e}")
+                continue
+        
+        if low_score_player:
+            logger.info(
+                f"Low score of round {round_id}: {low_score_value} (player {low_score_player})"
+            )
         
         # Check each player for bonuses
         for player_id in player_ids:
@@ -411,6 +431,10 @@ class ScoringService:
             
             # Low score of day
             if low_score_player == player_id_str:
+                logger.info(
+                    f"Awarding low_score bonus to player {player_id_str} "
+                    f"(score: {low_score_value}) for entry {entry.id}, round {round_id}"
+                )
                 bonuses.append({
                     "player_id": player_id_str,
                     "bonus_type": "low_score",
@@ -587,10 +611,18 @@ class ScoringService:
                     # For bonuses with holes, also check the hole number
                     if bonus.get("hole") is not None:
                         query = query.filter(BonusPoint.hole == bonus.get("hole"))
+                    # For low_score, also check by player_id to avoid duplicates
+                    elif bonus["bonus_type"] == "low_score":
+                        query = query.filter(BonusPoint.player_id == bonus.get("player_id"))
                     
                     existing = query.first()
                     
                     if not existing:
+                        logger.info(
+                            f"Creating new bonus: {bonus['bonus_type']} "
+                            f"for entry {entry.id}, round {round_id}, "
+                            f"player {bonus.get('player_id')}, hole {bonus.get('hole')}"
+                        )
                         bonus_point = BonusPoint(
                             entry_id=entry.id,
                             round_id=round_id,
@@ -613,6 +645,12 @@ class ScoringService:
                             bonus=bonus,
                             round_id=round_id,
                             tournament=tournament
+                        )
+                    else:
+                        logger.debug(
+                            f"Bonus already exists: {bonus['bonus_type']} "
+                            f"for entry {entry.id}, round {round_id}, "
+                            f"player {bonus.get('player_id')}, hole {bonus.get('hole')}"
                         )
             
             self.db.commit()
@@ -649,10 +687,18 @@ class ScoringService:
                     # For bonuses with holes, also check the hole number
                     if bonus.get("hole") is not None:
                         query = query.filter(BonusPoint.hole == bonus.get("hole"))
+                    # For low_score, also check by player_id to avoid duplicates
+                    elif bonus["bonus_type"] == "low_score":
+                        query = query.filter(BonusPoint.player_id == bonus.get("player_id"))
                     
                     existing = query.first()
                     
                     if not existing:
+                        logger.info(
+                            f"Creating new bonus: {bonus['bonus_type']} "
+                            f"for entry {entry.id}, round {round_id}, "
+                            f"player {bonus.get('player_id')}, hole {bonus.get('hole')}"
+                        )
                         bonus_point = BonusPoint(
                             entry_id=entry.id,
                             round_id=round_id,
@@ -675,6 +721,12 @@ class ScoringService:
                             bonus=bonus,
                             round_id=round_id,
                             tournament=tournament
+                        )
+                    else:
+                        logger.debug(
+                            f"Bonus already exists: {bonus['bonus_type']} "
+                            f"for entry {entry.id}, round {round_id}, "
+                            f"player {bonus.get('player_id')}, hole {bonus.get('hole')}"
                         )
             
             self.db.commit()
