@@ -91,11 +91,28 @@ export const scoresApi = {
   },
 
   /** Calculate scores for tournament */
-  calculateScores: async (tournamentId: number, roundId?: number): Promise<{ success: boolean; message: string }> => {
+  calculateScores: async (
+    tournamentId: number, 
+    roundId?: number, 
+    fetchMissingScorecards?: boolean
+  ): Promise<{ 
+    success?: boolean;
+    message: string;
+    tournament_id?: number;
+    round_id?: number;
+    entries_processed?: number;
+    entries_updated?: number;
+    players_with_scorecards?: number;
+    players_missing_scorecards?: number;
+    warning?: string;
+    missing_player_ids?: string[];
+    errors?: string[];
+  }> => {
     const params: any = { tournament_id: tournamentId }
     if (roundId) params.round_id = roundId
+    if (fetchMissingScorecards) params.fetch_missing_scorecards = true
     const response = await api.post('/scores/calculate', null, { params })
-    return { success: true, message: response.data.message || 'Scores calculated' }
+    return response.data
   },
 }
 
