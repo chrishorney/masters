@@ -32,6 +32,12 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
   const [testingDiscord, setTestingDiscord] = useState(false)
   const [discordTestResult, setDiscordTestResult] = useState<{ success: boolean; message: string } | null>(null)
   const [checkingBonuses, setCheckingBonuses] = useState(false)
+  const [scoreCalculationResult, setScoreCalculationResult] = useState<{
+    players_with_scorecards?: number;
+    players_missing_scorecards?: number;
+    warning?: string;
+    missing_player_ids?: string[];
+  } | null>(null)
   
   const calculateScores = useCalculateScores()
 
