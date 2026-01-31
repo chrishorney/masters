@@ -125,7 +125,7 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
     }
   }
 
-  const handleCalculateScores = async () => {
+  const handleCalculateScores = async (fetchMissingScorecards: boolean = false) => {
     if (!tournament) {
       setMessage({ type: 'error', text: 'No tournament available. Please sync a tournament first.' })
       return
@@ -133,10 +133,34 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
 
     setCalculating(true)
     setMessage(null)
+    setScoreCalculationResult(null)
 
     try {
-      await calculateScores.mutateAsync({ tournamentId: tournament.id })
-      setMessage({ type: 'success', text: 'Scores calculated successfully!' })
+      const result = await calculateScores.mutateAsync({ 
+        tournamentId: tournament.id,
+        fetchMissingScorecards
+      })
+      
+      if (result.players_missing_scorecards && result.players_missing_scorecards > 0) {
+        setScoreCalculationResult({
+          players_with_scorecards: result.players_with_scorecards,
+          players_missing_scorecards: result.players_missing_scorecards,
+          warning: result.warning,
+          missing_player_ids: result.missing_player_ids
+        })
+        setMessage({ 
+          type: 'error', 
+          text: result.warning || `Missing scorecard data for ${result.players_missing_scorecards} players. Bonuses may not be detected.` 
+        })
+      } else {
+        setMessage({ type: 'success', text: 'Scores calculated successfully!' })
+        if (result.players_with_scorecards !== undefined) {
+          setScoreCalculationResult({
+            players_with_scorecards: result.players_with_scorecards,
+            players_missing_scorecards: 0
+          })
+        }
+      }
     } catch (error: any) {
       setMessage({ 
         type: 'error', 
@@ -480,13 +504,42 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
               <p className="text-sm text-gray-600 mb-3">
                 Recalculate scores for all entries based on current leaderboard data
               </p>
-              <button
-                onClick={handleCalculateScores}
-                disabled={calculating}
-                className="w-full md:w-auto px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
-              >
-                {calculating ? 'Calculating...' : 'Calculate Scores'}
-              </button>
+              <div className="flex flex-col sm:flex-row gap-2 mb-2">
+                <button
+                  onClick={() => handleCalculateScores(false)}
+                  disabled={calculating}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
+                >
+                  {calculating ? 'Calculating...' : 'Calculate Scores'}
+                </button>
+                <button
+                  onClick={() => handleCalculateScores(true)}
+                  disabled={calculating}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
+                >
+                  {calculating ? 'Calculating...' : 'Calculate + Fetch Missing Scorecards'}
+                </button>
+              </div>
+              {scoreCalculationResult && scoreCalculationResult.players_missing_scorecards !== undefined && (
+                <div className={`mt-3 p-3 rounded-lg ${
+                  scoreCalculationResult.players_missing_scorecards > 0 
+                    ? 'bg-yellow-50 border border-yellow-200' 
+                    : 'bg-green-50 border border-green-200'
+                }`}>
+                  <p className={`text-sm ${
+                    scoreCalculationResult.players_missing_scorecards > 0 ? 'text-yellow-800' : 'text-green-800'
+                  }`}>
+                    <strong>Scorecard Status:</strong> {scoreCalculationResult.players_with_scorecards} players with data, 
+                    {' '}{scoreCalculationResult.players_missing_scorecards} missing
+                  </p>
+                  {scoreCalculationResult.players_missing_scorecards > 0 && (
+                    <p className="text-xs text-yellow-700 mt-1">
+                      Use "Calculate + Fetch Missing Scorecards" to fetch scorecards and ensure bonuses are detected.
+                      This uses additional API calls.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

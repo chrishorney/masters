@@ -53,8 +53,16 @@ export function useCalculateScores() {
   const queryClient = useQueryClient()
   
   return useMutation({
-    mutationFn: ({ tournamentId, roundId }: { tournamentId: number; roundId?: number }) =>
-      scoresApi.calculateScores(tournamentId, roundId),
+    mutationFn: ({ 
+      tournamentId, 
+      roundId, 
+      fetchMissingScorecards 
+    }: { 
+      tournamentId: number; 
+      roundId?: number;
+      fetchMissingScorecards?: boolean;
+    }) =>
+      scoresApi.calculateScores(tournamentId, roundId, fetchMissingScorecards),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leaderboard'] })
       queryClient.invalidateQueries({ queryKey: ['scores'] })
