@@ -117,8 +117,26 @@ async def check_all_entry_players_for_bonuses(
         leaderboard_data = snapshot.leaderboard_data or {}
         
         # Merge fetched scorecards with existing snapshot data
+        # Scorecards from API contain ALL rounds, so we need to ensure we're using the full data
         existing_scorecard_data = snapshot.scorecard_data or {}
-        merged_scorecard_data = {**existing_scorecard_data, **scorecard_data}
+        
+        # Merge scorecards, ensuring we keep all rounds from both sources
+        merged_scorecard_data = {}
+        
+        # Add existing scorecards
+        for player_id, existing_scorecards in existing_scorecard_data.items():
+            merged_scorecard_data[player_id] = existing_scorecards
+        
+        # Add/update with newly fetched scorecards (which contain all rounds)
+        for player_id, new_scorecards in scorecard_data.items():
+            # Newly fetched scorecards contain all rounds, so they should replace existing ones
+            # This ensures we have the most up-to-date data for all rounds
+            merged_scorecard_data[player_id] = new_scorecards
+        
+        logger.info(
+            f"Merged scorecard data: {len(merged_scorecard_data)} players with scorecards. "
+            f"Newly fetched: {len(scorecard_data)}, Existing: {len(existing_scorecard_data)}"
+        )
         
         # Recalculate bonuses for all entries
         calculator = ScoreCalculatorService(db)
@@ -168,9 +186,27 @@ async def check_all_entry_players_for_bonuses(
         snapshot.scorecard_data = merged_scorecard_data
         db.commit()
         
+        # Get summary of bonuses found
+        from app.models import BonusPoint, Entry
+        all_bonuses = db.query(BonusPoint).filter(
+            BonusPoint.entry_id.in_(
+                db.query(Entry.id).filter(Entry.tournament_id == tournament_id)
+            ),
+            BonusPoint.round_id == round_id,
+            BonusPoint.bonus_type.in_(["eagle", "double_eagle", "hole_in_one", "low_score"])
+        ).all()
+        
+        bonus_summary = {}
+        for bonus in all_bonuses:
+            bonus_type = bonus.bonus_type
+            if bonus_type not in bonus_summary:
+                bonus_summary[bonus_type] = 0
+            bonus_summary[bonus_type] += 1
+        
         return {
             **results,
-            "message": f"Successfully checked {scorecards_fetched} players and processed {entries_processed} entries. Found {new_bonuses_found} total bonuses for Round {round_id}.",
+            "message": f"Successfully checked {scorecards_fetched} players and processed {entries_processed} entries. Found {new_bonuses_found} bonuses (eagles/albatrosses/hole-in-ones/low_score) for Round {round_id}.",
+            "bonus_summary": bonus_summary,
             "success": True
         }
         

@@ -449,20 +449,39 @@ class ScoringService:
                 # Ensure player_scorecards is a list
                 if isinstance(player_scorecards, dict):
                     player_scorecards = [player_scorecards]  # Wrap single dict in list
+                
+                # Log all rounds found in scorecards
+                scorecard_rounds = []
+                for sc in player_scorecards:
+                    sc_round_id = parse_mongodb_value(sc.get("roundId"))
+                    if sc_round_id:
+                        scorecard_rounds.append(sc_round_id)
+                
                 logger.info(
                     f"Processing {len(player_scorecards)} scorecard(s) for player {player_id_str} "
-                    f"in entry {entry.id} for round {round_id}"
+                    f"in entry {entry.id} for round {round_id}. "
+                    f"Scorecards contain rounds: {scorecard_rounds}"
                 )
             
             for scorecard in player_scorecards:
                 # Parse roundId from MongoDB format if needed
                 scorecard_round_id = parse_mongodb_value(scorecard.get("roundId"))
+                
+                # Convert to int for comparison (handles both string and int)
+                try:
+                    scorecard_round_id_int = int(scorecard_round_id) if scorecard_round_id is not None else None
+                    target_round_id_int = int(round_id)
+                except (ValueError, TypeError):
+                    scorecard_round_id_int = scorecard_round_id
+                    target_round_id_int = round_id
+                
                 logger.debug(
                     f"Checking scorecard for player {player_id_str}: "
-                    f"scorecard_round_id={scorecard_round_id}, target_round_id={round_id}"
+                    f"scorecard_round_id={scorecard_round_id} (parsed: {scorecard_round_id_int}), "
+                    f"target_round_id={round_id} (parsed: {target_round_id_int})"
                 )
                 
-                if scorecard_round_id == round_id:
+                if scorecard_round_id_int == target_round_id_int:
                     holes = scorecard.get("holes", {})
                     logger.debug(f"Found {len(holes)} holes in scorecard for player {player_id_str}, round {round_id}")
                     
