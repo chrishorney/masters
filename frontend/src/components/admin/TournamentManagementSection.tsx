@@ -139,7 +139,14 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
       const result = await calculateScores.mutateAsync({ 
         tournamentId: tournament.id,
         fetchMissingScorecards
-      })
+      }) as {
+        success?: boolean;
+        message: string;
+        players_with_scorecards?: number;
+        players_missing_scorecards?: number;
+        warning?: string;
+        missing_player_ids?: string[];
+      }
       
       if (result.players_missing_scorecards && result.players_missing_scorecards > 0) {
         setScoreCalculationResult({
