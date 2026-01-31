@@ -834,6 +834,47 @@ async def check_player_scorecard(
                                 })
             break  # Found scorecard, no need to check older snapshots
     
+    # Also check if player is on any entries
+    from app.models import Entry
+    entries_with_player = db.query(Entry).filter(
+        Entry.tournament_id == tournament_id,
+        db.or_(
+            Entry.player1_id == player_id,
+            Entry.player2_id == player_id,
+            Entry.player3_id == player_id,
+            Entry.player4_id == player_id,
+            Entry.player5_id == player_id,
+            Entry.player6_id == player_id
+        )
+    ).all()
+    
+    result["entries_with_player"] = [
+        {
+            "entry_id": entry.id,
+            "participant_name": entry.participant.name if entry.participant else "Unknown"
+        }
+        for entry in entries_with_player
+    ]
+    
+    # Check if bonuses exist for this player in this round
+    from app.models import BonusPoint
+    bonuses = db.query(BonusPoint).filter(
+        BonusPoint.entry_id.in_([e.id for e in entries_with_player]),
+        BonusPoint.round_id == round_id,
+        BonusPoint.player_id == player_id
+    ).all()
+    
+    result["bonuses_found"] = [
+        {
+            "entry_id": b.entry_id,
+            "bonus_type": b.bonus_type,
+            "points": b.points,
+            "hole": b.hole,
+            "awarded_at": b.awarded_at.isoformat() if b.awarded_at else None
+        }
+        for b in bonuses
+    ]
+    
     return result
 
 
