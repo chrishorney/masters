@@ -15,18 +15,113 @@ router = APIRouter()
 async def calculate_scores(
     tournament_id: int = Query(..., description="Tournament ID"),
     round_id: Optional[int] = Query(None, description="Specific round (default: current round)"),
+    fetch_missing_scorecards: bool = Query(False, description="Fetch missing scorecards before calculating (uses API calls)"),
     db: Session = Depends(get_db)
 ):
-    """Calculate scores for all entries in a tournament."""
+    """
+    Calculate scores for all entries in a tournament.
+    
+    If fetch_missing_scorecards=True, will fetch scorecards for any entry players
+    that don't have scorecard data in snapshots. This ensures bonuses are detected
+    but uses additional API calls.
+    """
     calculator = ScoreCalculatorService(db)
     
     try:
+        # If requested, fetch missing scorecards first
+        if fetch_missing_scorecards:
+            from app.models import Tournament, Entry, ScoreSnapshot
+            from app.services.data_sync import DataSyncService, parse_mongodb_value
+            
+            tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+            if not tournament:
+                raise HTTPException(status_code=404, detail="Tournament not found")
+            
+            target_round = round_id or tournament.current_round or 1
+            
+            # Get all entry players
+            entries = db.query(Entry).filter(Entry.tournament_id == tournament_id).all()
+            entry_player_ids = set()
+            for entry in entries:
+                for player_id_field in ["player1_id", "player2_id", "player3_id", "player4_id", "player5_id", "player6_id"]:
+                    player_id = getattr(entry, player_id_field, None)
+                    if player_id:
+                        entry_player_ids.add(str(player_id))
+            
+            # Check which players are missing scorecard data for this round
+            snapshot = db.query(ScoreSnapshot).filter(
+                ScoreSnapshot.tournament_id == tournament_id,
+                ScoreSnapshot.round_id == target_round
+            ).order_by(ScoreSnapshot.timestamp.desc()).first()
+            
+            missing_players = set()
+            if snapshot and snapshot.scorecard_data:
+                for player_id in entry_player_ids:
+                    if player_id not in snapshot.scorecard_data:
+                        missing_players.add(player_id)
+                    else:
+                        # Check if scorecard has data for target round
+                        player_scorecards = snapshot.scorecard_data[player_id]
+                        if isinstance(player_scorecards, dict):
+                            player_scorecards = [player_scorecards]
+                        
+                        has_round_data = False
+                        for scorecard in player_scorecards:
+                            scorecard_round_id = parse_mongodb_value(scorecard.get("roundId"))
+                            if scorecard_round_id == target_round:
+                                has_round_data = True
+                                break
+                        
+                        if not has_round_data:
+                            missing_players.add(player_id)
+            else:
+                # No snapshot or no scorecard data - all players are missing
+                missing_players = entry_player_ids
+            
+            # Fetch missing scorecards
+            if missing_players:
+                sync_service = DataSyncService(db)
+                fetched_count = 0
+                for player_id in missing_players:
+                    try:
+                        scorecards = sync_service.api_client.get_scorecard(
+                            player_id=player_id,
+                            org_id=tournament.org_id,
+                            tourn_id=tournament.tourn_id,
+                            year=tournament.year
+                        )
+                        
+                        # Update snapshot with fetched scorecard
+                        if not snapshot:
+                            # Create new snapshot if needed
+                            from app.services.data_sync import DataSyncService
+                            leaderboard_data = {}  # Will be filled by sync
+                            snapshot = sync_service.save_score_snapshot(
+                                tournament_id=tournament_id,
+                                round_id=target_round,
+                                leaderboard_data=leaderboard_data,
+                                scorecard_data={player_id: scorecards}
+                            )
+                        else:
+                            # Update existing snapshot
+                            if not snapshot.scorecard_data:
+                                snapshot.scorecard_data = {}
+                            snapshot.scorecard_data[player_id] = scorecards
+                        
+                        fetched_count += 1
+                    except Exception as e:
+                        logger.warning(f"Failed to fetch scorecard for player {player_id}: {e}")
+                
+                if fetched_count > 0:
+                    db.commit()
+                    logger.info(f"Fetched {fetched_count} missing scorecards before calculating scores")
+        
         results = calculator.calculate_scores_for_tournament(tournament_id, round_id)
         
         if not results.get("success"):
             raise HTTPException(status_code=400, detail=results.get("message", "Calculation failed"))
         
-        return {
+        response = {
             "message": "Scores calculated successfully",
             "tournament_id": results["tournament_id"],
             "round_id": results["round_id"],
@@ -34,6 +129,19 @@ async def calculate_scores(
             "entries_updated": results["entries_updated"],
             "errors": results.get("errors", [])
         }
+        
+        # Add diagnostic info if available
+        if "players_with_scorecards" in results:
+            response["players_with_scorecards"] = results["players_with_scorecards"]
+            response["players_missing_scorecards"] = results["players_missing_scorecards"]
+            if results["players_missing_scorecards"] > 0:
+                response["warning"] = (
+                    f"{results['players_missing_scorecards']} entry players are missing scorecard data. "
+                    "Bonuses may not be detected. Use fetch_missing_scorecards=true to fetch them."
+                )
+                response["missing_player_ids"] = results.get("missing_player_ids", [])
+        
+        return response
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:

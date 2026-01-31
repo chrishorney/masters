@@ -124,12 +124,59 @@ class ScoreCalculatorService:
             Entry.tournament_id == tournament_id
         ).all()
         
+        # Check which entry players are missing scorecard data
+        entry_player_ids = set()
+        for entry in entries:
+            for player_id_field in ["player1_id", "player2_id", "player3_id", "player4_id", "player5_id", "player6_id"]:
+                player_id = getattr(entry, player_id_field, None)
+                if player_id:
+                    entry_player_ids.add(str(player_id))
+        
+        # Check which players have scorecard data for this round
+        players_with_scorecards = set()
+        players_missing_scorecards = set()
+        
+        from app.services.data_sync import parse_mongodb_value
+        for player_id in entry_player_ids:
+            if player_id in merged_scorecard_data:
+                # Check if this player has scorecard data for the target round
+                player_scorecards = merged_scorecard_data[player_id]
+                if isinstance(player_scorecards, dict):
+                    player_scorecards = [player_scorecards]
+                
+                has_round_data = False
+                for scorecard in player_scorecards:
+                    scorecard_round_id = parse_mongodb_value(scorecard.get("roundId"))
+                    if scorecard_round_id == round_id:
+                        has_round_data = True
+                        break
+                
+                if has_round_data:
+                    players_with_scorecards.add(player_id)
+                else:
+                    players_missing_scorecards.add(player_id)
+            else:
+                players_missing_scorecards.add(player_id)
+        
+        if players_missing_scorecards:
+            logger.warning(
+                f"Missing scorecard data for {len(players_missing_scorecards)} entry players in Round {round_id}: "
+                f"{list(players_missing_scorecards)[:10]}{'...' if len(players_missing_scorecards) > 10 else ''}"
+            )
+            logger.warning(
+                f"Players with scorecards: {len(players_with_scorecards)}, "
+                f"Players missing: {len(players_missing_scorecards)}"
+            )
+        
         results = {
             "success": True,
             "tournament_id": tournament_id,
             "round_id": round_id,
             "entries_processed": 0,
             "entries_updated": 0,
+            "players_with_scorecards": len(players_with_scorecards),
+            "players_missing_scorecards": len(players_missing_scorecards),
+            "missing_player_ids": list(players_missing_scorecards)[:20],  # Limit to first 20 for response size
             "errors": []
         }
         
