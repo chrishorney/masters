@@ -801,11 +801,27 @@ async def check_player_scorecard(
             scorecards = snapshot.scorecard_data[player_id]
             result["scorecard_data"] = scorecards
             
+            # Ensure scorecards is a list
+            if isinstance(scorecards, dict):
+                scorecards = [scorecards]
+            
             # Parse scorecards to find bonuses
             from app.services.data_sync import parse_mongodb_value
             for scorecard in scorecards:
+                if not isinstance(scorecard, dict):
+                    continue
+                    
                 scorecard_round_id = parse_mongodb_value(scorecard.get("roundId"))
-                if scorecard_round_id == round_id:
+                
+                # Convert to int for comparison
+                try:
+                    scorecard_round_id_int = int(scorecard_round_id) if scorecard_round_id is not None else None
+                    target_round_id_int = int(round_id)
+                except (ValueError, TypeError):
+                    scorecard_round_id_int = scorecard_round_id
+                    target_round_id_int = round_id
+                
+                if scorecard_round_id_int == target_round_id_int:
                     holes = scorecard.get("holes", {})
                     for hole_num, hole_data in holes.items():
                         hole_score = parse_mongodb_value(hole_data.get("holeScore"))
@@ -835,45 +851,58 @@ async def check_player_scorecard(
             break  # Found scorecard, no need to check older snapshots
     
     # Also check if player is on any entries
-    from app.models import Entry
-    entries_with_player = db.query(Entry).filter(
-        Entry.tournament_id == tournament_id,
-        db.or_(
-            Entry.player1_id == player_id,
-            Entry.player2_id == player_id,
-            Entry.player3_id == player_id,
-            Entry.player4_id == player_id,
-            Entry.player5_id == player_id,
-            Entry.player6_id == player_id
-        )
-    ).all()
-    
-    result["entries_with_player"] = [
-        {
-            "entry_id": entry.id,
-            "participant_name": entry.participant.name if entry.participant else "Unknown"
-        }
-        for entry in entries_with_player
-    ]
-    
-    # Check if bonuses exist for this player in this round
-    from app.models import BonusPoint
-    bonuses = db.query(BonusPoint).filter(
-        BonusPoint.entry_id.in_([e.id for e in entries_with_player]),
-        BonusPoint.round_id == round_id,
-        BonusPoint.player_id == player_id
-    ).all()
-    
-    result["bonuses_found"] = [
-        {
-            "entry_id": b.entry_id,
-            "bonus_type": b.bonus_type,
-            "points": b.points,
-            "hole": b.hole,
-            "awarded_at": b.awarded_at.isoformat() if b.awarded_at else None
-        }
-        for b in bonuses
-    ]
+    try:
+        from app.models import Entry
+        from sqlalchemy import or_
+        
+        entries_with_player = db.query(Entry).filter(
+            Entry.tournament_id == tournament_id,
+            or_(
+                Entry.player1_id == player_id,
+                Entry.player2_id == player_id,
+                Entry.player3_id == player_id,
+                Entry.player4_id == player_id,
+                Entry.player5_id == player_id,
+                Entry.player6_id == player_id
+            )
+        ).all()
+        
+        result["entries_with_player"] = [
+            {
+                "entry_id": entry.id,
+                "participant_name": entry.participant.name if entry.participant else "Unknown"
+            }
+            for entry in entries_with_player
+        ]
+        
+        # Check if bonuses exist for this player in this round
+        if entries_with_player:
+            from app.models import BonusPoint
+            entry_ids = [e.id for e in entries_with_player]
+            bonuses = db.query(BonusPoint).filter(
+                BonusPoint.entry_id.in_(entry_ids),
+                BonusPoint.round_id == round_id,
+                BonusPoint.player_id == player_id
+            ).all()
+            
+            result["bonuses_found"] = [
+                {
+                    "entry_id": b.entry_id,
+                    "bonus_type": b.bonus_type,
+                    "points": b.points,
+                    "hole": b.hole,
+                    "awarded_at": b.awarded_at.isoformat() if b.awarded_at else None
+                }
+                for b in bonuses
+            ]
+        else:
+            result["entries_with_player"] = []
+            result["bonuses_found"] = []
+    except Exception as e:
+        logger.error(f"Error checking entries and bonuses: {e}", exc_info=True)
+        result["entries_with_player"] = []
+        result["bonuses_found"] = []
+        result["error"] = f"Error checking entries: {str(e)}"
     
     return result
 
