@@ -339,10 +339,20 @@ async def get_tournament_leaderboard(
     if not tournament:
         raise HTTPException(status_code=404, detail="Tournament not found")
     
-    # Get the most recent snapshot
+    # Prefer the most recent snapshot for the CURRENT ROUND.
+    # This ensures the "Current (Live)" view always reflects the same round
+    # that the UI labels as current_round.
     snapshot = db.query(ScoreSnapshot).filter(
-        ScoreSnapshot.tournament_id == tournament_id
+        ScoreSnapshot.tournament_id == tournament_id,
+        ScoreSnapshot.round_id == tournament.current_round
     ).order_by(ScoreSnapshot.timestamp.desc()).first()
+
+    # Fallback: if we somehow don't have a snapshot for the current round yet,
+    # use the latest snapshot for any round so we at least show something.
+    if not snapshot:
+        snapshot = db.query(ScoreSnapshot).filter(
+            ScoreSnapshot.tournament_id == tournament_id
+        ).order_by(ScoreSnapshot.timestamp.desc()).first()
     
     if not snapshot or not snapshot.leaderboard_data:
         raise HTTPException(
