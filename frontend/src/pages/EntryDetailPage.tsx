@@ -34,7 +34,7 @@ export function EntryDetailPage() {
     )
   }
 
-  const { entry, tournament, players, rebuy_players, daily_scores, bonus_points, totals } = entryData
+  const { entry, tournament, players, rebuy_players, daily_scores, bonus_points: _bonus_points, totals } = entryData
 
   const getPlayerName = (playerId: string) => {
     return players[playerId]?.full_name || `Player ${playerId}`
@@ -196,7 +196,14 @@ export function EntryDetailPage() {
           <div className="space-y-6">
             {daily_scores.map((score: any) => {
               const baseBreakdown = score.details?.base_breakdown || {}
-              const roundBonuses = bonus_points.filter((bp: any) => bp.round_id === score.round_id)
+              // Use the bonuses stored with this DailyScore as the source of truth,
+              // so we always show all detected bonuses even if BonusPoint rows are missing.
+              const roundBonuses = (score.details?.bonuses || []) as Array<{
+                player_id?: string
+                bonus_type: string
+                points: number
+                hole?: number
+              }>
               
               // Determine which players were active this round
               // Rounds 1-2: Always use original 6 players
@@ -237,7 +244,7 @@ export function EntryDetailPage() {
               })
               
               // Add bonus points
-              roundBonuses.forEach((bp: any) => {
+              roundBonuses.forEach((bp) => {
                 if (bp.player_id) {
                   playerRoundTotals[bp.player_id] = (playerRoundTotals[bp.player_id] || 0) + (bp.points || 0)
                 }
@@ -271,8 +278,8 @@ export function EntryDetailPage() {
                       <tbody className="divide-y divide-gray-200">
                         {activePlayerIds.map((playerId: string, index: number) => {
                           const playerData = baseBreakdown[`player${index + 1}`] || {}
-                          const playerBonuses = roundBonuses.filter((bp: any) => bp.player_id === playerId)
-                          const playerBonusTotal = playerBonuses.reduce((sum: number, bp: any) => sum + bp.points, 0)
+                          const playerBonuses = roundBonuses.filter((bp) => bp.player_id === playerId)
+                          const playerBonusTotal = playerBonuses.reduce((sum: number, bp) => sum + (bp.points || 0), 0)
                           const playerBasePoints = playerData.points || 0
                           const playerRoundTotal = playerBasePoints + playerBonusTotal
                           
@@ -399,7 +406,12 @@ export function EntryDetailPage() {
                   // Aggregate from daily scores
                   daily_scores.forEach((score: any) => {
                     const baseBreakdown = score.details?.base_breakdown || {}
-                    const roundBonuses = bonus_points.filter((bp: any) => bp.round_id === score.round_id)
+                    const roundBonuses = (score.details?.bonuses || []) as Array<{
+                      player_id?: string
+                      bonus_type: string
+                      points: number
+                      hole?: number
+                    }>
                     
                     // Add base points
                     Object.keys(baseBreakdown).forEach((playerKey) => {
@@ -412,7 +424,7 @@ export function EntryDetailPage() {
                     })
                     
                     // Add bonus points
-                    roundBonuses.forEach((bp: any) => {
+                    roundBonuses.forEach((bp) => {
                       if (bp.player_id && playerTotals[bp.player_id]) {
                         playerTotals[bp.player_id].bonusPoints += bp.points || 0
                         playerTotals[bp.player_id].rounds.add(score.round_id)
@@ -464,22 +476,45 @@ export function EntryDetailPage() {
       )}
 
       {/* Bonus Points Breakdown */}
-      {bonus_points.length > 0 && (
+      {daily_scores.some((score: any) => Array.isArray(score.details?.bonuses) && score.details.bonuses.length > 0) && (
         <div className="bg-white rounded-lg shadow-md p-4 md:p-6">
           <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-4">Bonus Points Breakdown</h2>
           <div className="space-y-2">
-            {bonus_points.map((bp: any) => (
-              <div key={bp.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            {daily_scores.flatMap((score: any) => {
+              const roundId = score.round_id
+              const bonuses = (score.details?.bonuses || []) as Array<{
+                player_id?: string
+                bonus_type: string
+                points: number
+                hole?: number
+              }>
+              
+              return bonuses.map((bp, index) => ({
+                key: `${roundId}-${bp.player_id || 'team'}-${bp.bonus_type}-${bp.hole ?? 'na'}-${index}`,
+                roundId,
+                bonus: bp,
+              }))
+            }).map(
+              ({
+                key,
+                roundId,
+                bonus,
+              }: {
+                key: string
+                roundId: number
+                bonus: { player_id?: string; bonus_type: string; points: number; hole?: number }
+              }) => (
+              <div key={key} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div>
-                  <span className="font-medium text-gray-900">{getBonusTypeLabel(bp.bonus_type)}</span>
-                  {bp.player_id && (
+                  <span className="font-medium text-gray-900">{getBonusTypeLabel(bonus.bonus_type)}</span>
+                  {bonus.player_id && (
                     <span className="text-gray-600 ml-2">
-                      ({players[bp.player_id]?.full_name || `Player ${bp.player_id}`})
+                      ({players[bonus.player_id]?.full_name || `Player ${bonus.player_id}`})
                     </span>
                   )}
-                  <span className="text-sm text-gray-500 ml-2">Round {bp.round_id}</span>
+                  <span className="text-sm text-gray-500 ml-2">Round {roundId}</span>
                 </div>
-                <div className="font-semibold text-green-600">+{bp.points.toFixed(1)}</div>
+                <div className="font-semibold text-green-600">+{bonus.points.toFixed(1)}</div>
               </div>
             ))}
           </div>
