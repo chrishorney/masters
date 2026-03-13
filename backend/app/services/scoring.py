@@ -1,9 +1,10 @@
 """Scoring engine - calculates points based on tournament rules."""
 import logging
 import asyncio
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional, Tuple, Set
 from datetime import date
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 
 from app.models import (
     Entry,
@@ -61,6 +62,11 @@ class ScoringService:
         except Exception as e:
             logger.debug(f"Discord service not available: {e}")
             self.discord_service = None
+
+        # Track which (tournament, round, player, hole, bonus_type) have
+        # already triggered a Discord bonus notification in this service
+        # instance, so we don't spam multiple messages for the same shot.
+        self._sent_discord_bonuses: Set[Tuple[int, int, str, int, str]] = set()
     
     def calculate_position_points(
         self,
@@ -741,6 +747,30 @@ class ScoringService:
             self.db.commit()
             return daily_score
     
+    def _notify_discord_bonus_async(
+        self,
+        bonus: Dict[str, Any],
+        round_id: int,
+        tournament: Tournament,
+    ):
+        """
+        Fire-and-forget wrapper for Discord bonus notifications.
+        """
+        async def notify():
+            try:
+                await self._notify_discord_bonus(bonus, round_id, tournament)
+            except Exception as e:
+                logger.warning(f"Discord bonus notification failed (non-critical): {e}")
+
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(notify())
+            else:
+                loop.run_until_complete(notify())
+        except Exception as e:
+            logger.debug(f"Could not schedule Discord bonus notification: {e}")
+
     async def _notify_discord_bonus(
         self,
         bonus: Dict[str, Any],
@@ -761,39 +791,68 @@ class ScoringService:
         bonus_type = bonus.get("bonus_type")
         player_id = bonus.get("player_id")
         hole = bonus.get("hole")
-        
+
         # Only notify for special bonuses (hole-in-one, eagles)
         if bonus_type not in ["hole_in_one", "double_eagle", "eagle"]:
             return
-        
+
         if not player_id:
             return
-        
+
+        # De-duplicate so we send at most one notification per actual shot
+        # per (tournament, round, player, hole, bonus_type) in this service instance.
+        key = (
+            tournament.id,
+            int(round_id),
+            str(player_id),
+            int(hole or 0),
+            bonus_type,
+        )
+        if key in self._sent_discord_bonuses:
+            return
+        self._sent_discord_bonuses.add(key)
+
         # Get player name
         player = self.db.query(Player).filter(Player.player_id == player_id).first()
         player_name = player.full_name if player else f"Player {player_id}"
-        
+
+        # Count how many entries have this player in this tournament
+        entry_count = self.db.query(Entry).filter(
+            Entry.tournament_id == tournament.id,
+            or_(
+                Entry.player1_id == player_id,
+                Entry.player2_id == player_id,
+                Entry.player3_id == player_id,
+                Entry.player4_id == player_id,
+                Entry.player5_id == player_id,
+                Entry.player6_id == player_id,
+            ),
+        ).count()
+
         # Send appropriate notification
         if bonus_type == "hole_in_one":
             await self.discord_service.notify_hole_in_one(
                 player_name=player_name,
                 hole=hole or 0,
                 round_id=round_id,
-                tournament_name=tournament.name
+                tournament_name=tournament.name,
+                entry_count=entry_count,
             )
         elif bonus_type == "double_eagle":
             await self.discord_service.notify_double_eagle(
                 player_name=player_name,
                 hole=hole or 0,
                 round_id=round_id,
-                tournament_name=tournament.name
+                tournament_name=tournament.name,
+                entry_count=entry_count,
             )
         elif bonus_type == "eagle":
             await self.discord_service.notify_eagle(
                 player_name=player_name,
                 hole=hole or 0,
                 round_id=round_id,
-                tournament_name=tournament.name
+                tournament_name=tournament.name,
+                entry_count=entry_count,
             )
     
     def _notify_push_bonus_async(

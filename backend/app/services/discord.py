@@ -94,20 +94,30 @@ class DiscordService:
         player_name: str,
         hole: int,
         round_id: int,
-        tournament_name: str
+        tournament_name: str,
+        entry_count: Optional[int] = None,
     ) -> bool:
         """Notify about a hole-in-one."""
+        title = f"{player_name} Hole-in-One!"
+        fields: List[Dict[str, Any]] = [
+            {"name": "Round", "value": str(round_id), "inline": True},
+            {"name": "Hole", "value": str(hole), "inline": True},
+            {"name": "Tournament", "value": tournament_name, "inline": False},
+        ]
+        if entry_count is not None:
+            fields.append(
+                {
+                    "name": "Entries",
+                    "value": f"On {entry_count} different entr{'y' if entry_count == 1 else 'ies'}",
+                    "inline": False,
+                }
+            )
+
         return await self.send_notification(
-            title="🎯 HOLE-IN-ONE!",
-            description=f"**{player_name}** just got a hole-in-one on **hole {hole}**!",
+            title=title,
+            description=f"🎯 **{player_name}** just made a hole-in-one on hole {hole}!",
             color=0xff0000,  # Red
-            fields=[
-                {"name": "Player", "value": player_name, "inline": True},
-                {"name": "Hole", "value": str(hole), "inline": True},
-                {"name": "Round", "value": f"Round {round_id}", "inline": True},
-                {"name": "Tournament", "value": tournament_name, "inline": False},
-            ],
-            footer="All entries with this player earned 3 bonus points!"
+            fields=fields,
         )
     
     async def notify_double_eagle(
@@ -115,20 +125,30 @@ class DiscordService:
         player_name: str,
         hole: int,
         round_id: int,
-        tournament_name: str
+        tournament_name: str,
+        entry_count: Optional[int] = None,
     ) -> bool:
         """Notify about a double eagle (albatross)."""
+        title = f"{player_name} Double Eagle!"
+        fields: List[Dict[str, Any]] = [
+            {"name": "Round", "value": str(round_id), "inline": True},
+            {"name": "Hole", "value": str(hole), "inline": True},
+            {"name": "Tournament", "value": tournament_name, "inline": False},
+        ]
+        if entry_count is not None:
+            fields.append(
+                {
+                    "name": "Entries",
+                    "value": f"On {entry_count} different entr{'y' if entry_count == 1 else 'ies'}",
+                    "inline": False,
+                }
+            )
+
         return await self.send_notification(
-            title="🦅 DOUBLE EAGLE (ALBATROSS)!",
-            description=f"**{player_name}** got a double eagle on **hole {hole}**!",
+            title=title,
+            description=f"🦅 **{player_name}** got a double eagle on hole {hole}!",
             color=0xff6600,  # Orange
-            fields=[
-                {"name": "Player", "value": player_name, "inline": True},
-                {"name": "Hole", "value": str(hole), "inline": True},
-                {"name": "Round", "value": f"Round {round_id}", "inline": True},
-                {"name": "Tournament", "value": tournament_name, "inline": False},
-            ],
-            footer="All entries with this player earned 3 bonus points!"
+            fields=fields,
         )
     
     async def notify_eagle(
@@ -136,20 +156,30 @@ class DiscordService:
         player_name: str,
         hole: int,
         round_id: int,
-        tournament_name: str
+        tournament_name: str,
+        entry_count: Optional[int] = None,
     ) -> bool:
         """Notify about an eagle."""
+        title = f"{player_name} Eagle!"
+        fields: List[Dict[str, Any]] = [
+            {"name": "Round", "value": str(round_id), "inline": True},
+            {"name": "Hole", "value": str(hole), "inline": True},
+            {"name": "Tournament", "value": tournament_name, "inline": False},
+        ]
+        if entry_count is not None:
+            fields.append(
+                {
+                    "name": "Entries",
+                    "value": f"On {entry_count} different entr{'y' if entry_count == 1 else 'ies'}",
+                    "inline": False,
+                }
+            )
+
         return await self.send_notification(
-            title="🦅 EAGLE!",
-            description=f"**{player_name}** got an eagle on **hole {hole}**!",
+            title=title,
+            description=f"🦅 **{player_name}** got an eagle on hole {hole}!",
             color=0xffaa00,  # Gold/Orange
-            fields=[
-                {"name": "Player", "value": player_name, "inline": True},
-                {"name": "Hole", "value": str(hole), "inline": True},
-                {"name": "Round", "value": f"Round {round_id}", "inline": True},
-                {"name": "Tournament", "value": tournament_name, "inline": False},
-            ],
-            footer="All entries with this player earned 2 bonus points!"
+            fields=fields,
         )
     
     async def notify_new_leader(
