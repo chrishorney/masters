@@ -409,13 +409,16 @@ async def get_tournament_leaderboard(
         first_name = row.get("firstName", "")
         last_name = row.get("lastName", "")
         full_name = f"{first_name} {last_name}".strip()
-        score_str = row.get("currentRoundScore", "")
         status = row.get("status", "").lower()
+
+        # Prefer overall tournament total (e.g. "-10") for display.
+        total_str = row.get("total")
+        display_score = total_str if isinstance(total_str, str) and total_str else row.get("currentRoundScore", "")
 
         formatted_leaderboard.append({
             "position": position_display,
             "player_name": full_name,
-            "score": score_str,
+            "score": display_score,
             "status": status,
             "player_id": str(row.get("playerId", ""))
         })
