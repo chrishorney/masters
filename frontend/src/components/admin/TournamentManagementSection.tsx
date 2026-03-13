@@ -365,6 +365,9 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
       setCalculating(false)
     }
   }
+  
+  // Parsed round number for validation in buttons (safe for both desktop and mobile inputs)
+  const roundNumber = parseInt(syncRoundId, 10) || 0
 
   return (
     <div className="space-y-6">
@@ -413,7 +416,7 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
               </div>
             </div>
             <button
-              onClick={() => handleSync(syncOrgId, syncTournId, syncYear)}
+              onClick={() => handleSync(syncOrgId, syncTournId, parseInt(syncYear, 10) || undefined)}
               disabled={syncing || !syncTournId || !syncYear}
               className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
@@ -503,7 +506,7 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
               </div>
               
               <button
-                onClick={() => handleSync(syncOrgId, syncTournId, syncYear)}
+                onClick={() => handleSync(syncOrgId, syncTournId, parseInt(syncYear, 10) || undefined)}
                 disabled={syncing || !syncTournId || !syncYear}
                 className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
               >
@@ -641,21 +644,21 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={handleSyncRound}
-                  disabled={syncingRound || !syncRoundId || syncRoundId < 1 || syncRoundId > 4}
+                  disabled={syncingRound || !roundNumber || roundNumber < 1 || roundNumber > 4}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
                 >
                   {syncingRound ? 'Syncing...' : 'Sync Round Only'}
                 </button>
                 <button
                   onClick={handleCalculateRoundScores}
-                  disabled={calculating || !syncRoundId || syncRoundId < 1 || syncRoundId > 4}
+                  disabled={calculating || !roundNumber || roundNumber < 1 || roundNumber > 4}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
                 >
                   {calculating ? 'Calculating...' : 'Calculate Scores Only'}
                 </button>
                 <button
                   onClick={handleSyncAndCalculateRound}
-                  disabled={syncingRound || calculating || !syncRoundId || syncRoundId < 1 || syncRoundId > 4}
+                  disabled={syncingRound || calculating || !roundNumber || roundNumber < 1 || roundNumber > 4}
                   className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
                 >
                   {(syncingRound || calculating) ? 'Processing...' : 'Sync & Calculate Round'}
