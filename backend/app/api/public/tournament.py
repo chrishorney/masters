@@ -1,4 +1,6 @@
 """Public tournament endpoints."""
+import logging
+import time
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -8,22 +10,62 @@ from app.models import Tournament
 from app.services.data_sync import DataSyncService
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+# Cache Discord widget invite for 10 minutes so we don't hit Discord every request
+_discord_invite_cache: Optional[dict] = None
+DISCORD_INVITE_CACHE_TTL_SEC = 600
+
+
+async def _fetch_discord_invite_from_widget(server_id: str) -> Optional[str]:
+    """Fetch current invite URL from Discord's widget API (same source as the widget iframe)."""
+    try:
+        import httpx
+        url = f"https://discord.com/api/guilds/{server_id}/widget.json"
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            r = await client.get(url)
+            if r.status_code != 200:
+                return None
+            data = r.json()
+            return (data.get("instant_invite") or "").strip() or None
+    except Exception as e:
+        logger.debug("Could not fetch Discord widget invite: %s", e)
+        return None
 
 
 @router.get("/discord/invite")
 async def get_discord_invite():
-    """Get Discord server invite URL (public endpoint)."""
+    """
+    Get Discord server invite URL (public endpoint).
+    Prefers the invite from Discord's widget API (same as the widget's Join button);
+    falls back to DISCORD_INVITE_URL if widget invite is not available.
+    """
     from app.config import settings
-    
-    if not settings.discord_invite_url:
+
+    now = time.time()
+    global _discord_invite_cache
+    if _discord_invite_cache and _discord_invite_cache.get("expires_at", 0) > now:
+        return {"invite_url": _discord_invite_cache["invite_url"]}
+
+    invite_url: Optional[str] = None
+
+    # Prefer widget API so the top "Join Discord" button uses the same invite as the widget
+    if settings.discord_server_id:
+        invite_url = await _fetch_discord_invite_from_widget(settings.discord_server_id)
+        if invite_url:
+            _discord_invite_cache = {"invite_url": invite_url, "expires_at": now + DISCORD_INVITE_CACHE_TTL_SEC}
+
+    if not invite_url and settings.discord_invite_url:
+        invite_url = settings.discord_invite_url
+        _discord_invite_cache = {"invite_url": invite_url, "expires_at": now + DISCORD_INVITE_CACHE_TTL_SEC}
+
+    if not invite_url:
         raise HTTPException(
             status_code=404,
-            detail="Discord invite URL not configured"
+            detail="Discord invite URL not configured. Set DISCORD_SERVER_ID (widget) and enable widget with instant invite in Discord, or set DISCORD_INVITE_URL."
         )
-    
-    return {
-        "invite_url": settings.discord_invite_url
-    }
+
+    return {"invite_url": invite_url}
 
 
 @router.get("/discord/widget")
