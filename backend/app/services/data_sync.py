@@ -544,14 +544,28 @@ class DataSyncService:
                     if round_data:
                         # Reconstruct leaderboard row for this round
                         holes = round_data.get("holes", {})
-                        total_shots = round_data.get("totalShots", 0)
-                        current_round_score_str = round_data.get("currentRoundScore", "")
+                        raw_total_shots = round_data.get("totalShots", 0)
+                        # Handle Mongo-style values like {"$numberInt": "70"}
+                        total_shots = parse_mongodb_value(raw_total_shots)
+                        if isinstance(total_shots, dict):
+                            # Fallback if parse_mongodb_value didn't fully normalize
+                            total_shots = 0
+
+                        current_round_score_raw = round_data.get("currentRoundScore", "")
+                        # currentRoundScore can also sometimes be a Mongo-style dict
+                        current_round_score_str = current_round_score_raw
+                        if isinstance(current_round_score_raw, dict):
+                            current_round_score_str = str(parse_mongodb_value(current_round_score_raw))
                         
                         # Parse score to par from string (e.g., "E", "-5", "+2")
                         score_to_par = self._parse_round_score(current_round_score_str)
                         if score_to_par is None:
                             # Calculate from holes if score string is invalid
-                            total_par = sum(hole.get("par", 0) for hole in holes.values() if isinstance(hole, dict))
+                            total_par = sum(
+                                hole.get("par", 0)
+                                for hole in holes.values()
+                                if isinstance(hole, dict)
+                            )
                             score_to_par = total_shots - total_par if total_par > 0 else 0
                         
                         # Calculate position (we'll need to sort by score later)
@@ -560,8 +574,8 @@ class DataSyncService:
                             "firstName": player.first_name,
                             "lastName": player.last_name,
                             "currentRoundScore": current_round_score_str or self._format_score_to_par(score_to_par),
-                            "totalScore": total_shots,
-                            "scoreToPar": score_to_par,
+                            "totalScore": int(total_shots) if isinstance(total_shots, (int, float)) else 0,
+                            "scoreToPar": int(score_to_par) if isinstance(score_to_par, (int, float)) else 0,
                             "round": round_id,
                             "status": "active" if round_data.get("roundComplete", False) else "in_progress",
                             "holes": holes
