@@ -10,6 +10,7 @@ export interface Tournament {
   end_date: string
   status: string
   current_round: number
+  show_tournament_leaderboard?: boolean
 }
 
 export interface Participant {

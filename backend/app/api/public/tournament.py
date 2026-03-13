@@ -86,6 +86,10 @@ async def get_current_tournament(
     if not tournament:
         raise HTTPException(status_code=404, detail="No tournament found")
     
+    hide_leaderboard = False
+    if tournament.api_data and isinstance(tournament.api_data, dict):
+        hide_leaderboard = bool(tournament.api_data.get("hideTournamentLeaderboard", False))
+
     return {
         "id": tournament.id,
         "year": tournament.year,
@@ -96,6 +100,7 @@ async def get_current_tournament(
         "end_date": tournament.end_date.isoformat(),
         "status": tournament.status,
         "current_round": tournament.current_round,
+        "show_tournament_leaderboard": not hide_leaderboard,
     }
 
 
@@ -110,6 +115,10 @@ async def get_tournament(
     if not tournament:
         raise HTTPException(status_code=404, detail="Tournament not found")
     
+    hide_leaderboard = False
+    if tournament.api_data and isinstance(tournament.api_data, dict):
+        hide_leaderboard = bool(tournament.api_data.get("hideTournamentLeaderboard", False))
+
     return {
         "id": tournament.id,
         "year": tournament.year,
@@ -120,6 +129,7 @@ async def get_tournament(
         "end_date": tournament.end_date.isoformat(),
         "status": tournament.status,
         "current_round": tournament.current_round,
+        "show_tournament_leaderboard": not hide_leaderboard,
     }
 
 

@@ -271,6 +271,34 @@ export const adminApi = {
     const response = await api.post('/admin/bonus-check/check-all-players', null, { params })
     return response.data
   },
+
+  /** Get tournament-level settings, including leaderboard visibility */
+  getTournamentLeaderboardVisibility: async (
+    tournamentId: number
+  ): Promise<{
+    tournament_id: number
+    show_tournament_leaderboard: boolean
+  }> => {
+    const response = await api.get('/admin/tournament/leaderboard-visibility', {
+      params: { tournament_id: tournamentId },
+    })
+    return response.data
+  },
+
+  /** Update whether the tournament leaderboard tab is visible for users */
+  updateTournamentLeaderboardVisibility: async (
+    tournamentId: number,
+    show: boolean
+  ): Promise<{
+    tournament_id: number
+    show_tournament_leaderboard: boolean
+  }> => {
+    const response = await api.post('/admin/tournament/leaderboard-visibility', {
+      tournament_id: tournamentId,
+      show,
+    })
+    return response.data
+  },
 }
 
 // Ranking history endpoints

@@ -40,6 +40,7 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
     warning?: string;
     missing_player_ids?: string[];
   } | null>(null)
+  const [hideTournamentLeaderboard, setHideTournamentLeaderboard] = useState(false)
   
   const calculateScores = useCalculateScores()
 
@@ -49,6 +50,10 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
       setSyncYear(String(tournament.year || 2026))
       setSyncTournId(tournament.tourn_id || '')
       setSyncOrgId(tournament.org_id || '1')
+      // Initialize hide/show flag from tournament data if available
+      if (typeof tournament.show_tournament_leaderboard === 'boolean') {
+        setHideTournamentLeaderboard(!tournament.show_tournament_leaderboard)
+      }
     }
   }, [tournament?.id, tournament?.year, tournament?.tourn_id, tournament?.org_id])
 
@@ -78,6 +83,13 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
         // Store debug info
         if (status.debug_info) {
           setDebugInfo(status.debug_info)
+        }
+        // Also load tournament-level settings (like leaderboard visibility)
+        try {
+          const visibility = await adminApi.getTournamentLeaderboardVisibility(tournament.id)
+          setHideTournamentLeaderboard(!visibility.show_tournament_leaderboard)
+        } catch (visibilityError) {
+          console.warn('Failed to load tournament leaderboard visibility:', visibilityError)
         }
       } catch (error) {
         console.error('Failed to check background job status:', error)
@@ -885,6 +897,50 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
               </div>
             )}
           </div>
+          )}
+          
+          {/* Tournament Leaderboard Visibility */}
+          {tournament && (
+            <div className="mt-6 border-t border-gray-200 pt-4">
+              <h3 className="font-medium text-gray-900 mb-2">Tournament Leaderboard Visibility</h3>
+              <p className="text-sm text-gray-600 mb-3">
+                Control whether the public <span className="font-semibold">Tournament Leaderboard</span> tab is visible to users.
+                Use this if the tournament leaderboard data looks off and you want to hide it temporarily during troubleshooting.
+              </p>
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={hideTournamentLeaderboard}
+                  onChange={async (e) => {
+                    const hide = e.target.checked
+                    setHideTournamentLeaderboard(hide)
+                    setMessage(null)
+                    try {
+                      await adminApi.updateTournamentLeaderboardVisibility(
+                        tournament.id,
+                        !hide
+                      )
+                      setMessage({
+                        type: 'success',
+                        text: hide
+                          ? 'Tournament Leaderboard tab is now hidden for users.'
+                          : 'Tournament Leaderboard tab is now visible for users.',
+                      })
+                    } catch (error: any) {
+                      setHideTournamentLeaderboard(!hide)
+                      setMessage({
+                        type: 'error',
+                        text: error.response?.data?.detail || 'Failed to update leaderboard visibility',
+                      })
+                    }
+                  }}
+                  className="h-4 w-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                />
+                <span className="text-sm text-gray-700">
+                  Hide Tournament Leaderboard tab from users
+                </span>
+              </label>
+            </div>
           )}
         </div>
       </div>
