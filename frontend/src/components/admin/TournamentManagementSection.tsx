@@ -23,10 +23,12 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null)
   const [lastSyncTimestamp, setLastSyncTimestamp] = useState<string | null>(null)
   const [debugInfo, setDebugInfo] = useState<any>(null)
-  const [syncYear, setSyncYear] = useState(tournament?.year || 2026)
+  // Store numeric admin inputs as strings so they are easier to edit on mobile.
+  // We'll parse them to numbers right before making API calls.
+  const [syncYear, setSyncYear] = useState<string>(String(tournament?.year || 2026))
   const [syncTournId, setSyncTournId] = useState(tournament?.tourn_id || '')
   const [syncOrgId, setSyncOrgId] = useState(tournament?.org_id || '1')
-  const [syncRoundId, setSyncRoundId] = useState(1)
+  const [syncRoundId, setSyncRoundId] = useState<string>('1')
   const [syncingRound, setSyncingRound] = useState(false)
   const [discordStatus, setDiscordStatus] = useState<{ enabled: boolean; webhook_configured: boolean; status: string } | null>(null)
   const [testingDiscord, setTestingDiscord] = useState(false)
@@ -44,7 +46,7 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
   // Update form fields when tournament changes
   useEffect(() => {
     if (tournament) {
-      setSyncYear(tournament.year || 2026)
+      setSyncYear(String(tournament.year || 2026))
       setSyncTournId(tournament.tourn_id || '')
       setSyncOrgId(tournament.org_id || '1')
     }
@@ -98,9 +100,12 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
       // Use provided params or tournament data
       const syncOrgId = orgId || tournament?.org_id || undefined
       const syncTournId = tournId || tournament?.tourn_id || undefined
-      const syncYear = year || tournament?.year || undefined
 
-      if (!syncTournId || !syncYear) {
+      const parsedYearFromState = parseInt(syncYear, 10)
+      const effectiveYear = year
+        ?? (!Number.isNaN(parsedYearFromState) ? parsedYearFromState : tournament?.year)
+
+      if (!syncTournId || !effectiveYear) {
         setMessage({ 
           type: 'error', 
           text: 'Please provide tournament ID and year to sync' 
@@ -109,7 +114,7 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
         return
       }
 
-      await tournamentApi.sync(syncOrgId, syncTournId, syncYear)
+      await tournamentApi.sync(syncOrgId, syncTournId, effectiveYear)
       setMessage({ type: 'success', text: 'Tournament data synced successfully! Please refresh the page.' })
       // Refresh page after 2 seconds to load new tournament
       setTimeout(() => {
@@ -266,10 +271,11 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
     setMessage(null)
 
     try {
+      const round = parseInt(syncRoundId, 10) || 1
       const response = await api.post('/tournament/sync-round', null, {
         params: { 
           tournament_id: tournament.id,
-          round_id: syncRoundId
+          round_id: round
         }
       })
       setMessage({ 
@@ -296,10 +302,11 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
     setMessage(null)
 
     try {
+      const round = parseInt(syncRoundId, 10) || 1
       await api.post('/scores/calculate', null, {
         params: { 
           tournament_id: tournament.id,
-          round_id: syncRoundId
+          round_id: round
         }
       })
       setMessage({ 
@@ -328,10 +335,11 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
 
     try {
       // First sync the round
+      const round = parseInt(syncRoundId, 10) || 1
       const syncResponse = await api.post('/tournament/sync-round', null, {
         params: { 
           tournament_id: tournament.id,
-          round_id: syncRoundId
+          round_id: round
         }
       })
       
@@ -339,7 +347,7 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
       await api.post('/scores/calculate', null, {
         params: { 
           tournament_id: tournament.id,
-          round_id: syncRoundId
+          round_id: round
         }
       })
       
@@ -370,13 +378,13 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
           {/* Sync Tournament Form */}
           <div className="bg-white rounded-lg p-4 space-y-4">
             <h3 className="font-medium text-gray-900">Create/Sync Tournament</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
                 <input
                   type="number"
                   value={syncYear}
-                  onChange={(e) => setSyncYear(parseInt(e.target.value) || 2026)}
+                  onChange={(e) => setSyncYear(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="2026"
                 />
@@ -464,7 +472,7 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
                     <input
                       type="number"
                       value={syncYear}
-                      onChange={(e) => setSyncYear(parseInt(e.target.value) || 2026)}
+                      onChange={(e) => setSyncYear(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       placeholder="2026"
                     />
@@ -622,11 +630,11 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
                   min="1"
                   max="4"
                   value={syncRoundId}
-                  onChange={(e) => setSyncRoundId(parseInt(e.target.value) || 1)}
+                  onChange={(e) => setSyncRoundId(e.target.value)}
                   className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  Round {syncRoundId === 1 ? '1 (Thursday)' : syncRoundId === 2 ? '2 (Friday)' : syncRoundId === 3 ? '3 (Saturday)' : '4 (Sunday)'}
+                  Round {syncRoundId === '1' ? '1 (Thursday)' : syncRoundId === '2' ? '2 (Friday)' : syncRoundId === '3' ? '3 (Saturday)' : '4 (Sunday)'}
                 </p>
               </div>
 
