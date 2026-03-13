@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from app.database import get_db
 from app.models import Tournament, Entry, DailyScore, ScoreSnapshot
 from app.services.score_calculator import ScoreCalculatorService
+from app.services.api_client import SlashGolfAPIClient
 
 router = APIRouter()
 
@@ -40,18 +41,34 @@ def _score_sort_key(row: dict[str, Any]) -> tuple[int, int]:
     """
     Build a sort key for tournament leaderboard rows.
 
-    Primary: scoreToPar (lower is better)
-    Secondary: totalScore (lower is better)
+    Primary: total score to par (lower is better)
+    Secondary: total strokes (lower is better)
     """
-    score_to_par: Any = row.get("scoreToPar")
-    if not isinstance(score_to_par, (int, float)):
-        score_to_par = _parse_score_to_par(row.get("currentRoundScore", "") or "")
+    score_to_par: Any = None
+
+    # Prefer the overall tournament total (e.g. "-10") when present
+    total_str = row.get("total")
+    if isinstance(total_str, str):
+        score_to_par = _parse_score_to_par(total_str)
+
+    # Fallbacks for older snapshot formats
+    if score_to_par is None:
+        score_to_par = row.get("scoreToPar")
+        if not isinstance(score_to_par, (int, float)):
+            score_to_par = _parse_score_to_par(row.get("currentRoundScore", "") or "")
+
     if score_to_par is None:
         score_to_par = 999
 
-    total_score = row.get("totalScore")
+    # Prefer numeric total strokes if available
+    total_score: Any = row.get("totalScore")
     if not isinstance(total_score, (int, float)):
-        total_score = 999
+        # RapidAPI leaderboard uses totalStrokesFromCompletedRounds
+        total_strokes_raw = row.get("totalStrokesFromCompletedRounds")
+        try:
+            total_score = int(total_strokes_raw) if total_strokes_raw is not None else 999
+        except (TypeError, ValueError):
+            total_score = 999
 
     return int(score_to_par), int(total_score)
 
@@ -332,36 +349,37 @@ async def get_tournament_leaderboard(
 ):
     """
     Get the actual tournament leaderboard (golfers, not pool entries).
-    Returns the most recent leaderboard from ScoreSnapshot.
+
+    This now calls the live Slash Golf `/leaderboard` endpoint for the
+    configured tournament (org_id, tourn_id, year) instead of relying
+    solely on cached ScoreSnapshot data, so it always reflects the
+    latest API leaderboard.
     """
-    # Get tournament
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     if not tournament:
         raise HTTPException(status_code=404, detail="Tournament not found")
-    
-    # Prefer the most recent snapshot for the CURRENT ROUND.
-    # This ensures the "Current (Live)" view always reflects the same round
-    # that the UI labels as current_round.
-    snapshot = db.query(ScoreSnapshot).filter(
-        ScoreSnapshot.tournament_id == tournament_id,
-        ScoreSnapshot.round_id == tournament.current_round
-    ).order_by(ScoreSnapshot.timestamp.desc()).first()
 
-    # Fallback: if we somehow don't have a snapshot for the current round yet,
-    # use the latest snapshot for any round so we at least show something.
-    if not snapshot:
-        snapshot = db.query(ScoreSnapshot).filter(
-            ScoreSnapshot.tournament_id == tournament_id
-        ).order_by(ScoreSnapshot.timestamp.desc()).first()
-    
-    if not snapshot or not snapshot.leaderboard_data:
+    # Fetch live leaderboard from Slash Golf API using the tournament's
+    # configured identifiers (set during admin setup).
+    api_client = SlashGolfAPIClient()
+    try:
+        leaderboard_data = api_client.get_leaderboard(
+            org_id=tournament.org_id,
+            tourn_id=tournament.tourn_id,
+            year=tournament.year,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to fetch live tournament leaderboard: {e}",
+        )
+
+    leaderboard_rows = leaderboard_data.get("leaderboardRows", [])
+    if not leaderboard_rows:
         raise HTTPException(
             status_code=404,
-            detail="No leaderboard data available. Please sync tournament data."
+            detail="No leaderboard data returned from external API.",
         )
-    
-    # Extract leaderboard rows from snapshot
-    leaderboard_rows = snapshot.leaderboard_data.get("leaderboardRows", [])
 
     # Filter out withdrawn/disqualified players first
     active_rows = [
@@ -402,11 +420,33 @@ async def get_tournament_leaderboard(
             "player_id": str(row.get("playerId", ""))
         })
     
-    # Get snapshot timestamp
-    timestamp = snapshot.timestamp
-    if timestamp.tzinfo is None:
-        timestamp = timestamp.replace(tzinfo=timezone.utc)
-    
+    # Derive round and last-updated timestamp from API payload
+    raw_round = leaderboard_data.get("roundId")
+    round_id: Optional[int] = None
+    if isinstance(raw_round, dict) and "$numberInt" in raw_round:
+        try:
+            round_id = int(raw_round["$numberInt"])
+        except ValueError:
+            round_id = None
+    elif isinstance(raw_round, int):
+        round_id = raw_round
+
+    # Timestamp can be in Mongo-style {"$date": {"$numberLong": "..."}}
+    raw_ts = leaderboard_data.get("timestamp") or leaderboard_data.get("lastUpdated")
+    last_updated: datetime
+    if isinstance(raw_ts, dict) and "$date" in raw_ts:
+        date_val = raw_ts["$date"]
+        try:
+            if isinstance(date_val, dict) and "$numberLong" in date_val:
+                ms = int(date_val["$numberLong"])
+            else:
+                ms = int(date_val)
+            last_updated = datetime.fromtimestamp(ms / 1000, tz=timezone.utc)
+        except (TypeError, ValueError):
+            last_updated = datetime.now(timezone.utc)
+    else:
+        last_updated = datetime.now(timezone.utc)
+
     return {
         "tournament": {
             "id": tournament.id,
@@ -419,8 +459,8 @@ async def get_tournament_leaderboard(
             "current_round": tournament.current_round,
         },
         "leaderboard": formatted_leaderboard,
-        "round_id": snapshot.round_id,
-        "last_updated": timestamp.isoformat(),
+        "round_id": round_id or tournament.current_round,
+        "last_updated": last_updated.isoformat(),
         "view_type": "current"
     }
 
