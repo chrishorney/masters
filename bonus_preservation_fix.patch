@@ -1,0 +1,53 @@
+--- a/backend/app/services/scoring.py
++++ b/backend/app/services/scoring.py
+@@ -587,11 +587,48 @@ class ScoringService:
+             # Update bonus points records (but preserve manual ones like GIR/fairways)
+-            # Delete auto-calculated bonuses, keep manual ones
++            # Instead of deleting all auto-calculated bonuses, only delete ones we're replacing
++            # This preserves bonuses that were detected previously but aren't in current calculation
+             from sqlalchemy import not_
+-            self.db.query(BonusPoint).filter(
++            
++            # Get existing auto-calculated bonuses
++            existing_bonuses = self.db.query(BonusPoint).filter(
+                 BonusPoint.entry_id == entry.id,
+                 BonusPoint.round_id == round_id,
+-                not_(BonusPoint.bonus_type.in_(["gir_leader", "fairways_leader"]))  # Keep manual bonuses
+-            ).delete()
++                not_(BonusPoint.bonus_type.in_(["gir_leader", "fairways_leader"]))  # Only auto-calculated
++            ).all()
++            
++            # Create a set of bonuses we're about to add (for comparison)
++            new_bonus_keys = set()
++            for bonus in bonuses:
++                if bonus["bonus_type"] not in ["gir_leader", "fairways_leader"]:
++                    # Create a unique key for this bonus
++                    key = (
++                        bonus["bonus_type"],
++                        bonus.get("player_id"),
++                        bonus.get("hole")
++                    )
++                    new_bonus_keys.add(key)
++            
++            # Only delete bonuses that we're replacing (to avoid duplicates)
++            bonuses_to_delete = []
++            for existing_bonus in existing_bonuses:
++                existing_key = (
++                    existing_bonus.bonus_type,
++                    existing_bonus.player_id,
++                    existing_bonus.hole
++                )
++                if existing_key in new_bonus_keys:
++                    # We're about to recreate this bonus, so delete the old one
++                    bonuses_to_delete.append(existing_bonus)
++                    logger.debug(
++                        f"Deleting existing bonus to replace: {existing_bonus.bonus_type} "
++                        f"for entry {entry.id}, round {round_id}, "
++                        f"player {existing_bonus.player_id}, hole {existing_bonus.hole}"
++                    )
++            
++            # Delete only the bonuses we're replacing
++            for bonus_to_delete in bonuses_to_delete:
++                self.db.delete(bonus_to_delete)
+             
+             # Add auto-calculated bonuses (not manual ones)

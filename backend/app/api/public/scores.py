@@ -1,7 +1,7 @@
 """Public score endpoints."""
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, Any
 from datetime import datetime, timezone
 
 from app.database import get_db
@@ -9,6 +9,51 @@ from app.models import Tournament, Entry, DailyScore, ScoreSnapshot
 from app.services.score_calculator import ScoreCalculatorService
 
 router = APIRouter()
+
+
+def _parse_score_to_par(score_str: str) -> Optional[int]:
+    """
+    Parse score-to-par strings from the leaderboard into integers so we can sort reliably.
+
+    Examples:
+    - "-5" -> -5
+    - "+2" -> 2
+    - "E"  -> 0
+    - "" or invalid -> None
+    """
+    if not score_str:
+        return None
+
+    try:
+        if score_str.startswith("-"):
+            return -int(score_str[1:])
+        if score_str.startswith("+"):
+            return int(score_str[1:])
+        if score_str == "E":
+            return 0
+        return int(score_str)
+    except (ValueError, AttributeError):
+        return None
+
+
+def _score_sort_key(row: dict[str, Any]) -> tuple[int, int]:
+    """
+    Build a sort key for tournament leaderboard rows.
+
+    Primary: scoreToPar (lower is better)
+    Secondary: totalScore (lower is better)
+    """
+    score_to_par: Any = row.get("scoreToPar")
+    if not isinstance(score_to_par, (int, float)):
+        score_to_par = _parse_score_to_par(row.get("currentRoundScore", "") or "")
+    if score_to_par is None:
+        score_to_par = 999
+
+    total_score = row.get("totalScore")
+    if not isinstance(total_score, (int, float)):
+        total_score = 999
+
+    return int(score_to_par), int(total_score)
 
 
 @router.post("/scores/calculate")
@@ -307,23 +352,40 @@ async def get_tournament_leaderboard(
     
     # Extract leaderboard rows from snapshot
     leaderboard_rows = snapshot.leaderboard_data.get("leaderboardRows", [])
-    
-    # Format leaderboard with position, name, and score
+
+    # Filter out withdrawn/disqualified players first
+    active_rows = [
+        row for row in leaderboard_rows
+        if row.get("status", "").lower() not in ["wd", "dq"]
+    ]
+
+    # Sort the remaining rows by score, independent of whatever order came from the API
+    active_rows.sort(key=_score_sort_key)
+
+    # Re-assign positions after sorting so ties display correctly
     formatted_leaderboard = []
-    for row in leaderboard_rows:
-        position = row.get("position", "")
+    previous_score_key: Optional[tuple[int, int]] = None
+    current_position = 0
+
+    for index, row in enumerate(active_rows):
+        score_key = _score_sort_key(row)
+        if previous_score_key is None or score_key != previous_score_key:
+            current_position = index + 1
+        previous_score_key = score_key
+
+        position_display = f"T{current_position}" if any(
+            _score_sort_key(r) == score_key and r is not row
+            for r in active_rows
+        ) else str(current_position)
+
         first_name = row.get("firstName", "")
         last_name = row.get("lastName", "")
         full_name = f"{first_name} {last_name}".strip()
         score_str = row.get("currentRoundScore", "")
         status = row.get("status", "").lower()
-        
-        # Skip withdrawn/disqualified players
-        if status in ["wd", "dq"]:
-            continue
-        
+
         formatted_leaderboard.append({
-            "position": position,
+            "position": position_display,
             "player_name": full_name,
             "score": score_str,
             "status": status,
