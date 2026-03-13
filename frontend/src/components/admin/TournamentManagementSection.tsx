@@ -41,6 +41,15 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
     missing_player_ids?: string[];
   } | null>(null)
   const [hideTournamentLeaderboard, setHideTournamentLeaderboard] = useState(false)
+  const [apiUsage, setApiUsage] = useState<
+    Array<{
+      date: string
+      leaderboard_calls_estimated: number
+      scorecard_calls_estimated: number
+      total_calls_estimated: number
+      snapshots: number
+    }>
+  >([])
   
   const calculateScores = useCalculateScores()
 
@@ -84,12 +93,18 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
         if (status.debug_info) {
           setDebugInfo(status.debug_info)
         }
-        // Also load tournament-level settings (like leaderboard visibility)
+        // Also load tournament-level settings (like leaderboard visibility) and API usage
         try {
           const visibility = await adminApi.getTournamentLeaderboardVisibility(tournament.id)
           setHideTournamentLeaderboard(!visibility.show_tournament_leaderboard)
         } catch (visibilityError) {
           console.warn('Failed to load tournament leaderboard visibility:', visibilityError)
+        }
+        try {
+          const usage = await adminApi.getApiUsage(tournament.id, 14)
+          setApiUsage(usage.days || [])
+        } catch (usageError) {
+          console.warn('Failed to load API usage diagnostics:', usageError)
         }
       } catch (error) {
         console.error('Failed to check background job status:', error)
@@ -686,7 +701,7 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
             </div>
           )}
 
-          {/* Automatic Background Sync */}
+          {/* Automatic Background Sync & API Usage */}
           {tournament && (
           <div>
             <h3 className="font-medium text-gray-900 mb-2">Automatic Background Sync</h3>
@@ -880,6 +895,42 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
                 Monitor your RapidAPI usage to avoid exceeding limits.
               </p>
             </div>
+
+            {/* Estimated API Usage Per Day */}
+            {apiUsage.length > 0 && (
+              <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                <h4 className="text-sm font-medium text-gray-800 mb-2">Estimated API Usage (last {apiUsage.length} days)</h4>
+                <p className="text-xs text-gray-600 mb-2">
+                  Based on stored score snapshots. Each snapshot ≈ 1 leaderboard call, plus one scorecard call per player with scorecard data.
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-xs">
+                    <thead>
+                      <tr className="text-left text-gray-500 border-b">
+                        <th className="py-1 pr-4">Date (CT)</th>
+                        <th className="py-1 pr-4">Leaderboard</th>
+                        <th className="py-1 pr-4">Scorecards</th>
+                        <th className="py-1 pr-4">Total</th>
+                        <th className="py-1 pr-4">Snapshots</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {apiUsage.map((day) => (
+                        <tr key={day.date} className="border-b last:border-0">
+                          <td className="py-1 pr-4 text-gray-900">{day.date}</td>
+                          <td className="py-1 pr-4 text-gray-800">{day.leaderboard_calls_estimated}</td>
+                          <td className="py-1 pr-4 text-gray-800">{day.scorecard_calls_estimated}</td>
+                          <td className="py-1 pr-4 text-gray-900 font-semibold">
+                            {day.total_calls_estimated}
+                          </td>
+                          <td className="py-1 pr-4 text-gray-800">{day.snapshots}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {/* Troubleshooting Note */}
             {!backgroundJobRunning && (

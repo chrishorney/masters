@@ -332,3 +332,31 @@ async def run_job_once(
         "tournament_id": tournament_id,
         "results": results
     }
+
+
+@router.post("/jobs/eod-snapshot")
+async def run_end_of_day_snapshot(
+    tournament_id: int = Query(..., description="Tournament ID"),
+    db: Session = Depends(get_db),
+):
+    """
+    Run an end-of-day snapshot sync for a tournament.
+
+    This will only make API calls if TODAY (Central Time) is within the
+    tournament's start/end dates. Otherwise it returns a no-op message.
+    """
+    tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+
+    if not tournament:
+        raise HTTPException(status_code=404, detail="Tournament not found")
+
+    job_service = BackgroundJobService(db)
+    try:
+        result = await job_service.run_end_of_day_snapshot(tournament_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error running end-of-day snapshot for tournament {tournament_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to run end-of-day snapshot: {str(e)}")
+
+    return result

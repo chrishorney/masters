@@ -3,7 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone, date
+from zoneinfo import ZoneInfo
 
 from app.database import get_db
 from app.models import (
@@ -12,6 +13,9 @@ from app.models import (
 )
 
 router = APIRouter()
+
+# Central Time zone for API usage / snapshot reporting
+CENTRAL_TZ = ZoneInfo("America/Chicago")
 
 
 @router.get("/diagnostics/tournament/{tournament_id}")
@@ -228,6 +232,92 @@ async def diagnose_tournament(
         )
     
     return result
+
+
+@router.get("/diagnostics/api-usage")
+async def get_api_usage(
+    tournament_id: int = Query(..., description="Tournament ID"),
+    days: int = Query(14, description="Number of days to include (up to 30)", ge=1, le=30),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Estimate external API usage per day for a tournament, based on ScoreSnapshot data.
+
+    For each snapshot we assume:
+    - 1 leaderboard call
+    - N scorecard calls, where N = number of players in snapshot.scorecard_data
+
+    This gives a good approximation of RapidAPI usage without adding new tables.
+    """
+    tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    if not tournament:
+        raise HTTPException(status_code=404, detail="Tournament not found")
+
+    # Determine cutoff date in Central time
+    now_utc = datetime.now(timezone.utc)
+    now_ct = now_utc.astimezone(CENTRAL_TZ)
+    cutoff_date: date = (now_ct.date() - timedelta(days=days - 1)) if days > 1 else now_ct.date()
+
+    snapshots = (
+        db.query(ScoreSnapshot)
+        .filter(ScoreSnapshot.tournament_id == tournament_id)
+        .order_by(ScoreSnapshot.timestamp.asc())
+        .all()
+    )
+
+    usage: Dict[date, Dict[str, int]] = {}
+
+    for snapshot in snapshots:
+        ts = snapshot.timestamp
+        if ts is None:
+            continue
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        ts_ct = ts.astimezone(CENTRAL_TZ)
+        d = ts_ct.date()
+        if d < cutoff_date:
+            continue
+
+        if d not in usage:
+            usage[d] = {
+                "leaderboard_calls_estimated": 0,
+                "scorecard_calls_estimated": 0,
+                "snapshots": 0,
+            }
+
+        day_usage = usage[d]
+        day_usage["snapshots"] += 1
+        # Each snapshot implies at least one leaderboard call
+        day_usage["leaderboard_calls_estimated"] += 1
+
+        # Scorecard calls ~= number of players with scorecard_data in this snapshot
+        scorecard_calls = 0
+        if isinstance(snapshot.scorecard_data, dict):
+            scorecard_calls = len(snapshot.scorecard_data)
+        day_usage["scorecard_calls_estimated"] += scorecard_calls
+
+    # Convert to sorted list (most recent first)
+    days_list = []
+    for d, info in sorted(usage.items(), key=lambda item: item[0], reverse=True):
+        total_calls = info["leaderboard_calls_estimated"] + info["scorecard_calls_estimated"]
+        days_list.append(
+            {
+                "date": d.isoformat(),
+                "leaderboard_calls_estimated": info["leaderboard_calls_estimated"],
+                "scorecard_calls_estimated": info["scorecard_calls_estimated"],
+                "total_calls_estimated": total_calls,
+                "snapshots": info["snapshots"],
+            }
+        )
+
+    return {
+        "tournament_id": tournament_id,
+        "tournament_name": tournament.name,
+        "year": tournament.year,
+        "timezone": "America/Chicago",
+        "days_requested": days,
+        "days": days_list,
+    }
 
 
 @router.get("/diagnostics/tournament/{tournament_id}/round/{round_id}/cut-status")

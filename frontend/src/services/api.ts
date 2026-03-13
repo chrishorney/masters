@@ -193,6 +193,28 @@ export const adminApi = {
     return response.data
   },
 
+  /** Run end-of-day snapshot once (only on active tournament days) */
+  runEndOfDaySnapshot: async (
+    tournamentId: number
+  ): Promise<{
+    message: string
+    tournament_id: number
+    today: string
+    tournament_start_date: string
+    tournament_end_date: string
+    snapshot_created: boolean
+    sync?: {
+      players_synced?: number
+      scorecards_fetched?: number
+      errors?: string[]
+    }
+  }> => {
+    const response = await api.post('/admin/jobs/eod-snapshot', null, {
+      params: { tournament_id: tournamentId },
+    })
+    return response.data
+  },
+
   /** Get Discord status */
   getDiscordStatus: async (): Promise<{
     enabled: boolean;
@@ -206,6 +228,30 @@ export const adminApi = {
       invite_url?: string;
       status: string;
     }>('/admin/discord/status')
+    return response.data
+  },
+
+  /** Get estimated external API usage per day for this tournament */
+  getApiUsage: async (
+    tournamentId: number,
+    days: number = 14
+  ): Promise<{
+    tournament_id: number
+    tournament_name: string
+    year: number
+    timezone: string
+    days_requested: number
+    days: Array<{
+      date: string
+      leaderboard_calls_estimated: number
+      scorecard_calls_estimated: number
+      total_calls_estimated: number
+      snapshots: number
+    }>
+  }> => {
+    const response = await api.get('/admin/diagnostics/api-usage', {
+      params: { tournament_id: tournamentId, days },
+    })
     return response.data
   },
 

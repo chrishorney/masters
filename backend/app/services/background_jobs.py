@@ -1,7 +1,7 @@
 """Background job service for automatic score updates."""
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 from typing import Optional
 from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session
@@ -338,4 +338,56 @@ class BackgroundJobService:
         return {
             "sync": sync_results,
             "calculation": calc_results
+        }
+
+    async def run_end_of_day_snapshot(self, tournament_id: int) -> dict:
+        """
+        Run a sync once to capture an end-of-day snapshot only if today is
+        within the tournament's start/end dates (Central Time).
+
+        This does NOT recalculate scores – it simply refreshes leaderboard
+        and scorecard data and stores a fresh ScoreSnapshot.
+        """
+        sync_service = DataSyncService(self.db)
+
+        tournament = self.db.query(Tournament).filter(
+            Tournament.id == tournament_id
+        ).first()
+
+        if not tournament:
+            raise ValueError(f"Tournament {tournament_id} not found")
+
+        # Only run on active tournament days in Central Time
+        now_utc = datetime.now(timezone.utc)
+        now_ct = now_utc.astimezone(CENTRAL_TZ)
+        today: date = now_ct.date()
+
+        if not (tournament.start_date <= today <= tournament.end_date):
+            return {
+                "message": "Tournament is not active today; skipping end-of-day snapshot.",
+                "tournament_id": tournament_id,
+                "today": today.isoformat(),
+                "tournament_start_date": tournament.start_date.isoformat(),
+                "tournament_end_date": tournament.end_date.isoformat(),
+                "snapshot_created": False,
+            }
+
+        sync_results = sync_service.sync_tournament_data(
+            org_id=tournament.org_id,
+            tourn_id=tournament.tourn_id,
+            year=tournament.year,
+        )
+
+        return {
+            "message": "End-of-day snapshot created successfully.",
+            "tournament_id": tournament_id,
+            "today": today.isoformat(),
+            "tournament_start_date": tournament.start_date.isoformat(),
+            "tournament_end_date": tournament.end_date.isoformat(),
+            "snapshot_created": True,
+            "sync": {
+                "players_synced": sync_results.get("players_synced", 0),
+                "scorecards_fetched": sync_results.get("scorecards_fetched", 0),
+                "errors": sync_results.get("errors", []),
+            },
         }
