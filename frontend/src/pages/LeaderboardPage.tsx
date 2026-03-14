@@ -1,5 +1,9 @@
 /** Leaderboard page */
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { useCurrentTournament, useLeaderboard } from '../hooks/useTournament'
+import { scoresApi } from '../services/api'
 import { LoadingSpinner } from '../components/LoadingSpinner'
 import { ErrorMessage } from '../components/ErrorMessage'
 import { UpdateIndicator } from '../components/UpdateIndicator'
@@ -16,6 +20,23 @@ export function LeaderboardPage() {
     refetch,
     isRefetching
   } = useLeaderboard(tournament?.id)
+
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string>('')
+  const { data: tournamentLeaderboard } = useQuery({
+    queryKey: ['tournament-leaderboard', tournament?.id],
+    queryFn: () => scoresApi.getTournamentLeaderboard(tournament!.id),
+    enabled: !!tournament?.id,
+    staleTime: 60 * 1000,
+  })
+  const { data: entriesByPlayer, isLoading: entriesByPlayerLoading } = useQuery({
+    queryKey: ['entries-by-player', tournament?.id, selectedPlayerId],
+    queryFn: () => scoresApi.getEntriesByPlayer(tournament!.id, selectedPlayerId),
+    enabled: !!tournament?.id && !!selectedPlayerId,
+  })
+  const golfers = tournamentLeaderboard?.leaderboard ?? []
+  const selectedPlayerName = selectedPlayerId
+    ? (golfers.find((g) => g.player_id === selectedPlayerId)?.player_name ?? entriesByPlayer?.player_name ?? selectedPlayerId)
+    : ''
 
   if (tournamentLoading || leaderboardLoading) {
     return (
@@ -53,6 +74,65 @@ export function LeaderboardPage() {
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
           <DiscordInvite />
         </div>
+      </div>
+
+      {/* Find entries by golfer */}
+      <div className="mb-6 p-4 bg-white rounded-lg shadow border border-gray-200">
+        <label htmlFor="golfer-select" className="block text-sm font-medium text-gray-700 mb-2">
+          Find entries with golfer
+        </label>
+        <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+          <select
+            id="golfer-select"
+            value={selectedPlayerId}
+            onChange={(e) => setSelectedPlayerId(e.target.value)}
+            className="block w-full sm:w-72 rounded-md border border-gray-300 bg-white py-2 pl-3 pr-10 text-base focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+          >
+            <option value="">Select a golfer...</option>
+            {golfers.map((g) => (
+              <option key={g.player_id} value={g.player_id}>
+                {g.player_name}
+              </option>
+            ))}
+          </select>
+          {selectedPlayerId && (
+            <button
+              type="button"
+              onClick={() => setSelectedPlayerId('')}
+              className="text-sm text-gray-500 hover:text-gray-700 underline"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+        {selectedPlayerId && (
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            {entriesByPlayerLoading ? (
+              <p className="text-sm text-gray-500">Loading...</p>
+            ) : entriesByPlayer && entriesByPlayer.entries.length > 0 ? (
+              <>
+                <p className="text-sm text-gray-600 mb-2">
+                  <strong>{selectedPlayerName}</strong> is on {entriesByPlayer.entries.length} roster
+                  {entriesByPlayer.entries.length !== 1 ? 's' : ''}:
+                </p>
+                <ul className="list-none space-y-1">
+                  {entriesByPlayer.entries.map(({ entry_id, participant_name }) => (
+                    <li key={entry_id}>
+                      <Link
+                        to={`/entry/${entry_id}`}
+                        className="text-green-600 hover:text-green-800 hover:underline font-medium"
+                      >
+                        {participant_name}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : entriesByPlayer ? (
+              <p className="text-sm text-gray-500">No entries have this golfer on their roster.</p>
+            ) : null}
+          </div>
+        )}
       </div>
 
       {/* Mobile Card View */}

@@ -5,7 +5,7 @@ from typing import Optional, Any
 from datetime import datetime, timezone
 
 from app.database import get_db
-from app.models import Tournament, Entry, DailyScore, ScoreSnapshot
+from app.models import Tournament, Entry, DailyScore, ScoreSnapshot, Player
 from app.services.score_calculator import ScoreCalculatorService
 from app.services.api_client import SlashGolfAPIClient
 
@@ -339,6 +339,41 @@ async def get_leaderboard(
         "entries": leaderboard,
         "last_updated": last_updated,
         "view_type": "current"  # Indicates this is current/real-time view
+    }
+
+
+@router.get("/scores/entries-by-player")
+async def get_entries_by_player(
+    tournament_id: int = Query(..., description="Tournament ID"),
+    player_id: str = Query(..., description="Player ID (golfer in the field)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get all pool entries that have this golfer on their roster (main 6 or rebuy).
+    Used for "find entries by golfer" on the leaderboard page.
+    """
+    tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    if not tournament:
+        raise HTTPException(status_code=404, detail="Tournament not found")
+
+    main_player_ids = ["player1_id", "player2_id", "player3_id", "player4_id", "player5_id", "player6_id"]
+    entries = db.query(Entry).filter(Entry.tournament_id == tournament_id).all()
+    matching = []
+    for entry in entries:
+        in_main = any(getattr(entry, f) == player_id for f in main_player_ids)
+        in_rebuy = bool(entry.rebuy_player_ids and player_id in entry.rebuy_player_ids)
+        if in_main or in_rebuy:
+            matching.append({
+                "entry_id": entry.id,
+                "participant_name": entry.participant.name,
+            })
+    player = db.query(Player).filter(Player.player_id == player_id).first()
+    player_name = player.full_name if player else None
+
+    return {
+        "player_id": player_id,
+        "player_name": player_name,
+        "entries": matching,
     }
 
 

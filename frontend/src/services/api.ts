@@ -90,6 +90,17 @@ export const scoresApi = {
     return response.data
   },
 
+  /** Get entries that have this golfer (main roster or rebuy) */
+  getEntriesByPlayer: async (
+    tournamentId: number,
+    playerId: string
+  ): Promise<{ player_id: string; player_name: string | null; entries: { entry_id: number; participant_name: string }[] }> => {
+    const response = await api.get('/scores/entries-by-player', {
+      params: { tournament_id: tournamentId, player_id: playerId },
+    })
+    return response.data
+  },
+
   /** Calculate scores for tournament */
   calculateScores: async (
     tournamentId: number, 
