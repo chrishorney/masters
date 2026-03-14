@@ -33,7 +33,11 @@ export function LeaderboardPage() {
     queryFn: () => scoresApi.getEntriesByPlayer(tournament!.id, selectedPlayerId),
     enabled: !!tournament?.id && !!selectedPlayerId,
   })
-  const golfers = tournamentLeaderboard?.leaderboard ?? []
+  const golfers = (() => {
+    const list = tournamentLeaderboard?.leaderboard ?? []
+    const lastName = (name: string) => (name.trim().split(/\s+/).pop() ?? '').toLowerCase()
+    return [...list].sort((a, b) => lastName(a.player_name).localeCompare(lastName(b.player_name)))
+  })()
   const selectedPlayerName = selectedPlayerId
     ? (golfers.find((g) => g.player_id === selectedPlayerId)?.player_name ?? entriesByPlayer?.player_name ?? selectedPlayerId)
     : ''
@@ -58,6 +62,9 @@ export function LeaderboardPage() {
   }
 
   const { entries, tournament: tournamentInfo } = leaderboardData
+  const entryRankByEntryId = new Map(
+    entries.map((entry: LeaderboardEntry, index: number) => [entry.entry.id, index + 1])
+  )
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -116,16 +123,22 @@ export function LeaderboardPage() {
                   {entriesByPlayer.entries.length !== 1 ? 's' : ''}:
                 </p>
                 <ul className="list-none space-y-1">
-                  {entriesByPlayer.entries.map(({ entry_id, participant_name }) => (
-                    <li key={entry_id}>
-                      <Link
-                        to={`/entry/${entry_id}`}
-                        className="text-green-600 hover:text-green-800 hover:underline font-medium"
-                      >
-                        {participant_name}
-                      </Link>
-                    </li>
-                  ))}
+                  {entriesByPlayer.entries.map(({ entry_id, participant_name }) => {
+                    const rank = entryRankByEntryId.get(entry_id)
+                    return (
+                      <li key={entry_id}>
+                        <Link
+                          to={`/entry/${entry_id}`}
+                          className="text-green-600 hover:text-green-800 hover:underline font-medium"
+                        >
+                          {participant_name}
+                        </Link>
+                        {rank != null && (
+                          <span className="text-gray-500 text-sm ml-1">#{rank}</span>
+                        )}
+                      </li>
+                    )
+                  })}
                 </ul>
               </>
             ) : entriesByPlayer ? (
