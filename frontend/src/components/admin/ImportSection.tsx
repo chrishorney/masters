@@ -16,7 +16,6 @@ export function ImportSection({ tournamentId }: ImportSectionProps) {
   const [result, setResult] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
   const [suggestions, setSuggestions] = useState<SuggestionItem[]>([])
-  const [validationResult, setValidationResult] = useState<any>(null)
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -24,7 +23,6 @@ export function ImportSection({ tournamentId }: ImportSectionProps) {
       setResult(null)
       setError(null)
       setSuggestions([])
-      setValidationResult(null)
     }
   }
 
@@ -62,7 +60,6 @@ export function ImportSection({ tournamentId }: ImportSectionProps) {
     setError(null)
     setResult(null)
     setSuggestions([])
-    setValidationResult(null)
 
     try {
       const formData = new FormData()
@@ -71,7 +68,6 @@ export function ImportSection({ tournamentId }: ImportSectionProps) {
 
       if (importType === 'entries') {
         const validation = await adminApi.validateEntriesImport(formData)
-        setValidationResult(validation)
         if (validation.can_import_directly && (!validation.suggestions || validation.suggestions.length === 0)) {
           const data = await runImport()
           setResult(data)
@@ -89,7 +85,6 @@ export function ImportSection({ tournamentId }: ImportSectionProps) {
         }
       } else {
         const validation = await adminApi.validateRebuysImport(formData)
-        setValidationResult(validation)
         if (validation.can_import_directly && (!validation.suggestions || validation.suggestions.length === 0)) {
           const data = await runImport()
           setResult(data)
@@ -121,7 +116,6 @@ export function ImportSection({ tournamentId }: ImportSectionProps) {
       const data = await runImport(suggestions)
       setResult(data)
       setSuggestions([])
-      setValidationResult(null)
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Import failed.')
     } finally {
@@ -220,7 +214,7 @@ export function ImportSection({ tournamentId }: ImportSectionProps) {
             </button>
             <button
               type="button"
-              onClick={() => { setSuggestions([]); setValidationResult(null) }}
+              onClick={() => setSuggestions([])}
               className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
             >
               Cancel
