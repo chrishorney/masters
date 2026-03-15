@@ -10,6 +10,7 @@ from app.models import (
     Tournament,
     Player,
     ScoreSnapshot,
+    Entry,
 )
 from app.services.api_client import SlashGolfAPIClient
 
@@ -148,6 +149,34 @@ class DataSyncService:
         
         logger.info(f"Detected {len(players_to_fetch)} players with 2+ stroke improvements")
         return players_to_fetch
+
+    def _get_entry_player_ids_for_tournament(self, tournament_id: int) -> List[str]:
+        """Return distinct player IDs that appear in any entry for this tournament (main 6 + rebuys)."""
+        entries = self.db.query(Entry).filter(Entry.tournament_id == tournament_id).all()
+        player_ids = set()
+        for e in entries:
+            for attr in ("player1_id", "player2_id", "player3_id", "player4_id", "player5_id", "player6_id"):
+                pid = getattr(e, attr, None)
+                if pid:
+                    player_ids.add(str(pid))
+            for pid in (e.rebuy_player_ids or []):
+                if pid:
+                    player_ids.add(str(pid))
+        return list(player_ids)
+
+    def _get_player_ids_with_scorecard_for_round(self, tournament_id: int, round_id: int) -> set:
+        """Return set of player IDs that already have scorecard data in some snapshot for this round."""
+        snapshots = self.db.query(ScoreSnapshot).filter(
+            ScoreSnapshot.tournament_id == tournament_id,
+            ScoreSnapshot.round_id == round_id,
+        ).all()
+        have_scorecard = set()
+        for snap in snapshots:
+            if not snap.scorecard_data:
+                continue
+            for player_id in snap.scorecard_data:
+                have_scorecard.add(str(player_id))
+        return have_scorecard
     
     def sync_tournament(
         self,
@@ -377,6 +406,24 @@ class DataSyncService:
                 current_leaderboard=leaderboard_data,
                 current_round=current_round
             )
+            fetch_player_ids = {p["player_id"] for p in players_to_fetch}
+
+            # Also fetch scorecards for entry players we don't have yet (so we don't miss eagles/HIOs).
+            # If we only fetch on 2+ stroke improvement, a player can make an eagle and never get fetched
+            # (e.g. no improvement between two sync times).
+            entry_player_ids = self._get_entry_player_ids_for_tournament(tournament.id)
+            have_scorecard = self._get_player_ids_with_scorecard_for_round(tournament.id, current_round)
+            missing_entry_players = [pid for pid in entry_player_ids if pid not in have_scorecard and pid not in fetch_player_ids]
+            # Cap backup fetches per sync to avoid API overload (e.g. 25 per run); we'll fill in over multiple syncs
+            max_backup_fetch = 25
+            for pid in missing_entry_players[:max_backup_fetch]:
+                players_to_fetch.append({"player_id": pid, "reason": "entry_player_backup", "improvement": 0})
+                fetch_player_ids.add(pid)
+            if missing_entry_players:
+                logger.info(
+                    f"Adding {min(len(missing_entry_players), max_backup_fetch)} entry players missing scorecard for round {current_round} "
+                    f"(total missing: {len(missing_entry_players)})"
+                )
             
             # Fetch scorecards for detected players
             scorecard_data = {}

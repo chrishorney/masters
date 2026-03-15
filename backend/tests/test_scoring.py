@@ -144,6 +144,35 @@ def test_calculate_daily_base_points(scoring_service, sample_entry, sample_tourn
     assert result["breakdown"]["player6"]["points"] == 0.0  # Cut
 
 
+def test_calculate_bonus_points_detects_eagle_from_scorecard(scoring_service, sample_entry, sample_tournament):
+    """Verify eagle is detected from scorecard data (validates path used by 'Check all players for bonuses')."""
+    leaderboard_data = {"leaderboardRows": []}
+    # Scorecard for round 1: hole 9 has score 2, par 4 -> eagle
+    scorecard_data = {
+        "50525": [
+            {
+                "roundId": 1,
+                "holes": {
+                    "1": {"holeScore": 4, "par": 4},
+                    "9": {"holeScore": 2, "par": 4},
+                },
+            }
+        ]
+    }
+    bonuses = scoring_service.calculate_bonus_points(
+        sample_entry,
+        leaderboard_data,
+        scorecard_data,
+        round_id=1,
+        tournament=sample_tournament,
+    )
+    eagle_bonuses = [b for b in bonuses if b.get("bonus_type") == "eagle"]
+    assert len(eagle_bonuses) == 1
+    assert eagle_bonuses[0]["player_id"] == "50525"
+    assert eagle_bonuses[0].get("hole") == 9
+    assert eagle_bonuses[0]["points"] == 2.0
+
+
 @pytest.fixture
 def scoring_service(db):
     """Create scoring service instance."""

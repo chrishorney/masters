@@ -151,6 +151,22 @@ The easiest way to use these endpoints is through the interactive API documentat
 - `gir_leader`: Greens in Regulation leader (1 point)
 - `fairways_leader`: Fairways Hit leader (1 point)
 
+## Check All Players for Bonuses (Eagles / Hole-in-One / Double Eagle)
+
+The admin screen has a **"Check All Players for Bonuses"** button. Use it to catch eagles, hole-in-ones, and double eagles that were missed during normal sync (e.g. when we never had a player’s scorecard because they didn’t trigger the 2+ stroke improvement logic).
+
+**What it does:**
+
+1. Collects all distinct entry players (main 6 + rebuy players for rounds 3–4).
+2. Fetches each player’s scorecard from the API so we have full hole-by-hole data.
+3. Merges that with existing snapshot scorecard data.
+4. Recalculates bonuses for every entry using the same logic as sync (eagle = −2 vs par, hole-in-one = 1 on par 3, double eagle = −3).
+5. Creates any missing bonus points and updates the snapshot with the merged scorecards.
+
+So if a player had an eagle that wasn’t detected earlier (e.g. Maverick McNealy on hole 9), running **Check All Players for Bonuses** for that tournament and round will find it and create the bonus. Safe to run multiple times; existing bonuses are preserved or re-applied from the recalculated list.
+
+**Testing:** The scoring test `test_calculate_bonus_points_detects_eagle_from_scorecard` verifies that eagle detection from scorecard data works (same path used by this admin action).
+
 ## Testing
 
 You can test the manual bonus system with:

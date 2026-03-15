@@ -24,13 +24,14 @@ async def check_all_entry_players_for_bonuses(
     Manually check all entry players' scorecards for eagles, albatrosses, and hole-in-ones.
     
     This endpoint:
-    1. Gets all distinct players from entries
-    2. Fetches their scorecards from the API
-    3. Recalculates bonuses for all entries
+    1. Gets all distinct players from entries (main 6 + rebuy players for rounds 3-4)
+    2. Fetches their scorecards from the API (so we have full hole-by-hole data)
+    3. Merges with existing snapshot scorecard data and recalculates bonuses for all entries
     4. Returns results showing any new bonuses found
     
-    This is useful as a backup to catch bonuses that might have been missed by the
-    2+ stroke improvement detection logic.
+    Use this as a backup to catch bonuses that were missed because scorecard data wasn't
+    available during normal sync (e.g. player never had a 2+ stroke improvement between
+    snapshots). Running it will find any such missed eagles/hole-in-ones/double eagles.
     """
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     if not tournament:
@@ -54,16 +55,18 @@ async def check_all_entry_players_for_bonuses(
     }
     
     try:
-        # Get all distinct entry players
+        # Get all distinct entry players (main 6 + rebuys for rounds 3-4 so we have scorecards for bonus detection)
         entries = db.query(Entry).filter(Entry.tournament_id == tournament_id).all()
         entry_players = set()
-        
         for entry in entries:
             for player_id_field in ["player1_id", "player2_id", "player3_id", "player4_id", "player5_id", "player6_id"]:
                 player_id = getattr(entry, player_id_field, None)
                 if player_id:
                     entry_players.add(str(player_id))
-        
+            if round_id >= 3 and entry.rebuy_player_ids:
+                for rebuy_id in entry.rebuy_player_ids:
+                    if rebuy_id:
+                        entry_players.add(str(rebuy_id))
         results["players_checked"] = len(entry_players)
         logger.info(f"Checking {len(entry_players)} distinct entry players for bonuses (Round {round_id})")
         
