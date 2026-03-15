@@ -139,7 +139,17 @@ class SlashGolfAPIClient:
         }
         
         logger.debug(f"Fetching scorecard for player {player_id}")
-        return self._make_request("/scorecard", params=params)
+        data = self._make_request("/scorecard", params=params)
+        # Ensure we always return a list of round objects (API may return list or wrapped)
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict):
+            for key in ("rounds", "data", "scorecards", "round"):
+                if key in data and isinstance(data[key], list):
+                    return data[key]
+            if data.get("roundId") is not None or "holes" in data:
+                return [data]
+        return []
     
     def get_player(
         self,

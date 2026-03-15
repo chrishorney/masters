@@ -89,7 +89,11 @@ async def check_all_entry_players_for_bonuses(
                     tourn_id=tournament.tourn_id,
                     year=tournament.year
                 )
-                scorecard_data[player_id] = scorecards
+                # Ensure list of round objects (defensive)
+                if not isinstance(scorecards, list):
+                    scorecard_data[player_id] = [scorecards] if isinstance(scorecards, dict) else []
+                else:
+                    scorecard_data[player_id] = scorecards
                 scorecards_fetched += 1
                 logger.debug(f"Fetched scorecard for player {player_id}")
             except Exception as e:
@@ -132,9 +136,11 @@ async def check_all_entry_players_for_bonuses(
         
         # Add/update with newly fetched scorecards (which contain all rounds)
         for player_id, new_scorecards in scorecard_data.items():
-            # Newly fetched scorecards contain all rounds, so they should replace existing ones
-            # This ensures we have the most up-to-date data for all rounds
-            merged_scorecard_data[player_id] = new_scorecards
+            if not isinstance(new_scorecards, list):
+                new_scorecards = [new_scorecards] if isinstance(new_scorecards, dict) else []
+            if new_scorecards:
+                merged_scorecard_data[player_id] = new_scorecards
+            # else keep existing snapshot data for this player if any
         
         logger.info(
             f"Merged scorecard data: {len(merged_scorecard_data)} players with scorecards. "
@@ -210,7 +216,8 @@ async def check_all_entry_players_for_bonuses(
             **results,
             "message": f"Successfully checked {scorecards_fetched} players and processed {entries_processed} entries. Found {new_bonuses_found} bonuses (eagles/albatrosses/hole-in-ones/low_score) for Round {round_id}.",
             "bonus_summary": bonus_summary,
-            "success": True
+            "success": True,
+            "round_checked_note": f"Bonuses are checked for Round {round_id} only. To catch missed eagles from another round (e.g. Round 1), run Check again with that round selected.",
         }
         
     except Exception as e:

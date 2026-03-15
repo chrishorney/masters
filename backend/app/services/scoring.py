@@ -490,8 +490,13 @@ class ScoringService:
                 if scorecard_round_id_int == target_round_id_int:
                     holes = scorecard.get("holes", {})
                     logger.debug(f"Found {len(holes)} holes in scorecard for player {player_id_str}, round {round_id}")
-                    
-                    for hole_num, hole_data in holes.items():
+                    # Support holes as dict (key = hole number) or list (index 0 = hole 1)
+                    hole_items = []
+                    if isinstance(holes, dict):
+                        hole_items = list(holes.items())
+                    elif isinstance(holes, list):
+                        hole_items = [(i + 1, h) for i, h in enumerate(holes) if isinstance(h, dict)]
+                    for hole_num, hole_data in hole_items:
                         # Parse hole score and par from MongoDB format if needed
                         hole_score = parse_mongodb_value(hole_data.get("holeScore"))
                         par = parse_mongodb_value(hole_data.get("par"))

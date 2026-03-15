@@ -34,6 +34,10 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
   const [testingDiscord, setTestingDiscord] = useState(false)
   const [discordTestResult, setDiscordTestResult] = useState<{ success: boolean; message: string } | null>(null)
   const [checkingBonuses, setCheckingBonuses] = useState(false)
+  const [bonusCheckRoundId, setBonusCheckRoundId] = useState<number>(tournament?.current_round ?? 1)
+  useEffect(() => {
+    if (tournament?.current_round != null) setBonusCheckRoundId(tournament.current_round)
+  }, [tournament?.id, tournament?.current_round])
   const [scoreCalculationResult, setScoreCalculationResult] = useState<{
     players_with_scorecards?: number;
     players_missing_scorecards?: number;
@@ -597,31 +601,49 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
                 This is a backup to catch bonuses that might have been missed by the automatic 2+ stroke improvement detection.
                 <span className="block mt-1 text-orange-600 font-semibold">Note: This will make API calls for all entry players (~50-100 calls).</span>
               </p>
-              <button
-                onClick={async () => {
-                  if (!tournament) return
-                  setCheckingBonuses(true)
-                  setMessage(null)
-                  try {
-                    const result = await adminApi.checkAllPlayersForBonuses(tournament.id, tournament.current_round)
-                    setMessage({
-                      type: result.success ? 'success' : 'error',
-                      text: result.message || `Checked ${result.players_checked} players, found ${result.new_bonuses_found} bonuses.`
-                    })
-                  } catch (error: any) {
-                    setMessage({
-                      type: 'error',
-                      text: error.response?.data?.detail || 'Failed to check players for bonuses'
-                    })
-                  } finally {
-                    setCheckingBonuses(false)
-                  }
-                }}
-                disabled={checkingBonuses || !tournament}
-                className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
-              >
-                {checkingBonuses ? 'Checking...' : 'Check All Players for Bonuses'}
-              </button>
+              <p className="text-sm text-gray-700 mb-2">
+                <strong>Round to check:</strong> Bonuses are checked for the selected round only. If an eagle was in Round 1 but you only ran this on a later round, run it again with Round 1 selected.
+              </p>
+              <div className="flex flex-wrap items-center gap-3 mb-3">
+                <label className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">Round</span>
+                  <select
+                    value={bonusCheckRoundId}
+                    onChange={(e) => setBonusCheckRoundId(Number(e.target.value))}
+                    className="border border-gray-300 rounded px-2 py-1 text-sm"
+                  >
+                    {[1, 2, 3, 4].map((r) => (
+                      <option key={r} value={r}>Round {r}</option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  onClick={async () => {
+                    if (!tournament) return
+                    setCheckingBonuses(true)
+                    setMessage(null)
+                    try {
+                      const result = await adminApi.checkAllPlayersForBonuses(tournament.id, bonusCheckRoundId)
+                      const note = result.round_checked_note ? ` ${result.round_checked_note}` : ''
+                      setMessage({
+                        type: result.success ? 'success' : 'error',
+                        text: (result.message || `Checked ${result.players_checked} players, found ${result.new_bonuses_found} bonuses.`) + note
+                      })
+                    } catch (error: any) {
+                      setMessage({
+                        type: 'error',
+                        text: error.response?.data?.detail || 'Failed to check players for bonuses'
+                      })
+                    } finally {
+                      setCheckingBonuses(false)
+                    }
+                  }}
+                  disabled={checkingBonuses || !tournament}
+                  className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
+                >
+                  {checkingBonuses ? 'Checking...' : 'Check All Players for Bonuses'}
+                </button>
+              </div>
             </div>
           )}
 
