@@ -1,10 +1,13 @@
 /** SmartSheet import section */
 import { useState } from 'react'
 import api from '../../services/api'
+import { adminApi } from '../../services/api'
 
 interface ImportSectionProps {
   tournamentId: number
 }
+
+export type SuggestionItem = { row: number; column: string; value: string; suggestion: string; player_id: string }
 
 export function ImportSection({ tournamentId }: ImportSectionProps) {
   const [importType, setImportType] = useState<'entries' | 'rebuys'>('entries')
@@ -12,13 +15,41 @@ export function ImportSection({ tournamentId }: ImportSectionProps) {
   const [importing, setImporting] = useState(false)
   const [result, setResult] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
+  const [suggestions, setSuggestions] = useState<SuggestionItem[]>([])
+  const [validationResult, setValidationResult] = useState<any>(null)
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0])
       setResult(null)
       setError(null)
+      setSuggestions([])
+      setValidationResult(null)
     }
+  }
+
+  const runImport = async (appliedSuggestions?: SuggestionItem[]) => {
+    if (!file) return
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('tournament_id', tournamentId.toString())
+    if (appliedSuggestions && appliedSuggestions.length > 0) {
+      formData.append(
+        'applied_suggestions',
+        JSON.stringify(
+          appliedSuggestions.map((s) => ({
+            row: s.row,
+            column: s.column,
+            player_id: s.player_id,
+          }))
+        )
+      )
+    }
+    const endpoint = importType === 'entries' ? '/admin/import/entries' : '/admin/import/rebuys'
+    const response = await api.post(endpoint, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return response.data
   }
 
   const handleImport = async () => {
@@ -30,25 +61,69 @@ export function ImportSection({ tournamentId }: ImportSectionProps) {
     setImporting(true)
     setError(null)
     setResult(null)
+    setSuggestions([])
+    setValidationResult(null)
 
     try {
       const formData = new FormData()
       formData.append('file', file)
       formData.append('tournament_id', tournamentId.toString())
 
-      const endpoint = importType === 'entries' 
-        ? '/admin/import/entries'
-        : '/admin/import/rebuys'
-
-      const response = await api.post(endpoint, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      })
-
-      setResult(response.data)
+      if (importType === 'entries') {
+        const validation = await adminApi.validateEntriesImport(formData)
+        setValidationResult(validation)
+        if (validation.can_import_directly && (!validation.suggestions || validation.suggestions.length === 0)) {
+          const data = await runImport()
+          setResult(data)
+        } else if (validation.can_import_with_corrections && validation.suggestions && validation.suggestions.length > 0) {
+          setSuggestions(validation.suggestions)
+        } else if (validation.error || (validation.row_results && validation.row_results.some((r: any) => r.row_error))) {
+          setResult({
+            success: false,
+            error: validation.error || 'Some player names could not be matched. Fix the CSV or check for typos.',
+            errors: validation.row_results?.filter((r: any) => r.row_error).map((r: any) => ({ row: r.row, error: r.row_error, participant: r.participant })),
+          })
+        } else {
+          const data = await runImport()
+          setResult(data)
+        }
+      } else {
+        const validation = await adminApi.validateRebuysImport(formData)
+        setValidationResult(validation)
+        if (validation.can_import_directly && (!validation.suggestions || validation.suggestions.length === 0)) {
+          const data = await runImport()
+          setResult(data)
+        } else if (validation.can_import_with_corrections && validation.suggestions && validation.suggestions.length > 0) {
+          setSuggestions(validation.suggestions)
+        } else if (validation.error || (validation.row_results && validation.row_results.some((r: any) => r.row_error))) {
+          setResult({
+            success: false,
+            error: validation.error || 'Some player names could not be matched. Fix the CSV or check for typos.',
+            errors: validation.row_results?.filter((r: any) => r.row_error).map((r: any) => ({ row: r.row, error: r.row_error, participant: r.participant })),
+          })
+        } else {
+          const data = await runImport()
+          setResult(data)
+        }
+      }
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Import failed. Please check the file format.')
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const handleApplySuggestionsAndImport = async () => {
+    if (!file || suggestions.length === 0) return
+    setImporting(true)
+    setError(null)
+    try {
+      const data = await runImport(suggestions)
+      setResult(data)
+      setSuggestions([])
+      setValidationResult(null)
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Import failed.')
     } finally {
       setImporting(false)
     }
@@ -116,6 +191,43 @@ export function ImportSection({ tournamentId }: ImportSectionProps) {
           </button>
         </div>
       </div>
+
+      {/* Spelling suggestions (entries and rebuys) */}
+      {suggestions.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 md:p-6">
+          <h3 className="text-lg font-semibold text-amber-900 mb-2">Possible typos found</h3>
+          <p className="text-sm text-amber-800 mb-4">
+            We found player names that didn&apos;t match exactly. Use the suggested spellings to import without editing the CSV.
+          </p>
+          <ul className="space-y-2 mb-4 max-h-48 overflow-y-auto">
+            {suggestions.map((s, idx) => (
+              <li key={idx} className="text-sm text-amber-900 flex items-center gap-2">
+                <span className="font-medium">Row {s.row}, {s.column}:</span>
+                <span className="line-through">{s.value}</span>
+                <span>→</span>
+                <span className="font-semibold text-green-800">{s.suggestion}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={handleApplySuggestionsAndImport}
+              disabled={importing}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              {importing ? 'Importing...' : 'Apply suggestions and import'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setSuggestions([]); setValidationResult(null) }}
+              className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Results */}
       {error && (

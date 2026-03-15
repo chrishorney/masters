@@ -3,6 +3,7 @@ import csv
 import io
 import unicodedata
 import re
+import difflib
 from typing import List, Dict, Any, Tuple, Optional
 from sqlalchemy.orm import Session
 
@@ -132,6 +133,215 @@ class ImportService:
                         return str(row.get("playerId"))
         
         return None
+
+    def _get_candidate_players(self, tournament_id: int) -> List[Tuple[str, str]]:
+        """Return list of (full_name, player_id) for fuzzy matching (Player table + tournament leaderboard)."""
+        candidates: List[Tuple[str, str]] = []
+        seen_ids = set()
+        for p in self.db.query(Player).all():
+            key = (p.full_name.strip(), p.player_id)
+            if p.player_id not in seen_ids:
+                candidates.append(key)
+                seen_ids.add(p.player_id)
+        from app.models import ScoreSnapshot
+        snapshot = self.db.query(ScoreSnapshot).filter(
+            ScoreSnapshot.tournament_id == tournament_id
+        ).order_by(ScoreSnapshot.timestamp.desc()).first()
+        if snapshot:
+            for row in snapshot.leaderboard_data.get("leaderboardRows", []):
+                first = (row.get("firstName") or "").strip()
+                last = (row.get("lastName") or "").strip()
+                full = f"{first} {last}".strip()
+                pid = str(row.get("playerId", ""))
+                if pid and pid not in seen_ids and full:
+                    candidates.append((full, pid))
+                    seen_ids.add(pid)
+        return candidates
+
+    def suggest_player_name(self, player_name: str, tournament_id: int) -> Optional[Tuple[str, str]]:
+        """
+        If the name doesn't match exactly, suggest the closest match (e.g. Jordan Speith -> Jordan Spieth).
+        Returns (suggested_full_name, player_id) or None if no good suggestion.
+        """
+        player_name = player_name.strip()
+        if not player_name:
+            return None
+        if self.match_player_name(player_name, tournament_id):
+            return None  # Already matches
+        candidates = self._get_candidate_players(tournament_id)
+        if not candidates:
+            return None
+        names = [c[0] for c in candidates]
+        normalized_input = self.normalize_name(player_name)
+        normalized_names = [self.normalize_name(n) for n in names]
+        matches = difflib.get_close_matches(normalized_input, normalized_names, n=1, cutoff=0.8)
+        if not matches:
+            return None
+        idx = normalized_names.index(matches[0])
+        return candidates[idx]  # (full_name, player_id)
+
+    def validate_entries_for_import(
+        self, rows: List[Dict[str, str]], tournament_id: int
+    ) -> Dict[str, Any]:
+        """
+        Validate entries CSV and return suggestions for any player name that didn't match.
+        Does not write to DB. Returns structure for frontend to show "Did you mean X?" and then
+        re-submit with applied_suggestions.
+        """
+        tournament = self.db.query(Tournament).filter(Tournament.id == tournament_id).first()
+        if not tournament:
+            return {"valid": False, "error": f"Tournament {tournament_id} not found", "row_results": [], "suggestions": []}
+        is_valid, col_error = self.validate_entries_columns(rows)
+        if not is_valid:
+            return {"valid": False, "error": col_error, "row_results": [], "suggestions": []}
+        row_results: List[Dict[str, Any]] = []
+        all_suggestions: List[Dict[str, Any]] = []
+        for row_num, row in enumerate(rows, start=2):
+            participant_name = (row.get("Participant Name") or "").strip()
+            if not participant_name:
+                row_results.append({"row": row_num, "participant": "", "players": [], "row_error": "Participant Name is required"})
+                continue
+            players: List[Dict[str, Any]] = []
+            row_ok = True
+            for i in range(1, 7):
+                col = f"Player {i} Name"
+                value = (row.get(col) or "").strip()
+                if not value:
+                    players.append({"column": col, "value": value, "matched": False, "player_id": None, "suggestion": None})
+                    row_ok = False
+                    continue
+                player_id = self.match_player_name(value, tournament_id)
+                if player_id:
+                    players.append({"column": col, "value": value, "matched": True, "player_id": player_id, "suggestion": None})
+                    continue
+                suggestion = self.suggest_player_name(value, tournament_id)
+                if suggestion:
+                    suggested_name, suggested_id = suggestion
+                    players.append({"column": col, "value": value, "matched": False, "player_id": None, "suggestion": {"name": suggested_name, "player_id": suggested_id}})
+                    all_suggestions.append({"row": row_num, "column": col, "value": value, "suggestion": suggested_name, "player_id": suggested_id})
+                else:
+                    players.append({"column": col, "value": value, "matched": False, "player_id": None, "suggestion": None})
+                    row_ok = False
+            row_results.append({"row": row_num, "participant": participant_name, "players": players, "row_error": None if row_ok else "Unmatched player name(s)"})
+        # Can import directly if every row has all 6 players matched (no suggestions needed)
+        rows_without_error = [r for r in row_results if not r.get("row_error")]
+        can_import_directly = (
+            len(rows_without_error) > 0
+            and all(len(r.get("players", [])) == 6 and all(p.get("matched") for p in r.get("players", [])) for r in rows_without_error)
+        )
+        # Can import with corrections if every unmatched player has a suggestion
+        can_import_with_corrections = len(all_suggestions) > 0 and all(
+            all(p.get("matched") or p.get("suggestion") for p in r.get("players", []))
+            for r in row_results
+        )
+        return {
+            "valid": can_import_directly or can_import_with_corrections or not any(r.get("row_error") for r in row_results),
+            "error": None,
+            "row_results": row_results,
+            "suggestions": all_suggestions,
+            "can_import_directly": can_import_directly,
+            "can_import_with_corrections": can_import_with_corrections,
+        }
+
+    def validate_rebuys_for_import(
+        self, rows: List[Dict[str, str]], tournament_id: int
+    ) -> Dict[str, Any]:
+        """
+        Validate rebuys CSV and return suggestions for Original Player Name and Rebuy Player Name.
+        Original player is suggested only from the entry's 6 players; rebuy player from full candidate list.
+        """
+        tournament = self.db.query(Tournament).filter(Tournament.id == tournament_id).first()
+        if not tournament:
+            return {"valid": False, "error": f"Tournament {tournament_id} not found", "row_results": [], "suggestions": [], "can_import_directly": False, "can_import_with_corrections": False}
+        is_valid, col_error = self.validate_rebuys_columns(rows)
+        if not is_valid:
+            return {"valid": False, "error": col_error, "row_results": [], "suggestions": [], "can_import_directly": False, "can_import_with_corrections": False}
+        row_results: List[Dict[str, Any]] = []
+        all_suggestions: List[Dict[str, Any]] = []
+        for row_num, row in enumerate(rows, start=2):
+            participant_name = (row.get("Participant Name") or "").strip()
+            original_name = (row.get("Original Player Name") or "").strip()
+            rebuy_name = (row.get("Rebuy Player Name") or "").strip()
+            rebuy_type = (row.get("Rebuy Type") or "").strip().lower()
+            row_error = None
+            if not participant_name:
+                row_results.append({"row": row_num, "participant": "", "original": None, "rebuy": None, "row_error": "Participant Name is required"})
+                continue
+            participant = self.db.query(Participant).filter(Participant.name == participant_name).first()
+            if not participant:
+                row_results.append({"row": row_num, "participant": participant_name, "original": None, "rebuy": None, "row_error": "Participant not found. Import entries first."})
+                continue
+            entry = self.db.query(Entry).filter(
+                Entry.participant_id == participant.id,
+                Entry.tournament_id == tournament_id,
+            ).first()
+            if not entry:
+                row_results.append({"row": row_num, "participant": participant_name, "original": None, "rebuy": None, "row_error": "No entry for this participant in tournament."})
+                continue
+            if not original_name:
+                row_results.append({"row": row_num, "participant": participant_name, "original": None, "rebuy": None, "row_error": "Original Player Name is required."})
+                continue
+            if not rebuy_name:
+                row_results.append({"row": row_num, "participant": participant_name, "original": None, "rebuy": None, "row_error": "Rebuy Player Name is required."})
+                continue
+            if rebuy_type not in ["missed_cut", "underperformer"]:
+                row_results.append({"row": row_num, "participant": participant_name, "original": None, "rebuy": None, "row_error": f"Invalid rebuy type '{rebuy_type}'."})
+                continue
+            player_positions = [entry.player1_id, entry.player2_id, entry.player3_id, entry.player4_id, entry.player5_id, entry.player6_id]
+            original_matched = self.match_player_name(original_name, tournament_id)
+            if original_matched and original_matched in player_positions:
+                original_status = {"column": "Original Player Name", "value": original_name, "matched": True, "player_id": original_matched, "suggestion": None}
+            else:
+                entry_player_names = []
+                for pid in player_positions:
+                    p = self.db.query(Player).filter(Player.player_id == pid).first()
+                    if p:
+                        entry_player_names.append((p.full_name, p.player_id))
+                if not entry_player_names:
+                    for pid in player_positions:
+                        entry_player_names.append((str(pid), pid))
+                names_only = [x[0] for x in entry_player_names]
+                normalized_input = self.normalize_name(original_name)
+                normalized_candidates = [self.normalize_name(n) for n in names_only]
+                matches = difflib.get_close_matches(normalized_input, normalized_candidates, n=1, cutoff=0.8)
+                if matches:
+                    idx = normalized_candidates.index(matches[0])
+                    sug_name, sug_id = entry_player_names[idx]
+                    original_status = {"column": "Original Player Name", "value": original_name, "matched": False, "player_id": None, "suggestion": {"name": sug_name, "player_id": sug_id}}
+                    all_suggestions.append({"row": row_num, "column": "Original Player Name", "value": original_name, "suggestion": sug_name, "player_id": sug_id})
+                else:
+                    original_status = {"column": "Original Player Name", "value": original_name, "matched": False, "player_id": None, "suggestion": None}
+                    row_error = row_error or f"Original player '{original_name}' not found in entry"
+            rebuy_matched = self.match_player_name(rebuy_name, tournament_id)
+            if rebuy_matched:
+                rebuy_status = {"column": "Rebuy Player Name", "value": rebuy_name, "matched": True, "player_id": rebuy_matched, "suggestion": None}
+            else:
+                suggestion = self.suggest_player_name(rebuy_name, tournament_id)
+                if suggestion:
+                    sug_name, sug_id = suggestion
+                    rebuy_status = {"column": "Rebuy Player Name", "value": rebuy_name, "matched": False, "player_id": None, "suggestion": {"name": sug_name, "player_id": sug_id}}
+                    all_suggestions.append({"row": row_num, "column": "Rebuy Player Name", "value": rebuy_name, "suggestion": sug_name, "player_id": sug_id})
+                else:
+                    rebuy_status = {"column": "Rebuy Player Name", "value": rebuy_name, "matched": False, "player_id": None, "suggestion": None}
+                    row_error = row_error or f"Rebuy player '{rebuy_name}' not found"
+            row_results.append({"row": row_num, "participant": participant_name, "original": original_status, "rebuy": rebuy_status, "row_error": row_error})
+        rows_ok = [r for r in row_results if not r.get("row_error")]
+        can_import_directly = len(rows_ok) > 0 and all(
+            r.get("original", {}).get("matched") and r.get("rebuy", {}).get("matched") for r in rows_ok
+        )
+        can_import_with_corrections = len(all_suggestions) > 0 and all(
+            (r.get("original") and (r["original"].get("matched") or r["original"].get("suggestion")))
+            and (r.get("rebuy") and (r["rebuy"].get("matched") or r["rebuy"].get("suggestion")))
+            for r in row_results if not r.get("row_error")
+        )
+        return {
+            "valid": can_import_directly or can_import_with_corrections or not any(r.get("row_error") for r in row_results),
+            "error": None,
+            "row_results": row_results,
+            "suggestions": all_suggestions,
+            "can_import_directly": can_import_directly,
+            "can_import_with_corrections": can_import_with_corrections,
+        }
     
     def parse_csv(self, file_content: bytes) -> List[Dict[str, str]]:
         """
@@ -217,7 +427,8 @@ class ImportService:
     def import_entries(
         self,
         rows: List[Dict[str, str]],
-        tournament_id: int
+        tournament_id: int,
+        applied_suggestions: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """
         Import entries from parsed CSV rows.
@@ -225,6 +436,8 @@ class ImportService:
         Args:
             rows: Parsed CSV rows
             tournament_id: Tournament ID to associate entries with
+            applied_suggestions: Optional list of {"row": int, "column": str, "player_id": str}
+                to use for that cell instead of matching the name (from validate "Did you mean?" approval).
         
         Returns:
             Dictionary with import results
@@ -247,6 +460,15 @@ class ImportService:
                 "success": False,
                 "error": error
             }
+        # Build lookup (row, column) -> player_id for applied typo corrections
+        correction_lookup: Dict[Tuple[int, str], str] = {}
+        if applied_suggestions:
+            for s in applied_suggestions:
+                r = s.get("row")
+                c = s.get("column")
+                pid = s.get("player_id")
+                if r is not None and c and pid:
+                    correction_lookup[(int(r), str(c).strip())] = str(pid)
         
         results = {
             "success": True,
@@ -276,17 +498,19 @@ class ImportService:
                     self.db.add(participant)
                     self.db.flush()  # Get ID without committing
                 
-                # Match player names to IDs
+                # Match player names to IDs (use applied_suggestions when provided)
                 player_ids = []
                 player_errors = []
                 
                 for i in range(1, 7):
-                    player_name = row.get(f"Player {i} Name", "").strip()
+                    col = f"Player {i} Name"
+                    player_name = row.get(col, "").strip()
                     if not player_name:
                         player_errors.append(f"Player {i} Name is required")
                         continue
-                    
-                    player_id = self.match_player_name(player_name, tournament_id)
+                    player_id = correction_lookup.get((row_num, col))
+                    if not player_id:
+                        player_id = self.match_player_name(player_name, tournament_id)
                     if not player_id:
                         player_errors.append(f"Player {i} '{player_name}' not found")
                         continue
@@ -354,7 +578,8 @@ class ImportService:
     def import_rebuys(
         self,
         rows: List[Dict[str, str]],
-        tournament_id: int
+        tournament_id: int,
+        applied_suggestions: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """
         Import rebuys from parsed CSV rows.
@@ -362,44 +587,31 @@ class ImportService:
         Args:
             rows: Parsed CSV rows
             tournament_id: Tournament ID
+            applied_suggestions: Optional list of {"row": int, "column": str, "player_id": str}
+                for "Original Player Name" or "Rebuy Player Name" spelling corrections.
         
         Returns:
             Dictionary with import results
         """
-        # Validate tournament exists
-        tournament = self.db.query(Tournament).filter(
-            Tournament.id == tournament_id
-        ).first()
-        
+        tournament = self.db.query(Tournament).filter(Tournament.id == tournament_id).first()
         if not tournament:
-            return {
-                "success": False,
-                "error": f"Tournament {tournament_id} not found"
-            }
-        
-        # Validate columns
+            return {"success": False, "error": f"Tournament {tournament_id} not found"}
         is_valid, error = self.validate_rebuys_columns(rows)
         if not is_valid:
-            return {
-                "success": False,
-                "error": error
-            }
-        
-        results = {
-            "success": True,
-            "imported": 0,
-            "skipped": 0,
-            "errors": []
-        }
-        
+            return {"success": False, "error": error}
+        correction_lookup: Dict[Tuple[int, str], str] = {}
+        if applied_suggestions:
+            for s in applied_suggestions:
+                r, c, pid = s.get("row"), s.get("column"), s.get("player_id")
+                if r is not None and c and pid:
+                    correction_lookup[(int(r), str(c).strip())] = str(pid)
+        results = {"success": True, "imported": 0, "skipped": 0, "errors": []}
         for row_num, row in enumerate(rows, start=2):
             try:
                 participant_name = row.get("Participant Name", "").strip()
                 original_player_name = row.get("Original Player Name", "").strip()
                 rebuy_player_name = row.get("Rebuy Player Name", "").strip()
                 rebuy_type = row.get("Rebuy Type", "").strip().lower()
-                
-                # Validate required fields
                 if not participant_name:
                     results["errors"].append({
                         "row": row_num,
@@ -462,28 +674,22 @@ class ImportService:
                     results["skipped"] += 1
                     continue
                 
-                # Match original player
-                original_player_id = None
                 player_positions = [
                     entry.player1_id, entry.player2_id, entry.player3_id,
                     entry.player4_id, entry.player5_id, entry.player6_id
                 ]
-                
-                # Try to match by name first
-                matched_id = self.match_player_name(original_player_name, tournament_id)
-                if matched_id and matched_id in player_positions:
-                    original_player_id = matched_id
-                else:
-                    # Try direct match in entry
-                    for pid in player_positions:
-                        player = self.db.query(Player).filter(
-                            Player.player_id == pid
-                        ).first()
-                        if player and player.full_name.lower() == original_player_name.lower():
-                            original_player_id = pid
-                            break
-                
+                original_player_id = correction_lookup.get((row_num, "Original Player Name"))
                 if not original_player_id:
+                    matched_id = self.match_player_name(original_player_name, tournament_id)
+                    if matched_id and matched_id in player_positions:
+                        original_player_id = matched_id
+                    else:
+                        for pid in player_positions:
+                            player = self.db.query(Player).filter(Player.player_id == pid).first()
+                            if player and player.full_name.lower() == original_player_name.lower():
+                                original_player_id = pid
+                                break
+                if not original_player_id or original_player_id not in player_positions:
                     results["errors"].append({
                         "row": row_num,
                         "participant": participant_name,
@@ -491,9 +697,9 @@ class ImportService:
                     })
                     results["skipped"] += 1
                     continue
-                
-                # Match rebuy player
-                rebuy_player_id = self.match_player_name(rebuy_player_name, tournament_id)
+                rebuy_player_id = correction_lookup.get((row_num, "Rebuy Player Name"))
+                if not rebuy_player_id:
+                    rebuy_player_id = self.match_player_name(rebuy_player_name, tournament_id)
                 if not rebuy_player_id:
                     results["errors"].append({
                         "row": row_num,

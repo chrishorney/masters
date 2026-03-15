@@ -160,6 +160,40 @@ export const adminApi = {
     return response.data
   },
 
+  /** Validate entries CSV and get spelling suggestions (e.g. Jordan Speith -> Jordan Spieth) */
+  validateEntriesImport: async (
+    formData: FormData
+  ): Promise<{
+    valid: boolean
+    error?: string
+    row_results?: Array<{ row: number; participant: string; players: Array<{ column: string; value: string; matched: boolean; player_id: string | null; suggestion: { name: string; player_id: string } | null }>; row_error: string | null }>
+    suggestions?: Array<{ row: number; column: string; value: string; suggestion: string; player_id: string }>
+    can_import_directly?: boolean
+    can_import_with_corrections?: boolean
+  }> => {
+    const response = await api.post('/admin/import/entries/validate', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return response.data
+  },
+
+  /** Validate rebuys CSV and get spelling suggestions for Original/Rebuy player names */
+  validateRebuysImport: async (
+    formData: FormData
+  ): Promise<{
+    valid: boolean
+    error?: string
+    row_results?: Array<{ row: number; participant: string; original: { column: string; value: string; matched: boolean; player_id: string | null; suggestion: { name: string; player_id: string } | null } | null; rebuy: { column: string; value: string; matched: boolean; player_id: string | null; suggestion: { name: string; player_id: string } | null } | null; row_error: string | null }>
+    suggestions?: Array<{ row: number; column: string; value: string; suggestion: string; player_id: string }>
+    can_import_directly?: boolean
+    can_import_with_corrections?: boolean
+  }> => {
+    const response = await api.post('/admin/import/rebuys/validate', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return response.data
+  },
+
   /** Start background job for automatic sync */
   startBackgroundJob: async (
     tournamentId: number, 

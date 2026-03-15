@@ -1,4 +1,5 @@
 """Admin endpoints for SmartSheet imports."""
+import json
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Form
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -9,42 +10,66 @@ from app.services.import_service import ImportService
 router = APIRouter()
 
 
-@router.post("/import/entries")
-async def import_entries(
+@router.post("/import/entries/validate")
+async def validate_entries_import(
     tournament_id: int = Form(...),
     file: UploadFile = File(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
-    Import entries from SmartSheet CSV export.
-    
-    Expected CSV format:
-    - Participant Name
-    - Player 1 Name
-    - Player 2 Name
-    - Player 3 Name
-    - Player 4 Name
-    - Player 5 Name
-    - Player 6 Name
+    Validate entries CSV and return any suggested spelling corrections (e.g. Jordan Speith -> Jordan Spieth).
+    Does not import. Use the suggestions in applied_suggestions when calling POST /import/entries to apply corrections.
     """
-    if not file.filename.endswith(('.csv', '.CSV')):
-        raise HTTPException(
-            status_code=400,
-            detail="File must be a CSV file"
-        )
-    
+    if not file.filename.endswith((".csv", ".CSV")):
+        raise HTTPException(status_code=400, detail="File must be a CSV file")
     try:
         file_content = await file.read()
         import_service = ImportService(db)
         rows = import_service.parse_csv(file_content)
+        result = import_service.validate_entries_for_import(rows, tournament_id)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/import/entries")
+async def import_entries(
+    tournament_id: int = Form(...),
+    file: UploadFile = File(...),
+    applied_suggestions: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+):
+    """
+    Import entries from SmartSheet CSV export.
+    
+    Optional: applied_suggestions = JSON array of {"row": int, "column": str, "player_id": str}
+    from validate endpoint to apply approved spelling corrections (e.g. use "Jordan Spieth" for "Jordan Speith").
+    
+    Expected CSV format:
+    - Participant Name
+    - Player 1 Name ... Player 6 Name
+    """
+    if not file.filename.endswith((".csv", ".CSV")):
+        raise HTTPException(status_code=400, detail="File must be a CSV file")
+    suggestions_list = None
+    if applied_suggestions:
+        try:
+            suggestions_list = json.loads(applied_suggestions)
+            if not isinstance(suggestions_list, list):
+                suggestions_list = None
+        except (json.JSONDecodeError, TypeError):
+            suggestions_list = None
+    try:
+        file_content = await file.read()
+        import_service = ImportService(db)
+        rows = import_service.parse_csv(file_content)
+        results = import_service.import_entries(rows, tournament_id, applied_suggestions=suggestions_list)
         
         # Check if this is the first entry import for this tournament
         from app.models import Entry, Tournament
         tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
         existing_entries_count = db.query(Entry).filter(Entry.tournament_id == tournament_id).count()
         is_first_import = existing_entries_count == 0
-        
-        results = import_service.import_entries(rows, tournament_id)
         
         # Notify Discord if this is the first import (tournament start)
         if is_first_import and results.get("imported", 0) > 0 and tournament:
@@ -111,33 +136,54 @@ async def import_entries(
         )
 
 
-@router.post("/import/rebuys")
-async def import_rebuys(
+@router.post("/import/rebuys/validate")
+async def validate_rebuys_import(
     tournament_id: int = Form(...),
     file: UploadFile = File(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
-    Import rebuys from SmartSheet CSV export.
-    
-    Expected CSV format:
-    - Participant Name
-    - Original Player Name
-    - Rebuy Player Name
-    - Rebuy Type (missed_cut or underperformer)
+    Validate rebuys CSV and return suggested spelling corrections for Original/Rebuy player names.
+    Does not import. Use applied_suggestions when calling POST /import/rebuys to apply corrections.
     """
-    if not file.filename.endswith(('.csv', '.CSV')):
-        raise HTTPException(
-            status_code=400,
-            detail="File must be a CSV file"
-        )
-    
+    if not file.filename.endswith((".csv", ".CSV")):
+        raise HTTPException(status_code=400, detail="File must be a CSV file")
     try:
         file_content = await file.read()
         import_service = ImportService(db)
         rows = import_service.parse_csv(file_content)
-        results = import_service.import_rebuys(rows, tournament_id)
-        
+        return import_service.validate_rebuys_for_import(rows, tournament_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/import/rebuys")
+async def import_rebuys(
+    tournament_id: int = Form(...),
+    file: UploadFile = File(...),
+    applied_suggestions: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+):
+    """
+    Import rebuys from SmartSheet CSV export.
+    Optional: applied_suggestions = JSON array of {"row", "column", "player_id"} to apply spelling corrections.
+    Expected CSV format: Participant Name, Original Player Name, Rebuy Player Name, Rebuy Type
+    """
+    if not file.filename.endswith((".csv", ".CSV")):
+        raise HTTPException(status_code=400, detail="File must be a CSV file")
+    suggestions_list = None
+    if applied_suggestions:
+        try:
+            suggestions_list = json.loads(applied_suggestions)
+            if not isinstance(suggestions_list, list):
+                suggestions_list = None
+        except (json.JSONDecodeError, TypeError):
+            suggestions_list = None
+    try:
+        file_content = await file.read()
+        import_service = ImportService(db)
+        rows = import_service.parse_csv(file_content)
+        results = import_service.import_rebuys(rows, tournament_id, applied_suggestions=suggestions_list)
         return results
     except Exception as e:
         raise HTTPException(
