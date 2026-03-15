@@ -356,6 +356,7 @@ export const adminApi = {
     entries_processed: number;
     new_bonuses_found: number;
     errors: string[];
+    round_checked_note?: string;
   }> => {
     const params: any = { tournament_id: tournamentId }
     if (roundId) params.round_id = roundId
