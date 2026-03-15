@@ -209,15 +209,12 @@ function LeaderboardRow({ player }: { player: TournamentLeaderboardPlayer }) {
         )}
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-right">
-        <div className={`text-sm font-semibold ${
-          getScoreDisplay(player.score).startsWith('-') 
-            ? 'text-green-600' 
-            : getScoreDisplay(player.score).startsWith('+') 
-            ? 'text-red-600' 
-            : 'text-gray-900'
-        }`}>
-          {getScoreDisplay(player.score)}
-        </div>
+        <span className={getScoreDisplay(player.score).startsWith('-') ? 'text-green-600' : getScoreDisplay(player.score).startsWith('+') ? 'text-red-600' : 'text-gray-900'}>
+          <span className="font-semibold">{getScoreDisplay(player.score)}</span>
+          {player.current_hole != null && player.current_hole >= 1 && player.current_hole <= 18 && (
+            <span className="text-gray-500 font-normal ml-1">through {player.current_hole}</span>
+          )}
+        </span>
       </td>
     </tr>
   )

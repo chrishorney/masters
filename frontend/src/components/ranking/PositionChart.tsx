@@ -1,5 +1,5 @@
 /** Position over time chart component */
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { RankingSnapshot } from '../../types'
 
 interface PositionChartProps {
@@ -7,24 +7,36 @@ interface PositionChartProps {
   entryNames?: Record<number, string>
 }
 
+const TOP_N_OPTIONS = [5, 10, 15] as const
+
 export function PositionChart({ snapshots, entryNames }: PositionChartProps) {
-  // Group snapshots by entry
+  const [topN, setTopN] = useState<number>(5)
+
+  // Group snapshots by entry, sort by "leaders first" (best position ever, then latest position)
   const entryData = useMemo(() => {
     const grouped: Record<number, RankingSnapshot[]> = {}
-    
     snapshots.forEach(snapshot => {
-      if (!grouped[snapshot.entry_id]) {
-        grouped[snapshot.entry_id] = []
-      }
+      if (!grouped[snapshot.entry_id]) grouped[snapshot.entry_id] = []
       grouped[snapshot.entry_id].push(snapshot)
     })
-    
-    return Object.entries(grouped).map(([entryId, snaps]) => ({
-      entryId: parseInt(entryId),
-      entryName: entryNames?.[parseInt(entryId)] || `Entry ${entryId}`,
-      snapshots: snaps.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-    }))
+    const list = Object.entries(grouped).map(([entryId, snaps]) => {
+      const sorted = snaps.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+      const bestPosition = Math.min(...sorted.map(s => s.position))
+      const latestPosition = sorted[sorted.length - 1]?.position ?? 999
+      return {
+        entryId: parseInt(entryId),
+        entryName: entryNames?.[parseInt(entryId)] || `Entry ${entryId}`,
+        snapshots: sorted,
+        bestPosition,
+        latestPosition,
+      }
+    })
+    // Leaders first: best rank (lowest position number), then by latest rank
+    list.sort((a, b) => a.bestPosition - b.bestPosition || a.latestPosition - b.latestPosition)
+    return list
   }, [snapshots, entryNames])
+
+  const displayedEntries = entryData.slice(0, topN)
 
   // Calculate chart dimensions
   const maxPosition = Math.max(...snapshots.map(s => s.position), 1)
@@ -40,8 +52,26 @@ export function PositionChart({ snapshots, entryNames }: PositionChartProps) {
 
   return (
     <div className="bg-white rounded-lg shadow-md p-4 md:p-6">
-      <h3 className="text-lg md:text-xl font-semibold text-gray-900 mb-4">Position Over Time</h3>
-      
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
+        <h3 className="text-lg md:text-xl font-semibold text-gray-900">Position Over Time</h3>
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-gray-600">Show:</span>
+          {TOP_N_OPTIONS.map(n => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => setTopN(n)}
+              className={`px-2 py-1 rounded ${topN === n ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+            >
+              Top {n}
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="text-sm text-gray-500 mb-4">
+        Rank of each entry over time (lower = better). Shows entries that have been near the top, sorted by best rank.
+      </p>
+
       <div className="relative" style={{ height: '400px', minHeight: '300px' }}>
         <svg 
           viewBox="0 0 800 400" 
@@ -76,7 +106,7 @@ export function PositionChart({ snapshots, entryNames }: PositionChartProps) {
           ))}
 
           {/* Plot lines for each entry */}
-          {entryData.slice(0, 10).map((entry, idx) => {
+          {displayedEntries.map((entry, idx) => {
             const color = colors[idx % colors.length]
             const points = entry.snapshots.map(snapshot => {
               const x = 50 + ((new Date(snapshot.timestamp).getTime() - minTimestamp) / timeRange) * 700
@@ -127,7 +157,7 @@ export function PositionChart({ snapshots, entryNames }: PositionChartProps) {
 
       {/* Legend */}
       <div className="mt-4 flex flex-wrap gap-3 text-sm">
-        {entryData.slice(0, 10).map((entry, idx) => (
+        {displayedEntries.map((entry, idx) => (
           <div key={entry.entryId} className="flex items-center gap-2">
             <div 
               className="w-4 h-4 rounded"
@@ -138,9 +168,9 @@ export function PositionChart({ snapshots, entryNames }: PositionChartProps) {
         ))}
       </div>
 
-      {entryData.length > 10 && (
+      {entryData.length > topN && (
         <p className="text-xs text-gray-500 mt-2">
-          Showing top 10 entries. {entryData.length - 10} more entries available.
+          Showing top {topN} of {entryData.length} entries. Use the buttons above to show more.
         </p>
       )}
     </div>

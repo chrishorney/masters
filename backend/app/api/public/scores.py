@@ -12,6 +12,22 @@ from app.services.api_client import SlashGolfAPIClient
 router = APIRouter()
 
 
+def _parse_current_hole(row: dict) -> Optional[int]:
+    """Parse currentHole from API row (e.g. {"$numberInt": "7"} or plain int)."""
+    raw = row.get("currentHole")
+    if raw is None:
+        return None
+    if isinstance(raw, int):
+        return raw if 1 <= raw <= 18 else None
+    if isinstance(raw, dict) and "$numberInt" in raw:
+        try:
+            n = int(raw["$numberInt"])
+            return n if 1 <= n <= 18 else None
+        except (ValueError, TypeError):
+            return None
+    return None
+
+
 def _parse_score_to_par(score_str: str) -> Optional[int]:
     """
     Parse score-to-par strings from the leaderboard into integers so we can sort reliably.
@@ -450,12 +466,14 @@ async def get_tournament_leaderboard(
         total_str = row.get("total")
         display_score = total_str if isinstance(total_str, str) and total_str else row.get("currentRoundScore", "")
 
+        current_hole = _parse_current_hole(row)
         formatted_leaderboard.append({
             "position": position_display,
             "player_name": full_name,
             "score": display_score,
             "status": status,
-            "player_id": str(row.get("playerId", ""))
+            "player_id": str(row.get("playerId", "")),
+            "current_hole": current_hole,
         })
     
     # Derive round and last-updated timestamp from API payload
@@ -551,12 +569,14 @@ async def get_round_tournament_leaderboard(
         if status in ["wd", "dq"]:
             continue
         
+        current_hole = _parse_current_hole(row)
         formatted_leaderboard.append({
             "position": position,
             "player_name": full_name,
             "score": score_str,
             "status": status,
-            "player_id": str(row.get("playerId", ""))
+            "player_id": str(row.get("playerId", "")),
+            "current_hole": current_hole,
         })
     
     # Get snapshot timestamp

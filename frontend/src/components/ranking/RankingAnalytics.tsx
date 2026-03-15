@@ -10,8 +10,10 @@ export function RankingAnalytics({ analytics }: RankingAnalyticsProps) {
     <div className="space-y-6">
       {/* Biggest Movers */}
       <div className="bg-white rounded-lg shadow-md p-4 md:p-6">
-        <h3 className="text-lg md:text-xl font-semibold text-gray-900 mb-4">Biggest Movers</h3>
-        
+        <h3 className="text-lg md:text-xl font-semibold text-gray-900 mb-1">Biggest Movers</h3>
+        <p className="text-sm text-gray-500 mb-4">
+          Entries with the largest jump or drop in position between consecutive snapshots (e.g. 12th → 3rd). Green = moved up; red = moved down.
+        </p>
         {analytics.biggest_movers.length === 0 ? (
           <p className="text-gray-500">No position changes recorded yet.</p>
         ) : (
@@ -49,8 +51,10 @@ export function RankingAnalytics({ analytics }: RankingAnalyticsProps) {
 
       {/* Position Distribution */}
       <div className="bg-white rounded-lg shadow-md p-4 md:p-6">
-        <h3 className="text-lg md:text-xl font-semibold text-gray-900 mb-4">Position Distribution</h3>
-        
+        <h3 className="text-lg md:text-xl font-semibold text-gray-900 mb-1">Position Distribution</h3>
+        <p className="text-sm text-gray-500 mb-4">
+          How many different entries have held each leaderboard position at some point (e.g. &quot;3 entries have been in 1st place&quot;).
+        </p>
         <div className="space-y-2">
           {Object.values(analytics.position_distribution)
             .sort((a, b) => a.position - b.position)
@@ -81,8 +85,10 @@ export function RankingAnalytics({ analytics }: RankingAnalyticsProps) {
       {/* Time in Lead */}
       {analytics.time_in_lead.length > 0 && (
         <div className="bg-white rounded-lg shadow-md p-4 md:p-6">
-          <h3 className="text-lg md:text-xl font-semibold text-gray-900 mb-4">Time in Lead</h3>
-          
+          <h3 className="text-lg md:text-xl font-semibold text-gray-900 mb-1">Time in Lead</h3>
+          <p className="text-sm text-gray-500 mb-4">
+            Total time each entry has spent in 1st place during the tournament. Sorted by most time at the top.
+          </p>
           <div className="space-y-3">
             {analytics.time_in_lead
               .sort((a, b) => b.seconds - a.seconds)

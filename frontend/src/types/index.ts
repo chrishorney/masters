@@ -150,6 +150,8 @@ export interface TournamentLeaderboardPlayer {
   score: string
   status: string
   player_id: string
+  /** Hole the golfer is currently on (1–18), from API currentHole. Only present for live view when API provides it. */
+  current_hole?: number | null
 }
 
 export interface TournamentLeaderboardResponse {
