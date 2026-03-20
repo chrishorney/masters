@@ -13,6 +13,7 @@ export function ImportSection({ tournamentId }: ImportSectionProps) {
   const [importType, setImportType] = useState<'entries' | 'rebuys'>('entries')
   const [file, setFile] = useState<File | null>(null)
   const [importing, setImporting] = useState(false)
+  const [clearingEntries, setClearingEntries] = useState(false)
   const [result, setResult] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
   const [suggestions, setSuggestions] = useState<SuggestionItem[]>([])
@@ -108,6 +109,28 @@ export function ImportSection({ tournamentId }: ImportSectionProps) {
     }
   }
 
+  const handleClearTournamentEntries = async () => {
+    const ok = window.confirm(
+      'This will wipe ALL entries for the current tournament (and remove calculated scores/bonus points/rankings), effectively clearing the leaderboard.\\n\\nThis cannot be undone. Are you sure you want to proceed?'
+    )
+    if (!ok) return
+
+    setClearingEntries(true)
+    setError(null)
+    setResult(null)
+    setSuggestions([])
+    try {
+      await adminApi.clearTournamentEntries(tournamentId, true)
+      setResult({ success: true, message: 'Tournament entries cleared. You can import new entries now.' })
+      // Reload so the current leaderboard/state re-fetches.
+      window.location.reload()
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || 'Failed to clear tournament entries')
+    } finally {
+      setClearingEntries(false)
+    }
+  }
+
   const handleApplySuggestionsAndImport = async () => {
     if (!file || suggestions.length === 0) return
     setImporting(true)
@@ -151,6 +174,25 @@ export function ImportSection({ tournamentId }: ImportSectionProps) {
           </label>
         </div>
       </div>
+
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 md:p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-semibold text-red-900 mb-1">Clear current tournament entries</h3>
+              <p className="text-sm text-red-800">
+                Deletes the current tournament&apos;s entries and calculated leaderboard data. Use this only if you need to re-import.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleClearTournamentEntries}
+              disabled={importing || clearingEntries}
+              className="px-4 py-2 bg-red-700 text-white rounded-lg hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {clearingEntries ? 'Clearing...' : 'Clear Entries'}
+            </button>
+          </div>
+        </div>
 
       {/* File Upload */}
       <div className="bg-white rounded-lg shadow-md p-4 md:p-6">

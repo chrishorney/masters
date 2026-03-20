@@ -367,6 +367,14 @@ export const adminApi = {
     return response.data
   },
 
+  /** Clear all entries + calculated scores/bonus points for a tournament (keeps players/participants) */
+  clearTournamentEntries: async (tournamentId: number, confirm: boolean): Promise<any> => {
+    const response = await api.post(`/admin/diagnostics/tournament/${tournamentId}/clear-entries`, null, {
+      params: { confirm },
+    })
+    return response.data
+  },
+
   /** Check all entry players for bonuses (manual) */
   checkAllPlayersForBonuses: async (
     tournamentId: number,
