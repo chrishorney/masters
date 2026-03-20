@@ -203,11 +203,11 @@ export function ImportSection({ tournamentId }: ImportSectionProps) {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Select CSV File
+              Select File (.csv or .xlsx)
             </label>
             <input
               type="file"
-              accept=".csv"
+              accept=".csv,.xlsx,.xlsm"
               onChange={handleFileChange}
               className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
             />
@@ -322,12 +322,12 @@ export function ImportSection({ tournamentId }: ImportSectionProps) {
 
       {/* Help Text */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h4 className="font-medium text-blue-900 mb-2">CSV Format Requirements</h4>
+        <h4 className="font-medium text-blue-900 mb-2">File Format Requirements</h4>
         <div className="text-sm text-blue-800 space-y-1">
           {importType === 'entries' ? (
             <>
               <p><strong>Required columns:</strong> Participant Name, Player 1 Name, Player 2 Name, Player 3 Name, Player 4 Name, Player 5 Name, Player 6 Name</p>
-              <p>See <code className="bg-blue-100 px-1 rounded">docs/examples/entries_example.csv</code> for format</p>
+              <p>Upload <code className="bg-blue-100 px-1 rounded">.csv</code> or <code className="bg-blue-100 px-1 rounded">.xlsx</code>. See <code className="bg-blue-100 px-1 rounded">docs/examples/entries_example.csv</code> for format.</p>
             </>
           ) : (
             <>

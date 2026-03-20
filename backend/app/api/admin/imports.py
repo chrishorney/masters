@@ -17,15 +17,16 @@ async def validate_entries_import(
     db: Session = Depends(get_db),
 ):
     """
-    Validate entries CSV and return any suggested spelling corrections (e.g. Jordan Speith -> Jordan Spieth).
+    Validate entries CSV/Excel and return any suggested spelling corrections
+    (e.g. Jordan Speith -> Jordan Spieth).
     Does not import. Use the suggestions in applied_suggestions when calling POST /import/entries to apply corrections.
     """
-    if not file.filename.endswith((".csv", ".CSV")):
-        raise HTTPException(status_code=400, detail="File must be a CSV file")
+    if not file.filename.lower().endswith((".csv", ".xlsx", ".xlsm")):
+        raise HTTPException(status_code=400, detail="File must be CSV or Excel (.csv, .xlsx)")
     try:
         file_content = await file.read()
         import_service = ImportService(db)
-        rows = import_service.parse_csv(file_content)
+        rows = import_service.parse_file(file_content, file.filename or "")
         result = import_service.validate_entries_for_import(rows, tournament_id)
         return result
     except Exception as e:
@@ -40,7 +41,7 @@ async def import_entries(
     db: Session = Depends(get_db),
 ):
     """
-    Import entries from SmartSheet CSV export.
+    Import entries from SmartSheet CSV/Excel export.
     
     Optional: applied_suggestions = JSON array of {"row": int, "column": str, "player_id": str}
     from validate endpoint to apply approved spelling corrections (e.g. use "Jordan Spieth" for "Jordan Speith").
@@ -49,8 +50,8 @@ async def import_entries(
     - Participant Name
     - Player 1 Name ... Player 6 Name
     """
-    if not file.filename.endswith((".csv", ".CSV")):
-        raise HTTPException(status_code=400, detail="File must be a CSV file")
+    if not file.filename.lower().endswith((".csv", ".xlsx", ".xlsm")):
+        raise HTTPException(status_code=400, detail="File must be CSV or Excel (.csv, .xlsx)")
     suggestions_list = None
     if applied_suggestions:
         try:
@@ -62,7 +63,7 @@ async def import_entries(
     try:
         file_content = await file.read()
         import_service = ImportService(db)
-        rows = import_service.parse_csv(file_content)
+        rows = import_service.parse_file(file_content, file.filename or "")
         results = import_service.import_entries(rows, tournament_id, applied_suggestions=suggestions_list)
         
         # Check if this is the first entry import for this tournament
@@ -143,15 +144,15 @@ async def validate_rebuys_import(
     db: Session = Depends(get_db),
 ):
     """
-    Validate rebuys CSV and return suggested spelling corrections for Original/Rebuy player names.
+    Validate rebuys CSV/Excel and return suggested spelling corrections for Original/Rebuy player names.
     Does not import. Use applied_suggestions when calling POST /import/rebuys to apply corrections.
     """
-    if not file.filename.endswith((".csv", ".CSV")):
-        raise HTTPException(status_code=400, detail="File must be a CSV file")
+    if not file.filename.lower().endswith((".csv", ".xlsx", ".xlsm")):
+        raise HTTPException(status_code=400, detail="File must be CSV or Excel (.csv, .xlsx)")
     try:
         file_content = await file.read()
         import_service = ImportService(db)
-        rows = import_service.parse_csv(file_content)
+        rows = import_service.parse_file(file_content, file.filename or "")
         return import_service.validate_rebuys_for_import(rows, tournament_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -165,14 +166,14 @@ async def import_rebuys(
     db: Session = Depends(get_db),
 ):
     """
-    Import rebuys from SmartSheet CSV export.
+    Import rebuys from SmartSheet CSV/Excel export.
     Optional: applied_suggestions = JSON array of {"row", "column", "player_id"} to apply spelling corrections.
     Expected CSV format:
     - SmartSheet export: Player Name + Professional 1-6, then Replace/Replace with pairs after Professional 6
     - (Legacy) normalized: Participant Name, Original Player Name, Rebuy Player Name (no Rebuy Type required)
     """
-    if not file.filename.endswith((".csv", ".CSV")):
-        raise HTTPException(status_code=400, detail="File must be a CSV file")
+    if not file.filename.lower().endswith((".csv", ".xlsx", ".xlsm")):
+        raise HTTPException(status_code=400, detail="File must be CSV or Excel (.csv, .xlsx)")
     suggestions_list = None
     if applied_suggestions:
         try:
@@ -184,7 +185,7 @@ async def import_rebuys(
     try:
         file_content = await file.read()
         import_service = ImportService(db)
-        rows = import_service.parse_csv(file_content)
+        rows = import_service.parse_file(file_content, file.filename or "")
         results = import_service.import_rebuys(rows, tournament_id, applied_suggestions=suggestions_list)
         return results
     except Exception as e:

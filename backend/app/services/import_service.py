@@ -4,6 +4,8 @@ import io
 import unicodedata
 import re
 import difflib
+import zipfile
+from xml.etree import ElementTree as ET
 from typing import List, Dict, Any, Tuple, Optional
 from sqlalchemy.orm import Session
 
@@ -550,6 +552,110 @@ class ImportService:
         # csv.DictReader would silently overwrite duplicate keys.
         reader = csv.reader(io.StringIO(text))
         all_rows = list(reader)
+        return self._rows_to_dicts(all_rows)
+
+    def parse_file(self, file_content: bytes, filename: str) -> List[Dict[str, str]]:
+        """
+        Parse an uploaded tabular file into row dictionaries.
+
+        Supports:
+        - .csv
+        - .xlsx / .xlsm (Excel)
+        """
+        lower_name = (filename or "").lower()
+        if lower_name.endswith(".csv"):
+            return self.parse_csv(file_content)
+        if lower_name.endswith(".xlsx") or lower_name.endswith(".xlsm"):
+            return self.parse_excel(file_content)
+        raise ValueError("Unsupported file type. Please upload a .csv or .xlsx file.")
+
+    def parse_excel(self, file_content: bytes) -> List[Dict[str, str]]:
+        """Parse Excel workbook bytes (first worksheet) into row dictionaries."""
+        try:
+            workbook_zip = zipfile.ZipFile(io.BytesIO(file_content))
+        except Exception as e:
+            raise ValueError("Invalid Excel file (.xlsx/.xlsm).") from e
+
+        # Shared strings table (optional in xlsx).
+        shared_strings: List[str] = []
+        if "xl/sharedStrings.xml" in workbook_zip.namelist():
+            shared_xml = ET.fromstring(workbook_zip.read("xl/sharedStrings.xml"))
+            for si in shared_xml.findall(".//{*}si"):
+                # Can be <si><t>.. or rich text runs <r><t>..
+                text_parts = []
+                for t in si.findall(".//{*}t"):
+                    text_parts.append(t.text or "")
+                shared_strings.append("".join(text_parts))
+
+        # Read first worksheet; SmartSheet exports place data here.
+        sheet_path = "xl/worksheets/sheet1.xml"
+        if sheet_path not in workbook_zip.namelist():
+            # Fallback: first worksheet-like file we can find.
+            sheet_candidates = sorted(
+                [n for n in workbook_zip.namelist() if n.startswith("xl/worksheets/sheet") and n.endswith(".xml")]
+            )
+            if not sheet_candidates:
+                raise ValueError("Excel file has no worksheet data.")
+            sheet_path = sheet_candidates[0]
+
+        sheet_xml = ET.fromstring(workbook_zip.read(sheet_path))
+
+        # Build sparse rows keyed by column index from cell refs like "A1", "BC12".
+        all_rows: List[List[str]] = []
+        for row_el in sheet_xml.findall(".//{*}sheetData/{*}row"):
+            row_values: Dict[int, str] = {}
+            max_col = -1
+            for cell in row_el.findall("{*}c"):
+                ref = cell.attrib.get("r", "")
+                col_idx = self._excel_ref_to_col_index(ref)
+                if col_idx is None:
+                    continue
+
+                max_col = max(max_col, col_idx)
+                cell_type = cell.attrib.get("t", "")
+                value_el = cell.find("{*}v")
+                inline_el = cell.find("{*}is/{*}t")
+
+                value = ""
+                if cell_type == "s" and value_el is not None and value_el.text is not None:
+                    try:
+                        ss_idx = int(value_el.text)
+                        value = shared_strings[ss_idx] if 0 <= ss_idx < len(shared_strings) else ""
+                    except Exception:
+                        value = ""
+                elif inline_el is not None and inline_el.text is not None:
+                    value = inline_el.text
+                elif value_el is not None and value_el.text is not None:
+                    value = value_el.text
+
+                row_values[col_idx] = (value or "").strip()
+
+            if max_col >= 0:
+                materialized = ["" for _ in range(max_col + 1)]
+                for idx, val in row_values.items():
+                    materialized[idx] = val
+                all_rows.append(materialized)
+
+        return self._rows_to_dicts(all_rows)
+
+    def _excel_ref_to_col_index(self, ref: str) -> Optional[int]:
+        """Convert Excel cell ref (e.g. A1, BC12) to zero-based column index."""
+        if not ref:
+            return None
+        match = re.match(r"^([A-Za-z]+)\d+$", ref)
+        if not match:
+            return None
+        letters = match.group(1).upper()
+        idx = 0
+        for ch in letters:
+            idx = idx * 26 + (ord(ch) - ord("A") + 1)
+        return idx - 1
+
+    def _rows_to_dicts(self, all_rows: List[List[str]]) -> List[Dict[str, str]]:
+        """
+        Convert a matrix of rows (header + data rows) into dictionaries while
+        preserving duplicate header names with __N suffixes.
+        """
         if not all_rows:
             self._parsed_header_keys = []
             return []
