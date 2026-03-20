@@ -165,17 +165,36 @@ class DataSyncService:
         return list(player_ids)
 
     def _get_player_ids_with_scorecard_for_round(self, tournament_id: int, round_id: int) -> set:
-        """Return set of player IDs that already have scorecard data in some snapshot for this round."""
+        """
+        Return set of player IDs that already have a scorecard entry whose internal
+        `roundId` matches `round_id`.
+
+        Note: we can't rely on `ScoreSnapshot.round_id` because scorecard payloads
+        contain multiple rounds and may be persisted under whatever snapshot
+        "current_round" the sync job was running when it fetched the data.
+        """
         snapshots = self.db.query(ScoreSnapshot).filter(
-            ScoreSnapshot.tournament_id == tournament_id,
-            ScoreSnapshot.round_id == round_id,
+            ScoreSnapshot.tournament_id == tournament_id
         ).all()
+
         have_scorecard = set()
         for snap in snapshots:
             if not snap.scorecard_data:
                 continue
-            for player_id in snap.scorecard_data:
-                have_scorecard.add(str(player_id))
+
+            for player_id, scorecards in snap.scorecard_data.items():
+                # Ensure scorecards is a list of round payloads
+                if isinstance(scorecards, dict):
+                    scorecards = [scorecards]
+                if not isinstance(scorecards, list):
+                    continue
+
+                for scorecard in scorecards:
+                    scorecard_round_id = parse_mongodb_value(scorecard.get("roundId"))
+                    if scorecard_round_id == round_id:
+                        have_scorecard.add(str(player_id))
+                        break
+
         return have_scorecard
     
     def sync_tournament(

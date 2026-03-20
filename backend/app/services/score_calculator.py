@@ -70,16 +70,22 @@ class ScoreCalculatorService:
         leaderboard_data = snapshot.leaderboard_data
         scorecard_data = snapshot.scorecard_data or {}
         
-        # Merge scorecard data from all snapshots for this round to ensure we have complete data
-        # This is important because scorecards might have been fetched in earlier snapshots
-        # but not in the latest one (if player didn't improve by 2+ strokes)
+        # Merge scorecard data from *all* snapshots for this tournament.
+        #
+        # Slash Golf scorecard payloads contain ALL rounds for that player, but we may
+        # persist them under whatever snapshot "current_round" the sync job happened to run.
+        # That means a Round 1 scorecard can show up inside a later snapshot (round 2/3/4).
+        # To avoid missing eagles/HIOs, we merge across snapshots and then keep only
+        # the scorecards whose internal "roundId" matches the target round_id.
+        #
+        # We order oldest->newest so later snapshots overwrite earlier ones (keep freshest data).
         all_snapshots = self.db.query(ScoreSnapshot).filter(
-            ScoreSnapshot.tournament_id == tournament_id,
-            ScoreSnapshot.round_id == round_id
-        ).order_by(ScoreSnapshot.timestamp.desc()).all()
+            ScoreSnapshot.tournament_id == tournament_id
+        ).order_by(ScoreSnapshot.timestamp.asc()).all()
         
-        # Merge scorecard data from all snapshots for the round
-        # We need to merge scorecard lists, not just overwrite, to ensure we have all rounds
+        # Merge scorecard data across snapshots for the target round.
+        # Scorecards are stored per-player and may include multiple internal rounds,
+        # so we merge lists and then filter by internal "roundId == round_id".
         merged_scorecard_data = {}
         for snap in all_snapshots:
             if snap.scorecard_data:
