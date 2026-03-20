@@ -395,6 +395,62 @@ export const adminApi = {
     return response.data
   },
 
+  /** Run bonus audit: fetch scorecards, compute bonuses, store snapshot (does not write bonus_points) */
+  runBonusAudit: async (
+    tournamentId: number,
+    roundId: number
+  ): Promise<{
+    success: boolean
+    message: string
+    run: {
+      id: number
+      tournament_id: number
+      round_id: number
+      status: string
+      players_checked: number
+      scorecards_fetched: number
+      entries_audited: number
+      bonus_lines_count: number
+    }
+    lines: Array<{
+      entry_id: number
+      participant_name: string
+      player_id: string | null
+      player_name: string | null
+      bonus_type: string
+      points: number
+      hole: number | null
+    }>
+    errors: string[]
+  }> => {
+    const response = await api.post('/admin/bonus-audit/run', null, {
+      params: { tournament_id: tournamentId, round_id: roundId },
+    })
+    return response.data
+  },
+
+  getBonusAuditRun: async (runId: number): Promise<{
+    success: boolean
+    run: {
+      id: number
+      tournament_id: number
+      round_id: number
+      status: string
+      lines: Array<{
+        entry_id: number
+        participant_name: string
+        player_id: string | null
+        player_name: string | null
+        bonus_type: string
+        points: number
+        hole: number | null
+      }>
+    }
+  }> => {
+    const response = await api.get(`/admin/bonus-audit/runs/${runId}`)
+    return response.data
+  },
+
   /** Get tournament-level settings, including leaderboard visibility */
   getTournamentLeaderboardVisibility: async (
     tournamentId: number

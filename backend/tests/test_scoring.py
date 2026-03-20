@@ -173,6 +173,30 @@ def test_calculate_bonus_points_detects_eagle_from_scorecard(scoring_service, sa
     assert eagle_bonuses[0]["points"] == 2.0
 
 
+def test_calculate_bonus_points_audit_mode_does_not_set_weekend_flag(
+    scoring_service, sample_entry, sample_tournament, db
+):
+    """audit_mode must not mutate entry.weekend_bonus_earned when awarding all_make_cut."""
+    sample_entry.weekend_bonus_earned = False
+    sample_entry.rebuy_player_ids = []
+    db.commit()
+    db.refresh(sample_entry)
+
+    leaderboard_data = {"leaderboardRows": []}
+    bonuses = scoring_service.calculate_bonus_points(
+        sample_entry,
+        leaderboard_data,
+        {},
+        round_id=3,
+        tournament=sample_tournament,
+        audit_mode=True,
+    )
+    types = {b["bonus_type"] for b in bonuses}
+    assert "all_make_cut" in types
+    db.refresh(sample_entry)
+    assert sample_entry.weekend_bonus_earned is False
+
+
 @pytest.fixture
 def scoring_service(db):
     """Create scoring service instance."""

@@ -335,10 +335,15 @@ class ScoringService:
         leaderboard_data: Dict[str, Any],
         scorecard_data: Dict[str, Any],
         round_id: int,
-        tournament: Tournament
+        tournament: Tournament,
+        audit_mode: bool = False,
     ) -> List[Dict[str, Any]]:
         """
         Calculate bonus points for an entry.
+        
+        Args:
+            audit_mode: When True, do not mutate the entry (e.g. weekend_bonus_earned).
+                Used by bonus audit snapshots so re-runs stay idempotent for DB state.
         
         Returns:
             List of bonus point dictionaries
@@ -558,7 +563,8 @@ class ScoringService:
                     "bonus_type": "all_make_cut",
                     "points": 5.0
                 })
-                entry.weekend_bonus_earned = True
+                if not audit_mode:
+                    entry.weekend_bonus_earned = True
         
         return bonuses
     

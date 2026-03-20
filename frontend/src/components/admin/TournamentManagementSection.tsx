@@ -41,6 +41,42 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
   useEffect(() => {
     if (tournament?.current_round != null) setBonusCheckRoundId(tournament.current_round)
   }, [tournament?.id, tournament?.current_round])
+  const [auditRunning, setAuditRunning] = useState(false)
+  const [auditModalOpen, setAuditModalOpen] = useState(false)
+  const [auditResult, setAuditResult] = useState<{
+    message: string
+    run: {
+      id: number
+      round_id: number
+      bonus_lines_count: number
+      players_checked: number
+      scorecards_fetched: number
+      entries_audited: number
+    }
+    lines: Array<{
+      entry_id: number
+      participant_name: string
+      player_id: string | null
+      player_name: string | null
+      bonus_type: string
+      points: number
+      hole: number | null
+    }>
+    errors: string[]
+  } | null>(null)
+
+  const bonusAuditTypeLabel = (t: string) => {
+    const map: Record<string, string> = {
+      eagle: 'Eagle',
+      double_eagle: 'Double eagle',
+      hole_in_one: 'Hole-in-one',
+      low_score: 'Low score (round)',
+      gir_leader: 'GIR leader',
+      fairways_leader: 'Fairways leader',
+      all_make_cut: 'Weekend loyalty (no rebuys)',
+    }
+    return map[t] || t.replace(/_/g, ' ')
+  }
   const [scoreCalculationResult, setScoreCalculationResult] = useState<{
     players_with_scorecards?: number;
     players_missing_scorecards?: number;
@@ -767,6 +803,56 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
             </div>
           )}
 
+          {/* Bonus audit snapshot (stored in DB; does not apply bonuses) */}
+          {tournament && (
+            <div className="border-b border-gray-200 pb-4">
+              <h3 className="font-medium text-gray-900 mb-2">Bonus audit (scorecard snapshot)</h3>
+              <p className="text-sm text-gray-600 mb-3">
+                Fetches scorecards for all entry players, merges with the latest snapshot for the selected round,
+                and computes bonuses using the same rules as scoring — then saves results to{' '}
+                <code className="bg-gray-100 px-1 rounded text-xs">bonus_audit_runs</code> /{' '}
+                <code className="bg-gray-100 px-1 rounded text-xs">bonus_audit_lines</code>.
+                This does <strong>not</strong> write to <code className="bg-gray-100 px-1 rounded text-xs">bonus_points</code> or recalculate the leaderboard.
+                Use the same round as &quot;Check all players&quot; when comparing.
+              </p>
+              <p className="text-xs text-orange-700 mb-2">
+                Makes one API scorecard call per distinct entry player (same scale as bonus check).
+              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!tournament) return
+                    setAuditRunning(true)
+                    setMessage(null)
+                    try {
+                      const data = await adminApi.runBonusAudit(tournament.id, bonusCheckRoundId)
+                      setAuditResult({
+                        message: data.message,
+                        run: data.run,
+                        lines: data.lines || [],
+                        errors: data.errors || [],
+                      })
+                      setAuditModalOpen(true)
+                      setMessage({ type: 'success', text: data.message })
+                    } catch (error: any) {
+                      setMessage({
+                        type: 'error',
+                        text: error.response?.data?.detail || 'Bonus audit failed',
+                      })
+                    } finally {
+                      setAuditRunning(false)
+                    }
+                  }}
+                  disabled={auditRunning || !tournament}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base"
+                >
+                  {auditRunning ? 'Running audit…' : 'Run bonus audit & save snapshot'}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Run Job Once */}
           {tournament && (
             <div className="border-b border-gray-200 pb-4">
@@ -1248,6 +1334,96 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
           </div>
         )}
       </div>
+
+      {auditModalOpen && auditResult && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="bonus-audit-title"
+        >
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+            <div className="px-4 py-3 border-b border-gray-200 flex items-start justify-between gap-2">
+              <div>
+                <h2 id="bonus-audit-title" className="text-lg font-semibold text-gray-900">
+                  Bonus audit — Round {auditResult.run.round_id}
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  Run #{auditResult.run.id} · {auditResult.run.bonus_lines_count} line(s) ·{' '}
+                  {auditResult.run.players_checked} players · {auditResult.run.scorecards_fetched} scorecards fetched ·{' '}
+                  {auditResult.run.entries_audited} entries
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuditModalOpen(false)
+                  setAuditResult(null)
+                }}
+                className="text-gray-500 hover:text-gray-800 text-2xl leading-none px-2"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="px-4 py-2 overflow-y-auto flex-1">
+              {auditResult.errors.length > 0 && (
+                <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded text-sm text-amber-900">
+                  <strong>Warnings:</strong>
+                  <ul className="list-disc list-inside mt-1">
+                    {auditResult.errors.slice(0, 8).map((e, i) => (
+                      <li key={i}>{e}</li>
+                    ))}
+                    {auditResult.errors.length > 8 && (
+                      <li>…and {auditResult.errors.length - 8} more</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+              {auditResult.lines.length === 0 ? (
+                <p className="text-sm text-gray-600">No bonus lines computed for this round.</p>
+              ) : (
+                <table className="min-w-full text-sm border border-gray-200">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      <th className="text-left p-2 border-b">Entry</th>
+                      <th className="text-left p-2 border-b">Player</th>
+                      <th className="text-left p-2 border-b">Type</th>
+                      <th className="text-right p-2 border-b">Pts</th>
+                      <th className="text-right p-2 border-b">Hole</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auditResult.lines.map((row, idx) => (
+                      <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="p-2">{row.participant_name}</td>
+                        <td className="p-2">
+                          {row.player_name || row.player_id || '—'}
+                        </td>
+                        <td className="p-2">{bonusAuditTypeLabel(row.bonus_type)}</td>
+                        <td className="p-2 text-right">{row.points.toFixed(1)}</td>
+                        <td className="p-2 text-right">{row.hole ?? '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            <div className="px-4 py-3 border-t border-gray-200 flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setAuditModalOpen(false)
+                  setAuditResult(null)
+                }}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

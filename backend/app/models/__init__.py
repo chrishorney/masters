@@ -8,6 +8,7 @@ from .daily_score import DailyScore
 from .bonus_point import BonusPoint
 from .ranking_snapshot import RankingSnapshot
 from .push_subscription import PushSubscription
+from .bonus_audit import BonusAuditRun, BonusAuditLine
 
 __all__ = [
     "Tournament",
@@ -19,4 +20,6 @@ __all__ = [
     "BonusPoint",
     "RankingSnapshot",
     "PushSubscription",
+    "BonusAuditRun",
+    "BonusAuditLine",
 ]
