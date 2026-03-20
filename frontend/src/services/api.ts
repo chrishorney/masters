@@ -451,6 +451,54 @@ export const adminApi = {
     return response.data
   },
 
+  previewBonusAuditReconcile: async (runId: number): Promise<{
+    success: boolean
+    summary: {
+      audit_lines: number
+      live_lines: number
+      missing_in_live_count: number
+      extra_in_live_count: number
+      point_mismatch_count: number
+    }
+    missing_in_live: Array<{
+      entry_id: number
+      participant_name: string
+      player_id: string | null
+      player_name: string | null
+      bonus_type: string
+      points: number
+      hole: number | null
+    }>
+    point_mismatches: Array<{
+      entry_id: number
+      participant_name: string
+      player_id: string | null
+      player_name: string | null
+      bonus_type: string
+      hole: number | null
+      audit_points: number
+      live_points: number
+    }>
+  }> => {
+    const response = await api.get('/admin/bonus-audit/reconcile/preview', {
+      params: { run_id: runId },
+    })
+    return response.data
+  },
+
+  applyBonusAuditReconcile: async (runId: number): Promise<{
+    success: boolean
+    message: string
+    bonus_points_added: number
+    bonus_points_updated: number
+    entries_recalculated: number
+  }> => {
+    const response = await api.post('/admin/bonus-audit/reconcile/apply', null, {
+      params: { run_id: runId },
+    })
+    return response.data
+  },
+
   /** Get tournament-level settings, including leaderboard visibility */
   getTournamentLeaderboardVisibility: async (
     tournamentId: number

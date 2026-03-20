@@ -64,6 +64,34 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
     }>
     errors: string[]
   } | null>(null)
+  const [auditDiff, setAuditDiff] = useState<{
+    summary: {
+      missing_in_live_count: number
+      point_mismatch_count: number
+      extra_in_live_count: number
+    }
+    missing_in_live: Array<{
+      entry_id: number
+      participant_name: string
+      player_id: string | null
+      player_name: string | null
+      bonus_type: string
+      points: number
+      hole: number | null
+    }>
+    point_mismatches: Array<{
+      entry_id: number
+      participant_name: string
+      player_id: string | null
+      player_name: string | null
+      bonus_type: string
+      hole: number | null
+      audit_points: number
+      live_points: number
+    }>
+  } | null>(null)
+  const [loadingAuditDiff, setLoadingAuditDiff] = useState(false)
+  const [applyingAuditDiff, setApplyingAuditDiff] = useState(false)
 
   const bonusAuditTypeLabel = (t: string) => {
     const map: Record<string, string> = {
@@ -834,6 +862,27 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
                         errors: data.errors || [],
                       })
                       setAuditModalOpen(true)
+                      setLoadingAuditDiff(true)
+                      setAuditDiff(null)
+                      try {
+                        const diff = await adminApi.previewBonusAuditReconcile(data.run.id)
+                        setAuditDiff({
+                          summary: {
+                            missing_in_live_count: diff.summary.missing_in_live_count,
+                            point_mismatch_count: diff.summary.point_mismatch_count,
+                            extra_in_live_count: diff.summary.extra_in_live_count,
+                          },
+                          missing_in_live: diff.missing_in_live || [],
+                          point_mismatches: diff.point_mismatches || [],
+                        })
+                      } catch (e: any) {
+                        setMessage({
+                          type: 'error',
+                          text: e?.response?.data?.detail || 'Failed to load reconciliation preview',
+                        })
+                      } finally {
+                        setLoadingAuditDiff(false)
+                      }
                       setMessage({ type: 'success', text: data.message })
                     } catch (error: any) {
                       setMessage({
@@ -1359,6 +1408,7 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
                 onClick={() => {
                   setAuditModalOpen(false)
                   setAuditResult(null)
+                  setAuditDiff(null)
                 }}
                 className="text-gray-500 hover:text-gray-800 text-2xl leading-none px-2"
                 aria-label="Close"
@@ -1380,6 +1430,35 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
                   </ul>
                 </div>
               )}
+              <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-900">
+                {loadingAuditDiff ? (
+                  <span>Loading reconcile differences…</span>
+                ) : auditDiff ? (
+                  <div className="space-y-1">
+                    <div>
+                      <strong>Diff summary:</strong>{' '}
+                      missing in live: {auditDiff.summary.missing_in_live_count}, point mismatches:{' '}
+                      {auditDiff.summary.point_mismatch_count}, extra in live:{' '}
+                      {auditDiff.summary.extra_in_live_count}
+                    </div>
+                    {auditDiff.summary.missing_in_live_count > 0 && (
+                      <div className="max-h-28 overflow-y-auto text-xs">
+                        {auditDiff.missing_in_live.slice(0, 12).map((m, i) => (
+                          <div key={i}>
+                            {m.participant_name}: {bonusAuditTypeLabel(m.bonus_type)}
+                            {m.hole ? ` (hole ${m.hole})` : ''} [{m.points.toFixed(1)}]
+                          </div>
+                        ))}
+                        {auditDiff.missing_in_live.length > 12 && (
+                          <div>…and {auditDiff.missing_in_live.length - 12} more</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <span>No diff preview loaded.</span>
+                )}
+              </div>
               {auditResult.lines.length === 0 ? (
                 <p className="text-sm text-gray-600">No bonus lines computed for this round.</p>
               ) : (
@@ -1412,9 +1491,51 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
             <div className="px-4 py-3 border-t border-gray-200 flex justify-end">
               <button
                 type="button"
+                onClick={async () => {
+                  if (!auditResult) return
+                  setApplyingAuditDiff(true)
+                  try {
+                    const res = await adminApi.applyBonusAuditReconcile(auditResult.run.id)
+                    setMessage({
+                      type: 'success',
+                      text: res.message,
+                    })
+                    const diff = await adminApi.previewBonusAuditReconcile(auditResult.run.id)
+                    setAuditDiff({
+                      summary: {
+                        missing_in_live_count: diff.summary.missing_in_live_count,
+                        point_mismatch_count: diff.summary.point_mismatch_count,
+                        extra_in_live_count: diff.summary.extra_in_live_count,
+                      },
+                      missing_in_live: diff.missing_in_live || [],
+                      point_mismatches: diff.point_mismatches || [],
+                    })
+                  } catch (e: any) {
+                    setMessage({
+                      type: 'error',
+                      text: e?.response?.data?.detail || 'Failed to apply reconciliation',
+                    })
+                  } finally {
+                    setApplyingAuditDiff(false)
+                  }
+                }}
+                disabled={
+                  applyingAuditDiff ||
+                  loadingAuditDiff ||
+                  !auditDiff ||
+                  (auditDiff.summary.missing_in_live_count === 0 &&
+                    auditDiff.summary.point_mismatch_count === 0)
+                }
+                className="mr-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {applyingAuditDiff ? 'Applying…' : 'Apply differences to live scoring'}
+              </button>
+              <button
+                type="button"
                 onClick={() => {
                   setAuditModalOpen(false)
                   setAuditResult(null)
+                  setAuditDiff(null)
                 }}
                 className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
               >
