@@ -199,7 +199,8 @@ def test_rebuy_workflow(db: Session):
     db.refresh(entry)
     assert "50525" in (entry.rebuy_original_player_ids or [])
     assert "99999" in (entry.rebuy_player_ids or [])
-    assert entry.rebuy_type == "missed_cut"
+    # Rebuy Type is no longer required/inferred from uploads.
+    assert entry.rebuy_type is None
 
 
 def test_bonus_points_workflow(db: Session):

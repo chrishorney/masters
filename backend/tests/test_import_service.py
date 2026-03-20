@@ -236,4 +236,119 @@ def test_import_rebuys(db):
     
     assert "50525" in rebuy_original, f"Expected 50525 in {rebuy_original}"
     assert "99999" in rebuy_players, f"Expected 99999 in {rebuy_players}"
-    assert entry.rebuy_type == "missed_cut"
+    # Rebuy Type is no longer required/inferred from uploads.
+    assert entry.rebuy_type is None
+
+
+def test_import_rebuys_smartsheet_replace_pairs(db):
+    """Test importing SmartSheet rebuy export via replace pairs (no Rebuy Type)."""
+    tournament = Tournament(
+        year=2024,
+        tourn_id="TEST_SMART_REBUYS",
+        org_id="1",
+        name="Test Tournament",
+        start_date=date(2024, 4, 11),
+        end_date=date(2024, 4, 14),
+        status="Official",
+        current_round=1,
+    )
+    db.add(tournament)
+    db.commit()
+    db.refresh(tournament)
+
+    participant = Participant(name="John Smith")
+    db.add(participant)
+    db.commit()
+    db.refresh(participant)
+
+    entry = Entry(
+        participant_id=participant.id,
+        tournament_id=tournament.id,
+        player1_id="50525",
+        player2_id="47504",
+        player3_id="34466",
+        player4_id="57366",
+        player5_id="12345",
+        player6_id="67890",
+    )
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+
+    # Players for the initial 6 picks
+    players_data = [
+        ("50525", "Collin", "Morikawa", "Collin Morikawa"),
+        ("47504", "Sam", "Burns", "Sam Burns"),
+        ("34466", "Peter", "Malnati", "Peter Malnati"),
+        ("57366", "Cameron", "Young", "Cameron Young"),
+        ("12345", "Test", "Player1", "Test Player1"),
+        ("67890", "Test", "Player2", "Test Player2"),
+        # Replacement player
+        ("99999", "Scottie", "Scheffler", "Scottie Scheffler"),
+    ]
+    for pid, first, last, full in players_data:
+        db.add(Player(player_id=pid, first_name=first, last_name=last, full_name=full))
+    db.commit()
+
+    # SmartSheet-style header + one replace pair (pair 1).
+    header = [
+        "Player Name",
+        "Professional 1",
+        "Professional 2",
+        "Professional 3",
+        "Professional 4",
+        "Professional 5",
+        "Professional 6",
+        "Replace",
+        "Replace with",
+        "Replace",
+        "Replace with",
+        "Replace",
+        "Replace with",
+        "Replace",
+        "Replace with",
+        "Replace",
+        "Replace with",
+        "Replace",
+        "Replace with",
+    ]
+    row = [
+        "John Smith",
+        "Collin Morikawa",
+        "Sam Burns",
+        "Peter Malnati",
+        "Cameron Young",
+        "Test Player1",
+        "Test Player2",
+        # Replace pair 1: original (must be one of entry.player1..6) + replacement
+        "Peter Malnati",
+        "Scottie Scheffler",
+        # Remaining replace pairs (2-6) are blank
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+    ]
+
+    assert len(row) == len(header)
+    csv_content = (",".join(header) + "\n" + ",".join(row)).encode("utf-8")
+
+    service = ImportService(db)
+    parsed_rows = service.parse_csv(csv_content)
+    results = service.import_rebuys(parsed_rows, tournament.id)
+
+    assert results["success"] is True
+    assert results["imported"] >= 1
+
+    db.refresh(entry)
+    rebuy_original = entry.rebuy_original_player_ids or []
+    rebuy_players = entry.rebuy_player_ids or []
+    assert "34466" in rebuy_original, f"Expected 34466 in {rebuy_original}"
+    assert "99999" in rebuy_players, f"Expected 99999 in {rebuy_players}"
+    assert entry.rebuy_type is None

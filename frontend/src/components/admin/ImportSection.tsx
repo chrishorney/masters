@@ -289,9 +289,8 @@ export function ImportSection({ tournamentId }: ImportSectionProps) {
             </>
           ) : (
             <>
-              <p><strong>Required columns:</strong> Participant Name, Original Player Name, Rebuy Player Name, Rebuy Type</p>
-              <p>Rebuy Type must be: <code className="bg-blue-100 px-1 rounded">missed_cut</code> or <code className="bg-blue-100 px-1 rounded">underperformer</code></p>
-              <p>See <code className="bg-blue-100 px-1 rounded">docs/examples/rebuys_example.csv</code> for format</p>
+              <p><strong>Required columns (SmartSheet export):</strong> Player Name (or Participant Name), Professional 1-6, then Replace/Replace with pairs after Professional 6.</p>
+              <p>No <code className="bg-blue-100 px-1 rounded">Rebuy Type</code> column is needed.</p>
             </>
           )}
         </div>

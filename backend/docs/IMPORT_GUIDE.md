@@ -84,16 +84,14 @@ Jane Doe,Scottie Scheffler,Jon Rahm,Viktor Hovland,Jordan Spieth,Dustin Johnson,
 ### Rebuys Format
 
 **Required Columns:**
-- `Participant Name` - Name of the person making the rebuy
-- `Original Player Name` - Name of the player being replaced
-- `Rebuy Player Name` - Name of the replacement player
-- `Rebuy Type` - Either `missed_cut` or `underperformer`
+- `Player Name` (SmartSheet) or `Participant Name` (legacy template)
+- `Professional 1` ... `Professional 6` - the original 6 player picks
+- `Replace` / `Replace with` column pairs after `Professional 6`
 
 **Example:**
 ```csv
-Participant Name,Original Player Name,Rebuy Player Name,Rebuy Type
-John Smith,Collin Morikawa,Scottie Scheffler,missed_cut
-Jane Doe,Sam Burns,Jon Rahm,underperformer
+Player Name,Professional 1,Professional 2,Professional 3,Professional 4,Professional 5,Professional 6,Replace,Replace with,...
+John Smith,Collin Morikawa,Sam Burns,Peter Malnati,Cameron Young,Xander Schauffele,Patrick Cantlay,Collin Morikawa,Scottie Scheffler,...
 ```
 
 ## Player Name Matching
@@ -154,11 +152,7 @@ The system matches player names using several strategies:
    - Error: "Participant 'John Smith' not found"
    - Solution: Import entries before importing rebuys
 
-4. **Invalid Rebuy Type**
-   - Error: "Invalid rebuy type 'missedcut'"
-   - Solution: Use exactly "missed_cut" or "underperformer"
-
-5. **Duplicate Entry**
+4. **Duplicate Entry**
    - Entry is skipped if exact duplicate exists (same participant, tournament, and players)
 
 ## Workflow

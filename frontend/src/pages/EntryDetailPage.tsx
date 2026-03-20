@@ -116,7 +116,8 @@ export function EntryDetailPage() {
                     </div>
                     {isRebuy && rebuyInfo && (
                       <div className="text-sm text-orange-600 mt-1">
-                        Rebuy: {getRebuyPlayerName(rebuyInfo)} ({entry.rebuy_type})
+                        Rebuy: {getRebuyPlayerName(rebuyInfo)}
+                        {entry.rebuy_type ? ` (${entry.rebuy_type})` : ''}
                       </div>
                     )}
                   </div>

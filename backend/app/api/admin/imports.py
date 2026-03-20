@@ -167,7 +167,9 @@ async def import_rebuys(
     """
     Import rebuys from SmartSheet CSV export.
     Optional: applied_suggestions = JSON array of {"row", "column", "player_id"} to apply spelling corrections.
-    Expected CSV format: Participant Name, Original Player Name, Rebuy Player Name, Rebuy Type
+    Expected CSV format:
+    - SmartSheet export: Player Name + Professional 1-6, then Replace/Replace with pairs after Professional 6
+    - (Legacy) normalized: Participant Name, Original Player Name, Rebuy Player Name (no Rebuy Type required)
     """
     if not file.filename.endswith((".csv", ".CSV")):
         raise HTTPException(status_code=400, detail="File must be a CSV file")

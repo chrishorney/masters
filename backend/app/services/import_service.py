@@ -15,6 +15,9 @@ class ImportService:
     
     def __init__(self, db: Session):
         self.db = db
+        # Populated by parse_csv() so we can use column order when SmartSheet exports
+        # repeat header names (e.g. multiple "Replace" columns).
+        self._parsed_header_keys: List[str] = []
     
     def normalize_name(self, name: str) -> str:
         """
@@ -196,8 +199,29 @@ class ImportService:
             return {"valid": False, "error": col_error, "row_results": [], "suggestions": []}
         row_results: List[Dict[str, Any]] = []
         all_suggestions: List[Dict[str, Any]] = []
+        first_row = rows[0]
+        keys = set(first_row.keys())
+
+        def has_key_variant(base: str) -> bool:
+            return any((k == base or k.startswith(base + "__")) for k in keys)
+
+        # Support both template and SmartSheet headers.
+        participant_key = "Participant Name" if has_key_variant("Participant Name") else "Player Name"
+        professional_keys = []
+        for i in range(1, 7):
+            template_key = f"Player {i} Name"
+            smart_key = f"Professional {i}"
+            # Prefer template keys if present, otherwise fall back to SmartSheet "Professional X"
+            if has_key_variant(template_key):
+                # We want the exact key (including any __ suffix for duplicates).
+                k = next(k for k in keys if k == template_key or k.startswith(template_key + "__"))
+                professional_keys.append(k)
+            else:
+                k = next(k for k in keys if k == smart_key or k.startswith(smart_key + "__"))
+                professional_keys.append(k)
+
         for row_num, row in enumerate(rows, start=2):
-            participant_name = (row.get("Participant Name") or "").strip()
+            participant_name = (row.get(participant_key) or "").strip()
             if not participant_name:
                 row_results.append({"row": row_num, "participant": "", "players": [], "row_error": "Participant Name is required"})
                 continue
@@ -205,7 +229,8 @@ class ImportService:
             row_ok = True
             for i in range(1, 7):
                 col = f"Player {i} Name"
-                value = (row.get(col) or "").strip()
+                actual_header_key = professional_keys[i - 1]
+                value = (row.get(actual_header_key) or "").strip()
                 if not value:
                     players.append({"column": col, "value": value, "matched": False, "player_id": None, "suggestion": None})
                     row_ok = False
@@ -252,41 +277,203 @@ class ImportService:
         """
         tournament = self.db.query(Tournament).filter(Tournament.id == tournament_id).first()
         if not tournament:
-            return {"valid": False, "error": f"Tournament {tournament_id} not found", "row_results": [], "suggestions": [], "can_import_directly": False, "can_import_with_corrections": False}
+            return {
+                "valid": False,
+                "error": f"Tournament {tournament_id} not found",
+                "row_results": [],
+                "suggestions": [],
+                "can_import_directly": False,
+                "can_import_with_corrections": False,
+            }
+
+        header_keys = getattr(self, "_parsed_header_keys", []) or []
+        pro6_key = next((k for k in header_keys if k == "Professional 6" or k.startswith("Professional 6__")), None)
+        is_smart_sheet_rebuys = bool(pro6_key)
+
+        if is_smart_sheet_rebuys:
+            first_row = rows[0] if rows else {}
+            keys = set(first_row.keys())
+
+            def has_key_variant(base: str) -> bool:
+                return any((k == base or k.startswith(base + "__")) for k in keys)
+
+            participant_key = "Participant Name" if has_key_variant("Participant Name") else "Player Name"
+            pro6_idx = header_keys.index(pro6_key)
+            replace_start_idx = pro6_idx + 1
+            replace_pairs: List[Tuple[str, str]] = []
+            for pair_idx in range(6):
+                a = replace_start_idx + pair_idx * 2
+                b = a + 1
+                if b >= len(header_keys):
+                    break
+                replace_pairs.append((header_keys[a], header_keys[b]))
+
+            row_results: List[Dict[str, Any]] = []
+            all_suggestions: List[Dict[str, Any]] = []
+
+            for row_num, row in enumerate(rows, start=2):
+                participant_name = (row.get(participant_key) or "").strip()
+                row_error = None
+
+                if not participant_name:
+                    row_results.append({"row": row_num, "participant": "", "row_error": "Participant Name is required"})
+                    continue
+
+                participant = self.db.query(Participant).filter(Participant.name == participant_name).first()
+                if not participant:
+                    row_results.append({
+                        "row": row_num,
+                        "participant": participant_name,
+                        "row_error": "Participant not found. Import entries first."
+                    })
+                    continue
+
+                entry = self.db.query(Entry).filter(
+                    Entry.participant_id == participant.id,
+                    Entry.tournament_id == tournament_id,
+                ).first()
+
+                if not entry:
+                    row_results.append({
+                        "row": row_num,
+                        "participant": participant_name,
+                        "row_error": "No entry for this participant in tournament."
+                    })
+                    continue
+
+                player_positions = [
+                    entry.player1_id,
+                    entry.player2_id,
+                    entry.player3_id,
+                    entry.player4_id,
+                    entry.player5_id,
+                    entry.player6_id,
+                ]
+
+                found_any_pair = False
+                for pair_idx, (orig_key, with_key) in enumerate(replace_pairs):
+                    orig_name = (row.get(orig_key) or "").strip()
+                    with_name = (row.get(with_key) or "").strip()
+
+                    # Treat completely empty pair as "not provided"
+                    if not orig_name and not with_name:
+                        continue
+
+                    found_any_pair = True
+
+                    if not orig_name and with_name:
+                        row_error = f"Missing Replace Original for replace pair {pair_idx + 1}"
+                        break
+
+                    # Resolve original player (must be one of the 6 entry players)
+                    original_player_id = self.match_player_name(orig_name, tournament_id)
+                    if original_player_id and original_player_id in player_positions:
+                        pass
+                    else:
+                        suggestion = self.suggest_player_name(orig_name, tournament_id)
+                        if suggestion:
+                            sug_name, sug_id = suggestion
+                            if sug_id in player_positions:
+                                all_suggestions.append({
+                                    "row": row_num,
+                                    "column": f"Replace Original {pair_idx + 1}",
+                                    "value": orig_name,
+                                    "suggestion": sug_name,
+                                    "player_id": sug_id,
+                                })
+                            else:
+                                row_error = f"Original player '{orig_name}' not found in entry"
+                                break
+                        else:
+                            row_error = f"Original player '{orig_name}' not found in entry"
+                            break
+
+                    # Resolve replacement player (can be any tournament player)
+                    replacement_player_id = self.match_player_name(with_name, tournament_id)
+                    if replacement_player_id:
+                        pass
+                    else:
+                        suggestion = self.suggest_player_name(with_name, tournament_id)
+                        if suggestion:
+                            sug_name, sug_id = suggestion
+                            all_suggestions.append({
+                                "row": row_num,
+                                "column": f"Replace With {pair_idx + 1}",
+                                "value": with_name,
+                                "suggestion": sug_name,
+                                "player_id": sug_id,
+                            })
+                        else:
+                            row_error = f"Rebuy player '{with_name}' not found"
+                            break
+
+                if not found_any_pair and not row_error:
+                    row_error = "No replace pairs found for this participant"
+
+                row_results.append({
+                    "row": row_num,
+                    "participant": participant_name,
+                    "row_error": row_error,
+                })
+
+            valid = not any(r.get("row_error") for r in row_results)
+            can_import_directly = valid and len(all_suggestions) == 0
+            can_import_with_corrections = valid and len(all_suggestions) > 0
+            return {
+                "valid": valid,
+                "error": None,
+                "row_results": row_results,
+                "suggestions": all_suggestions,
+                "can_import_directly": can_import_directly,
+                "can_import_with_corrections": can_import_with_corrections,
+            }
+
+        # Normalized format (legacy): Participant Name, Original Player Name, Rebuy Player Name
         is_valid, col_error = self.validate_rebuys_columns(rows)
         if not is_valid:
-            return {"valid": False, "error": col_error, "row_results": [], "suggestions": [], "can_import_directly": False, "can_import_with_corrections": False}
+            return {
+                "valid": False,
+                "error": col_error,
+                "row_results": [],
+                "suggestions": [],
+                "can_import_directly": False,
+                "can_import_with_corrections": False,
+            }
+
         row_results: List[Dict[str, Any]] = []
         all_suggestions: List[Dict[str, Any]] = []
         for row_num, row in enumerate(rows, start=2):
             participant_name = (row.get("Participant Name") or "").strip()
             original_name = (row.get("Original Player Name") or "").strip()
             rebuy_name = (row.get("Rebuy Player Name") or "").strip()
-            rebuy_type = (row.get("Rebuy Type") or "").strip().lower()
             row_error = None
+
             if not participant_name:
                 row_results.append({"row": row_num, "participant": "", "original": None, "rebuy": None, "row_error": "Participant Name is required"})
                 continue
+
             participant = self.db.query(Participant).filter(Participant.name == participant_name).first()
             if not participant:
                 row_results.append({"row": row_num, "participant": participant_name, "original": None, "rebuy": None, "row_error": "Participant not found. Import entries first."})
                 continue
+
             entry = self.db.query(Entry).filter(
                 Entry.participant_id == participant.id,
                 Entry.tournament_id == tournament_id,
             ).first()
+
             if not entry:
                 row_results.append({"row": row_num, "participant": participant_name, "original": None, "rebuy": None, "row_error": "No entry for this participant in tournament."})
                 continue
+
             if not original_name:
                 row_results.append({"row": row_num, "participant": participant_name, "original": None, "rebuy": None, "row_error": "Original Player Name is required."})
                 continue
+
             if not rebuy_name:
                 row_results.append({"row": row_num, "participant": participant_name, "original": None, "rebuy": None, "row_error": "Rebuy Player Name is required."})
                 continue
-            if rebuy_type not in ["missed_cut", "underperformer"]:
-                row_results.append({"row": row_num, "participant": participant_name, "original": None, "rebuy": None, "row_error": f"Invalid rebuy type '{rebuy_type}'."})
-                continue
+
             player_positions = [entry.player1_id, entry.player2_id, entry.player3_id, entry.player4_id, entry.player5_id, entry.player6_id]
             original_matched = self.match_player_name(original_name, tournament_id)
             if original_matched and original_matched in player_positions:
@@ -312,6 +499,7 @@ class ImportService:
                 else:
                     original_status = {"column": "Original Player Name", "value": original_name, "matched": False, "player_id": None, "suggestion": None}
                     row_error = row_error or f"Original player '{original_name}' not found in entry"
+
             rebuy_matched = self.match_player_name(rebuy_name, tournament_id)
             if rebuy_matched:
                 rebuy_status = {"column": "Rebuy Player Name", "value": rebuy_name, "matched": True, "player_id": rebuy_matched, "suggestion": None}
@@ -324,18 +512,14 @@ class ImportService:
                 else:
                     rebuy_status = {"column": "Rebuy Player Name", "value": rebuy_name, "matched": False, "player_id": None, "suggestion": None}
                     row_error = row_error or f"Rebuy player '{rebuy_name}' not found"
+
             row_results.append({"row": row_num, "participant": participant_name, "original": original_status, "rebuy": rebuy_status, "row_error": row_error})
-        rows_ok = [r for r in row_results if not r.get("row_error")]
-        can_import_directly = len(rows_ok) > 0 and all(
-            r.get("original", {}).get("matched") and r.get("rebuy", {}).get("matched") for r in rows_ok
-        )
-        can_import_with_corrections = len(all_suggestions) > 0 and all(
-            (r.get("original") and (r["original"].get("matched") or r["original"].get("suggestion")))
-            and (r.get("rebuy") and (r["rebuy"].get("matched") or r["rebuy"].get("suggestion")))
-            for r in row_results if not r.get("row_error")
-        )
+
+        valid = not any(r.get("row_error") for r in row_results)
+        can_import_directly = valid and len(all_suggestions) == 0
+        can_import_with_corrections = valid and len(all_suggestions) > 0
         return {
-            "valid": can_import_directly or can_import_with_corrections or not any(r.get("row_error") for r in row_results),
+            "valid": valid,
             "error": None,
             "row_results": row_results,
             "suggestions": all_suggestions,
@@ -358,18 +542,47 @@ class ImportService:
             text = file_content.decode('utf-8')
         except UnicodeDecodeError:
             text = file_content.decode('latin-1')
-        
+
         # Handle different line endings
         text = text.replace('\r\n', '\n').replace('\r', '\n')
-        
-        reader = csv.DictReader(io.StringIO(text))
-        rows = []
-        for row in reader:
-            # Clean up whitespace in keys and values
-            cleaned_row = {k.strip(): v.strip() if v else "" for k, v in row.items()}
-            rows.append(cleaned_row)
-        
-        return rows
+
+        # Use csv.reader so we can preserve duplicate headers by disambiguating them.
+        # csv.DictReader would silently overwrite duplicate keys.
+        reader = csv.reader(io.StringIO(text))
+        all_rows = list(reader)
+        if not all_rows:
+            self._parsed_header_keys = []
+            return []
+
+        raw_header = all_rows[0]
+        header_counts: Dict[str, int] = {}
+        unique_header: List[str] = []
+        for h in raw_header:
+            base = (h or "").strip()
+            if base in header_counts:
+                header_counts[base] += 1
+                unique_header.append(f"{base}__{header_counts[base]}")
+            else:
+                header_counts[base] = 1
+                unique_header.append(base)
+
+        self._parsed_header_keys = unique_header
+
+        parsed: List[Dict[str, str]] = []
+        for row in all_rows[1:]:
+            # Skip completely blank rows
+            if not any((c or "").strip() for c in row):
+                continue
+
+            # Pad/truncate to header length
+            padded = (row + [""] * len(unique_header))[: len(unique_header)]
+            cleaned_row = {}
+            for i, key in enumerate(unique_header):
+                v = padded[i] if i < len(padded) else ""
+                cleaned_row[key] = v.strip() if v else ""
+            parsed.append(cleaned_row)
+
+        return parsed
     
     def validate_entries_columns(self, rows: List[Dict[str, str]]) -> Tuple[bool, Optional[str]]:
         """
@@ -381,23 +594,37 @@ class ImportService:
         if not rows:
             return False, "File is empty"
         
-        required_columns = [
+        first_row = rows[0]
+        keys = set(first_row.keys())
+
+        # Support both the internal template and raw SmartSheet exports.
+        # Internal template:
+        template_required = [
             "Participant Name",
             "Player 1 Name",
             "Player 2 Name",
             "Player 3 Name",
             "Player 4 Name",
             "Player 5 Name",
-            "Player 6 Name"
+            "Player 6 Name",
         ]
-        
-        first_row = rows[0]
-        missing_columns = [col for col in required_columns if col not in first_row]
-        
-        if missing_columns:
-            return False, f"Missing required columns: {', '.join(missing_columns)}"
-        
-        return True, None
+
+        def has_key_variant(base: str) -> bool:
+            return any((k == base or k.startswith(base + "__")) for k in keys)
+
+        # SmartSheet export:
+        smart_required = ["Player Name"] + [f"Professional {i}" for i in range(1, 7)]
+
+        if all((c in keys) for c in template_required):
+            return True, None
+        if all(has_key_variant(c) for c in smart_required):
+            return True, None
+
+        # Produce a readable error from the SmartSheet expected keys.
+        missing = [c for c in smart_required if not has_key_variant(c)]
+        if missing:
+            return False, f"Missing required columns for SmartSheet export: {', '.join(missing)}"
+        return False, "Unrecognized entries CSV format (missing required columns)"
     
     def validate_rebuys_columns(self, rows: List[Dict[str, str]]) -> Tuple[bool, Optional[str]]:
         """
@@ -409,19 +636,19 @@ class ImportService:
         if not rows:
             return False, "File is empty"
         
+        # Rebuy type is no longer required; it is inferred from replace pairs in the SmartSheet export.
         required_columns = [
             "Participant Name",
             "Original Player Name",
             "Rebuy Player Name",
-            "Rebuy Type"
         ]
-        
+
         first_row = rows[0]
         missing_columns = [col for col in required_columns if col not in first_row]
-        
+
         if missing_columns:
             return False, f"Missing required columns: {', '.join(missing_columns)}"
-        
+
         return True, None
     
     def import_entries(
@@ -469,6 +696,25 @@ class ImportService:
                 pid = s.get("player_id")
                 if r is not None and c and pid:
                     correction_lookup[(int(r), str(c).strip())] = str(pid)
+
+        # Support both template and SmartSheet entries headers.
+        first_row = rows[0]
+        keys = set(first_row.keys())
+
+        def has_key_variant(base: str) -> bool:
+            return any((k == base or k.startswith(base + "__")) for k in keys)
+
+        participant_key = "Participant Name" if has_key_variant("Participant Name") else "Player Name"
+        player_header_keys = []
+        for i in range(1, 7):
+            template_key = f"Player {i} Name"
+            smart_key = f"Professional {i}"
+            if has_key_variant(template_key):
+                k = next(k for k in keys if k == template_key or k.startswith(template_key + "__"))
+                player_header_keys.append(k)
+            else:
+                k = next(k for k in keys if k == smart_key or k.startswith(smart_key + "__"))
+                player_header_keys.append(k)
         
         results = {
             "success": True,
@@ -479,7 +725,7 @@ class ImportService:
         
         for row_num, row in enumerate(rows, start=2):  # Start at 2 (row 1 is header)
             try:
-                participant_name = row.get("Participant Name", "").strip()
+                participant_name = (row.get(participant_key, "") or "").strip()
                 if not participant_name:
                     results["errors"].append({
                         "row": row_num,
@@ -504,7 +750,8 @@ class ImportService:
                 
                 for i in range(1, 7):
                     col = f"Player {i} Name"
-                    player_name = row.get(col, "").strip()
+                    actual_header_key = player_header_keys[i - 1]
+                    player_name = (row.get(actual_header_key, "") or "").strip()
                     if not player_name:
                         player_errors.append(f"Player {i} Name is required")
                         continue
@@ -596,61 +843,173 @@ class ImportService:
         tournament = self.db.query(Tournament).filter(Tournament.id == tournament_id).first()
         if not tournament:
             return {"success": False, "error": f"Tournament {tournament_id} not found"}
-        is_valid, error = self.validate_rebuys_columns(rows)
-        if not is_valid:
-            return {"success": False, "error": error}
+
+        header_keys = getattr(self, "_parsed_header_keys", []) or []
+        pro6_key = next((k for k in header_keys if k == "Professional 6" or k.startswith("Professional 6__")), None)
+        is_smart_sheet_rebuys = bool(pro6_key)
+
         correction_lookup: Dict[Tuple[int, str], str] = {}
         if applied_suggestions:
             for s in applied_suggestions:
                 r, c, pid = s.get("row"), s.get("column"), s.get("player_id")
                 if r is not None and c and pid:
                     correction_lookup[(int(r), str(c).strip())] = str(pid)
+
         results = {"success": True, "imported": 0, "skipped": 0, "errors": []}
+
+        if is_smart_sheet_rebuys:
+            first_row = rows[0] if rows else {}
+            keys = set(first_row.keys())
+
+            def has_key_variant(base: str) -> bool:
+                return any((k == base or k.startswith(base + "__")) for k in keys)
+
+            participant_key = "Participant Name" if has_key_variant("Participant Name") else "Player Name"
+            pro6_idx = header_keys.index(pro6_key)
+            replace_start_idx = pro6_idx + 1
+            replace_pairs: List[Tuple[str, str]] = []
+            for pair_idx in range(6):
+                a = replace_start_idx + pair_idx * 2
+                b = a + 1
+                if b >= len(header_keys):
+                    break
+                replace_pairs.append((header_keys[a], header_keys[b]))
+
+            if not replace_pairs:
+                return {"success": False, "error": "Could not locate replace pairs in SmartSheet rebuy export."}
+
+            for row_num, row in enumerate(rows, start=2):
+                try:
+                    participant_name = (row.get(participant_key) or "").strip()
+                    if not participant_name:
+                        results["errors"].append({"row": row_num, "error": "Participant Name is required"})
+                        results["skipped"] += 1
+                        continue
+
+                    participant = self.db.query(Participant).filter(Participant.name == participant_name).first()
+                    if not participant:
+                        results["errors"].append({
+                            "row": row_num,
+                            "error": f"Participant '{participant_name}' not found. Import entries first."
+                        })
+                        results["skipped"] += 1
+                        continue
+
+                    entry = self.db.query(Entry).filter(
+                        Entry.participant_id == participant.id,
+                        Entry.tournament_id == tournament_id
+                    ).first()
+
+                    if not entry:
+                        results["errors"].append({
+                            "row": row_num,
+                            "participant": participant_name,
+                            "error": f"No entry found for participant in tournament {tournament_id}"
+                        })
+                        results["skipped"] += 1
+                        continue
+
+                    player_positions = [
+                        entry.player1_id, entry.player2_id, entry.player3_id,
+                        entry.player4_id, entry.player5_id, entry.player6_id
+                    ]
+
+                    if entry.rebuy_player_ids is None:
+                        entry.rebuy_player_ids = []
+                    if entry.rebuy_original_player_ids is None:
+                        entry.rebuy_original_player_ids = []
+
+                    any_imported_this_row = False
+                    for pair_idx, (orig_key, with_key) in enumerate(replace_pairs):
+                        orig_name = (row.get(orig_key) or "").strip()
+                        with_name = (row.get(with_key) or "").strip()
+
+                        if not orig_name and not with_name:
+                            continue
+
+                        if not orig_name:
+                            results["errors"].append({
+                                "row": row_num,
+                                "participant": participant_name,
+                                "error": f"Missing Replace Original for replace pair {pair_idx + 1}"
+                            })
+                            continue
+
+                        orig_col_identifier = f"Replace Original {pair_idx + 1}"
+                        with_col_identifier = f"Replace With {pair_idx + 1}"
+
+                        original_player_id = correction_lookup.get((row_num, orig_col_identifier))
+                        if not original_player_id:
+                            original_player_id = self.match_player_name(orig_name, tournament_id)
+
+                        if not original_player_id or original_player_id not in player_positions:
+                            results["errors"].append({
+                                "row": row_num,
+                                "participant": participant_name,
+                                "error": f"Original player '{orig_name}' not found in entry"
+                            })
+                            continue
+
+                        replacement_player_id = correction_lookup.get((row_num, with_col_identifier))
+                        if not replacement_player_id:
+                            replacement_player_id = self.match_player_name(with_name, tournament_id)
+
+                        if not replacement_player_id:
+                            results["errors"].append({
+                                "row": row_num,
+                                "participant": participant_name,
+                                "error": f"Rebuy player '{with_name}' not found"
+                            })
+                            continue
+
+                        if original_player_id in entry.rebuy_original_player_ids:
+                            continue
+
+                        entry.rebuy_original_player_ids.append(original_player_id)
+                        entry.rebuy_player_ids.append(replacement_player_id)
+
+                        any_imported_this_row = True
+
+                    if any_imported_this_row:
+                        from sqlalchemy.orm.attributes import flag_modified
+                        flag_modified(entry, "rebuy_original_player_ids")
+                        flag_modified(entry, "rebuy_player_ids")
+                        results["imported"] += 1
+                    else:
+                        results["skipped"] += 1
+
+                except Exception as e:
+                    results["errors"].append({"row": row_num, "error": f"Unexpected error: {str(e)}"})
+                    results["skipped"] += 1
+
+            self.db.commit()
+            return results
+
+        # Normalized legacy mode (Participant Name, Original Player Name, Rebuy Player Name)
+        is_valid, error = self.validate_rebuys_columns(rows)
+        if not is_valid:
+            return {"success": False, "error": error}
+
         for row_num, row in enumerate(rows, start=2):
             try:
-                participant_name = row.get("Participant Name", "").strip()
-                original_player_name = row.get("Original Player Name", "").strip()
-                rebuy_player_name = row.get("Rebuy Player Name", "").strip()
-                rebuy_type = row.get("Rebuy Type", "").strip().lower()
+                participant_name = (row.get("Participant Name") or "").strip()
+                original_player_name = (row.get("Original Player Name") or "").strip()
+                rebuy_player_name = (row.get("Rebuy Player Name") or "").strip()
+
                 if not participant_name:
-                    results["errors"].append({
-                        "row": row_num,
-                        "error": "Participant Name is required"
-                    })
+                    results["errors"].append({"row": row_num, "error": "Participant Name is required"})
                     results["skipped"] += 1
                     continue
-                
                 if not original_player_name:
-                    results["errors"].append({
-                        "row": row_num,
-                        "error": "Original Player Name is required"
-                    })
+                    results["errors"].append({"row": row_num, "error": "Original Player Name is required"})
                     results["skipped"] += 1
                     continue
-                
                 if not rebuy_player_name:
-                    results["errors"].append({
-                        "row": row_num,
-                        "error": "Rebuy Player Name is required"
-                    })
+                    results["errors"].append({"row": row_num, "error": "Rebuy Player Name is required"})
                     results["skipped"] += 1
                     continue
-                
-                # Validate rebuy type
-                if rebuy_type not in ["missed_cut", "underperformer"]:
-                    results["errors"].append({
-                        "row": row_num,
-                        "participant": participant_name,
-                        "error": f"Invalid rebuy type '{rebuy_type}'. Must be 'missed_cut' or 'underperformer'"
-                    })
-                    results["skipped"] += 1
-                    continue
-                
-                # Find participant
-                participant = self.db.query(Participant).filter(
-                    Participant.name == participant_name
-                ).first()
-                
+
+                participant = self.db.query(Participant).filter(Participant.name == participant_name).first()
                 if not participant:
                     results["errors"].append({
                         "row": row_num,
@@ -658,13 +1017,12 @@ class ImportService:
                     })
                     results["skipped"] += 1
                     continue
-                
-                # Find entry for this participant and tournament
+
                 entry = self.db.query(Entry).filter(
                     Entry.participant_id == participant.id,
                     Entry.tournament_id == tournament_id
                 ).first()
-                
+
                 if not entry:
                     results["errors"].append({
                         "row": row_num,
@@ -673,22 +1031,16 @@ class ImportService:
                     })
                     results["skipped"] += 1
                     continue
-                
+
                 player_positions = [
                     entry.player1_id, entry.player2_id, entry.player3_id,
                     entry.player4_id, entry.player5_id, entry.player6_id
                 ]
+
                 original_player_id = correction_lookup.get((row_num, "Original Player Name"))
                 if not original_player_id:
-                    matched_id = self.match_player_name(original_player_name, tournament_id)
-                    if matched_id and matched_id in player_positions:
-                        original_player_id = matched_id
-                    else:
-                        for pid in player_positions:
-                            player = self.db.query(Player).filter(Player.player_id == pid).first()
-                            if player and player.full_name.lower() == original_player_name.lower():
-                                original_player_id = pid
-                                break
+                    original_player_id = self.match_player_name(original_player_name, tournament_id)
+
                 if not original_player_id or original_player_id not in player_positions:
                     results["errors"].append({
                         "row": row_num,
@@ -697,9 +1049,11 @@ class ImportService:
                     })
                     results["skipped"] += 1
                     continue
+
                 rebuy_player_id = correction_lookup.get((row_num, "Rebuy Player Name"))
                 if not rebuy_player_id:
                     rebuy_player_id = self.match_player_name(rebuy_player_name, tournament_id)
+
                 if not rebuy_player_id:
                     results["errors"].append({
                         "row": row_num,
@@ -708,40 +1062,28 @@ class ImportService:
                     })
                     results["skipped"] += 1
                     continue
-                
-                # Initialize rebuy arrays if needed
+
                 if entry.rebuy_player_ids is None:
                     entry.rebuy_player_ids = []
                 if entry.rebuy_original_player_ids is None:
                     entry.rebuy_original_player_ids = []
-                
-                # Check if rebuy already exists
+
                 if original_player_id in entry.rebuy_original_player_ids:
                     results["skipped"] += 1
                     continue
-                
-                # Add rebuy
+
                 entry.rebuy_original_player_ids.append(original_player_id)
                 entry.rebuy_player_ids.append(rebuy_player_id)
-                entry.rebuy_type = rebuy_type
-                
-                # Mark JSON columns as modified so SQLAlchemy detects the change
+
                 from sqlalchemy.orm.attributes import flag_modified
                 flag_modified(entry, "rebuy_original_player_ids")
                 flag_modified(entry, "rebuy_player_ids")
-                
-                # Set weekend bonus forfeited if underperformer
-                if rebuy_type == "underperformer":
-                    entry.weekend_bonus_forfeited = True
-                
+
                 results["imported"] += 1
-                
+
             except Exception as e:
-                results["errors"].append({
-                    "row": row_num,
-                    "error": f"Unexpected error: {str(e)}"
-                })
+                results["errors"].append({"row": row_num, "error": f"Unexpected error: {str(e)}"})
                 results["skipped"] += 1
-        
+
         self.db.commit()
         return results
