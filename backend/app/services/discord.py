@@ -68,7 +68,10 @@ class DiscordService:
         if thumbnail_url:
             embed["thumbnail"] = {"url": thumbnail_url}
         
-        payload = {"embeds": [embed]}
+        payload = {
+            "username": "Eldo Bot",
+            "embeds": [embed],
+        }
         
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
