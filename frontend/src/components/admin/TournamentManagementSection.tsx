@@ -30,6 +30,9 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
   const [syncOrgId, setSyncOrgId] = useState(tournament?.org_id || '1')
   const [syncRoundId, setSyncRoundId] = useState<string>('1')
   const [syncingRound, setSyncingRound] = useState(false)
+  const [scheduleLoading, setScheduleLoading] = useState(false)
+  const [scheduleTournaments, setScheduleTournaments] = useState<any[]>([])
+  const [purgeYearFirst, setPurgeYearFirst] = useState(false)
   const [discordStatus, setDiscordStatus] = useState<{ enabled: boolean; webhook_configured: boolean; status: string } | null>(null)
   const [testingDiscord, setTestingDiscord] = useState(false)
   const [discordTestResult, setDiscordTestResult] = useState<{ success: boolean; message: string } | null>(null)
@@ -69,6 +72,35 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
       }
     }
   }, [tournament?.id, tournament?.year, tournament?.tourn_id, tournament?.org_id])
+
+  // Load the available tournaments for the selected year so we can pick by name.
+  useEffect(() => {
+    const parsedYear = parseInt(syncYear, 10)
+    if (Number.isNaN(parsedYear)) return
+    if (!syncOrgId) return
+
+    let cancelled = false
+    setScheduleLoading(true)
+    tournamentApi
+      .getSchedule(syncOrgId, parsedYear)
+      .then((data) => {
+        if (cancelled) return
+        setScheduleTournaments(data?.schedule || [])
+      })
+      .catch((err) => {
+        console.warn('Failed to load schedule:', err)
+        if (cancelled) return
+        setScheduleTournaments([])
+      })
+      .finally(() => {
+        if (cancelled) return
+        setScheduleLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [syncYear, syncOrgId])
 
   // Check background job status on mount and periodically
   useEffect(() => {
@@ -145,6 +177,9 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
         return
       }
 
+      if (purgeYearFirst) {
+        await adminApi.clearTournamentsByYear(effectiveYear, true)
+      }
       await tournamentApi.sync(syncOrgId, syncTournId, effectiveYear)
       setMessage({ type: 'success', text: 'Tournament data synced successfully! Please refresh the page.' })
       // Refresh page after 2 seconds to load new tournament
@@ -433,6 +468,33 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
                   placeholder="470 (Masters)"
                 />
                 <p className="text-xs text-gray-500 mt-1">e.g., 470 for Masters</p>
+                    <div className="mt-2">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Or select by name (schedule)
+                      </label>
+                      <select
+                        value={syncTournId}
+                        onChange={(e) => setSyncTournId(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={scheduleLoading}
+                      >
+                        {scheduleLoading ? (
+                          <option value="">Loading...</option>
+                        ) : (
+                          scheduleTournaments
+                            .filter((t) => t?.tournId || t?.tourn_id || t?.id)
+                            .map((t) => {
+                              const id = t.tournId ?? t.tourn_id ?? t.id
+                              const name = t.name ?? id
+                              return (
+                                <option key={String(id)} value={String(id)}>
+                                  {String(name)}
+                                </option>
+                              )
+                            })
+                        )}
+                      </select>
+                    </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Org ID</label>
@@ -446,6 +508,22 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
                 <p className="text-xs text-gray-500 mt-1">Usually 1 for PGA</p>
               </div>
             </div>
+
+            <div className="mt-2 flex items-start gap-2">
+              <input
+                id="purgeYearFirst-create"
+                type="checkbox"
+                checked={purgeYearFirst}
+                onChange={(e) => setPurgeYearFirst(e.target.checked)}
+                className="mt-1"
+              />
+              <label htmlFor="purgeYearFirst-create" className="text-sm text-gray-700">
+                Purge existing tournaments for this year before syncing (clears old 3-digit codes)
+              </label>
+            </div>
+            <p className="text-xs text-yellow-700 mt-1">
+              Deletes stored scoring/bonuses for tournaments in this year; players/participants are preserved.
+            </p>
             <button
               onClick={() => handleSync(syncOrgId, syncTournId, parseInt(syncYear, 10) || undefined)}
               disabled={syncing || !syncTournId || !syncYear}
@@ -521,6 +599,33 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
                       placeholder="e.g., 470 (Masters)"
                     />
                     <p className="text-xs text-gray-500 mt-1">Required</p>
+                    <div className="mt-2">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Or select by name (schedule)
+                      </label>
+                      <select
+                        value={syncTournId}
+                        onChange={(e) => setSyncTournId(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={scheduleLoading}
+                      >
+                        {scheduleLoading ? (
+                          <option value="">Loading...</option>
+                        ) : (
+                          scheduleTournaments
+                            .filter((t) => t?.tournId || t?.tourn_id || t?.id)
+                            .map((t) => {
+                              const id = t.tournId ?? t.tourn_id ?? t.id
+                              const name = t.name ?? id
+                              return (
+                                <option key={String(id)} value={String(id)}>
+                                  {String(name)}
+                                </option>
+                              )
+                            })
+                        )}
+                      </select>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Org ID</label>
@@ -536,6 +641,21 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
                 </div>
               </div>
               
+              <div className="mt-2 flex items-start gap-2">
+                <input
+                  id="purgeYearFirst-syncData"
+                  type="checkbox"
+                  checked={purgeYearFirst}
+                  onChange={(e) => setPurgeYearFirst(e.target.checked)}
+                  className="mt-1"
+                />
+                <label htmlFor="purgeYearFirst-syncData" className="text-sm text-gray-700">
+                  Purge existing tournaments for this year before syncing (clears old 3-digit codes)
+                </label>
+              </div>
+              <p className="text-xs text-yellow-700 mt-1">
+                Deletes stored scoring/bonuses for tournaments in this year; players/participants are preserved.
+              </p>
               <button
                 onClick={() => handleSync(syncOrgId, syncTournId, parseInt(syncYear, 10) || undefined)}
                 disabled={syncing || !syncTournId || !syncYear}

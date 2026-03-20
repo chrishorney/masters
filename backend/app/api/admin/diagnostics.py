@@ -673,6 +673,107 @@ async def clear_all_tournament_data(
     }
 
 
+@router.post("/diagnostics/tournaments/clear-year")
+async def clear_tournaments_by_year(
+    year: int,
+    confirm: bool = Query(False, description="Must be true to confirm deletion"),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Clear all stored tournament scoring data for a given year.
+
+    This deletes (for tournaments matching `Tournament.year == year`):
+    - Daily scores
+    - Bonus points
+    - Ranking snapshots
+    - Score snapshots
+    - Entries
+    - Tournaments
+
+    Participants and players are NOT deleted.
+    """
+    if not confirm:
+        raise HTTPException(
+            status_code=400,
+            detail="Must set confirm=true to clear tournament data for a year"
+        )
+
+    tournament_ids_rows = db.query(Tournament.id).filter(Tournament.year == year).all()
+    tournament_ids = [row[0] for row in tournament_ids_rows]
+    if not tournament_ids:
+        return {
+            "message": f"No tournaments found for year {year}. Nothing to clear.",
+            "year": year,
+            "deleted": {
+                "tournaments": 0,
+                "entries": 0,
+                "daily_scores": 0,
+                "bonus_points": 0,
+                "ranking_snapshots": 0,
+                "score_snapshots": 0,
+            }
+        }
+
+    entry_ids_rows = db.query(Entry.id).filter(Entry.tournament_id.in_(tournament_ids)).all()
+    entry_ids = [row[0] for row in entry_ids_rows]
+
+    deleted_counts = {
+        "daily_scores": 0,
+        "bonus_points": 0,
+        "ranking_snapshots": 0,
+        "score_snapshots": 0,
+        "entries": 0,
+        "tournaments": 0,
+    }
+
+    try:
+        # Delete child records first
+        if entry_ids:
+            deleted_counts["daily_scores"] = db.query(DailyScore).filter(
+                DailyScore.entry_id.in_(entry_ids)
+            ).delete(synchronize_session=False)
+
+            deleted_counts["bonus_points"] = db.query(BonusPoint).filter(
+                BonusPoint.entry_id.in_(entry_ids)
+            ).delete(synchronize_session=False)
+
+            deleted_counts["ranking_snapshots"] = db.query(RankingSnapshot).filter(
+                RankingSnapshot.entry_id.in_(entry_ids)
+            ).delete(synchronize_session=False)
+
+        deleted_counts["score_snapshots"] = db.query(ScoreSnapshot).filter(
+            ScoreSnapshot.tournament_id.in_(tournament_ids)
+        ).delete(synchronize_session=False)
+
+        # Delete entries and tournaments
+        deleted_counts["entries"] = db.query(Entry).filter(
+            Entry.tournament_id.in_(tournament_ids)
+        ).delete(synchronize_session=False)
+
+        deleted_counts["tournaments"] = db.query(Tournament).filter(
+            Tournament.id.in_(tournament_ids)
+        ).delete(synchronize_session=False)
+
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error clearing year {year}: {str(e)}")
+
+    return {
+        "message": f"Cleared tournaments for year {year}",
+        "year": year,
+        "deleted": deleted_counts,
+        "preserved": {
+            "participants": "All participants preserved",
+            "players": "All players preserved",
+        },
+        "next_steps": [
+            f"1. Import entries for year {year}",
+            f"2. Sync the tournament you want via POST /api/tournament/sync?year={year}&tourn_id=...",
+        ],
+    }
+
+
 @router.post("/diagnostics/tournament/{tournament_id}/fix")
 async def fix_tournament_data(
     tournament_id: int,

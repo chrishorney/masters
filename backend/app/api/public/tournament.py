@@ -119,10 +119,11 @@ async def get_current_tournament(
     db: Session = Depends(get_db)
 ):
     """Get current tournament information."""
-    # Get the most recent active tournament
+    # Get the most recently created tournament.
+    # This avoids cases where older tournaments sort "ahead" of newly-synced ones
+    # (e.g. when syncing a different `tourn_id` but the UI keeps showing a previous code).
     tournament = db.query(Tournament).order_by(
-        Tournament.year.desc(),
-        Tournament.start_date.desc()
+        Tournament.id.desc()
     ).first()
     
     if not tournament:
@@ -143,6 +144,29 @@ async def get_current_tournament(
         "status": tournament.status,
         "current_round": tournament.current_round,
         "show_tournament_leaderboard": not hide_leaderboard,
+    }
+
+
+@router.get("/tournament/schedule")
+async def get_tournament_schedule(
+    year: int,
+    org_id: Optional[str] = None,
+):
+    """
+    Return the Slash Golf schedule for a given year.
+
+    This powers the admin dropdown so users can select tournaments by name
+    instead of needing to know the 3-digit `tourn_id` codes.
+    """
+    from app.services.api_client import SlashGolfAPIClient
+
+    client = SlashGolfAPIClient()
+    schedule = client.get_schedule(org_id=org_id, year=year) or {}
+    # Pass through the API's `schedule` array (frontend primarily needs `tournId` + `name`).
+    return {
+        "year": year,
+        "org_id": org_id,
+        "schedule": schedule.get("schedule", []),
     }
 
 

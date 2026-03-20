@@ -54,6 +54,18 @@ export const tournamentApi = {
     const response = await api.post('/tournament/sync', null, { params })
     return { success: true, message: response.data.message || 'Tournament synced' }
   },
+
+  /** Get tournament schedule (all tournaments) for a given year */
+  getSchedule: async (orgId: string | undefined, year: number): Promise<{
+    year: number
+    org_id?: string
+    schedule: Array<any>
+  }> => {
+    const params: any = { year }
+    if (orgId) params.org_id = orgId
+    const response = await api.get('/tournament/schedule', { params })
+    return response.data
+  },
 }
 
 // Scores endpoints
@@ -341,6 +353,17 @@ export const adminApi = {
   /** Delete a bonus point */
   deleteBonusPoint: async (bonusPointId: number): Promise<{ message: string }> => {
     const response = await api.delete(`/admin/bonus-points/${bonusPointId}`)
+    return response.data
+  },
+
+  /** Clear all stored tournament data for a given year (keeps players/participants) */
+  clearTournamentsByYear: async (year: number, confirm: boolean): Promise<{
+    message: string
+    year: number
+  }> => {
+    const response = await api.post('/admin/diagnostics/tournaments/clear-year', null, {
+      params: { year, confirm },
+    })
     return response.data
   },
 
