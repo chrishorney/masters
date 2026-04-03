@@ -27,53 +27,26 @@ def _parse_current_hole(row: dict) -> Optional[int]:
     return None
 
 
-def _parse_starting_hole(row: dict) -> Optional[int]:
-    """Parse startingHole (1 or 10 for split/back-nine starts)."""
-    raw = row.get("startingHole")
+def _hole_progress_from_thru(row: dict) -> Optional[str]:
+    """
+    Use Slash leaderboard `thru` for display (e.g. '12', '10*' back-nine start, 'F', 'F*').
+    """
+    raw = row.get("thru")
     if raw is None:
         return None
-    if isinstance(raw, int):
-        return raw if 1 <= raw <= 18 else None
+    if isinstance(raw, str):
+        s = raw.strip()
+        return s if s else None
+    if isinstance(raw, (int, float)):
+        n = int(raw)
+        return str(n)
     if isinstance(raw, dict) and "$numberInt" in raw:
         try:
-            n = int(raw["$numberInt"])
-            return n if 1 <= n <= 18 else None
+            return str(int(raw["$numberInt"]))
         except (ValueError, TypeError):
             return None
-    try:
-        n = int(raw)
-        return n if 1 <= n <= 18 else None
-    except (TypeError, ValueError):
-        return None
-
-
-def _is_leaderboard_row_round_complete(row: dict) -> bool:
-    """True when the player has finished the current round (handles split nines)."""
-    if row.get("roundComplete") is True:
-        return True
-    thru = str(row.get("thru") or "").strip().upper()
-    if thru == "F":
-        return True
-    return False
-
-
-def _format_hole_progress(row: dict) -> Optional[str]:
-    """
-    Human-readable hole status for the leaderboard.
-
-    - Finished: 'F' (not 'through 9' when they started on 10 and ended on 9)
-    - Split/back-nine start (startingHole >= 10): 'through N*'
-    - Normal front start: 'through N'
-    """
-    if _is_leaderboard_row_round_complete(row):
-        return "F"
-    ch = _parse_current_hole(row)
-    if ch is None or not (1 <= ch <= 18):
-        return None
-    sh = _parse_starting_hole(row)
-    if sh is not None and sh >= 10:
-        return f"through {ch}*"
-    return f"through {ch}"
+    s = str(raw).strip()
+    return s if s else None
 
 
 def _parse_score_to_par(score_str: str) -> Optional[int]:
@@ -518,7 +491,7 @@ async def get_tournament_leaderboard(
         display_score = total_str if isinstance(total_str, str) and total_str else row.get("currentRoundScore", "")
 
         current_hole = _parse_current_hole(row)
-        hole_progress = _format_hole_progress(row)
+        hole_progress = _hole_progress_from_thru(row)
         formatted_leaderboard.append({
             "position": position_display,
             "player_name": full_name,
@@ -612,7 +585,7 @@ async def get_round_tournament_leaderboard(
             continue
         
         current_hole = _parse_current_hole(row)
-        hole_progress = _format_hole_progress(row)
+        hole_progress = _hole_progress_from_thru(row)
         formatted_leaderboard.append({
             "position": position,
             "player_name": full_name,

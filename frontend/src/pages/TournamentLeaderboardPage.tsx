@@ -63,7 +63,7 @@ export function TournamentLeaderboardPage() {
   const { leaderboard, tournament: tournamentInfo, view_type, round_id, snapshot_timestamp } = leaderboardData
   const isSnapshot = view_type === 'round_snapshot'
   const showSplitTeeLegend = leaderboard.some(
-    (p) => typeof p.hole_progress === 'string' && p.hole_progress.includes('*')
+    (p) => typeof p.hole_progress === 'string' && /^\d+\*$/.test(p.hole_progress)
   )
 
   return (
@@ -162,12 +162,13 @@ export function TournamentLeaderboardPage() {
         </div>
         {showSplitTeeLegend && (
           <p className="mt-2 text-xs text-gray-500 px-2">
-            <span className="font-medium">*</span> Started on the back nine (e.g. hole 10); &quot;through&quot; is the
-            API&apos;s current hole, not holes remaining.
+            <span className="font-medium">*</span> Next to the hole number means a back-nine start (same as the tour
+            leaderboard).
           </p>
         )}
         <p className="mt-1 text-xs text-gray-500 px-2">
-          <span className="font-medium">F</span> = finished the current round.
+          <span className="font-medium">F</span> / <span className="font-medium">F*</span> = finished the current round
+          (F* = finished after starting on the back nine).
         </p>
       </div>
 
@@ -184,21 +185,18 @@ export function TournamentLeaderboardPage() {
   )
 }
 
+function holeProgressTitle(hp: string): string | undefined {
+  const u = hp.toUpperCase()
+  if (u.startsWith('F')) return 'Finished this round'
+  if (hp.endsWith('*')) return 'Back-nine start (hole through is per tour convention)'
+  return undefined
+}
+
 function HoleProgressSuffix({ player }: { player: TournamentLeaderboardPlayer }) {
   const hp = player.hole_progress
   if (hp) {
-    if (hp === 'F') {
-      return (
-        <span className="text-gray-500 font-normal ml-1" title="Finished this round">
-          F
-        </span>
-      )
-    }
     return (
-      <span
-        className="text-gray-500 font-normal ml-1"
-        title={hp.endsWith('*') ? 'Back-nine start (e.g. hole 10 first)' : undefined}
-      >
+      <span className="text-gray-500 font-normal ml-1" title={holeProgressTitle(hp)}>
         {hp}
       </span>
     )
