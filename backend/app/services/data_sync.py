@@ -385,7 +385,71 @@ class DataSyncService:
         
         logger.info(f"Saved score snapshot for tournament {tournament_id}, round {round_id}")
         return snapshot
-    
+
+    def refresh_leaderboard_snapshot(self, tournament_id: int) -> Dict[str, Any]:
+        """
+        One Slash Golf GET /leaderboard call: full field for the tournament.
+
+        Updates Player rows from the response, saves a new ScoreSnapshot, and
+        reuses scorecard JSON from the previous snapshot (if any) so bonus
+        scoring data is not wiped. Does not fetch scorecards or run calculations.
+        """
+        tournament = self.db.query(Tournament).filter(Tournament.id == tournament_id).first()
+        if not tournament:
+            raise ValueError(f"Tournament {tournament_id} not found")
+
+        leaderboard_data = self.api_client.get_leaderboard(
+            org_id=tournament.org_id,
+            tourn_id=tournament.tourn_id,
+            year=tournament.year,
+        )
+        leaderboard_rows = leaderboard_data.get("leaderboardRows") or []
+        if not leaderboard_rows:
+            return {
+                "success": False,
+                "error": "No leaderboard rows returned from Slash Golf API.",
+            }
+
+        self.sync_players_from_leaderboard(leaderboard_data)
+
+        round_id = tournament.current_round or 1
+        raw_round = leaderboard_data.get("roundId")
+        if raw_round is not None:
+            try:
+                parsed = parse_mongodb_value(raw_round)
+                if parsed is not None:
+                    r = int(parsed)
+                    if 1 <= r <= 4:
+                        round_id = r
+            except (TypeError, ValueError):
+                pass
+
+        prev = (
+            self.db.query(ScoreSnapshot)
+            .filter(ScoreSnapshot.tournament_id == tournament_id)
+            .order_by(ScoreSnapshot.timestamp.desc())
+            .first()
+        )
+        preserved: Optional[Dict[str, Any]] = None
+        if prev and prev.scorecard_data and isinstance(prev.scorecard_data, dict) and prev.scorecard_data:
+            preserved = json.loads(json.dumps(prev.scorecard_data, default=str))
+
+        snapshot = self.save_score_snapshot(
+            tournament_id=tournament_id,
+            round_id=round_id,
+            leaderboard_data=leaderboard_data,
+            scorecard_data=preserved,
+        )
+
+        return {
+            "success": True,
+            "message": "Live leaderboard fetched and snapshot saved.",
+            "snapshot_id": snapshot.id,
+            "round_id": round_id,
+            "leaderboard_player_count": len(leaderboard_rows),
+            "scorecards_preserved": bool(preserved),
+        }
+
     def sync_tournament_data(
         self,
         org_id: Optional[str] = None,

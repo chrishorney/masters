@@ -30,6 +30,7 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
   const [syncOrgId, setSyncOrgId] = useState(tournament?.org_id || '1')
   const [syncRoundId, setSyncRoundId] = useState<string>('1')
   const [syncingRound, setSyncingRound] = useState(false)
+  const [refreshingLeaderboard, setRefreshingLeaderboard] = useState(false)
   const [scheduleLoading, setScheduleLoading] = useState(false)
   const [scheduleTournaments, setScheduleTournaments] = useState<any[]>([])
   const [purgeYearFirst, setPurgeYearFirst] = useState(false)
@@ -334,6 +335,34 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
       })
     } finally {
       setCalculating(false)
+    }
+  }
+
+  const handleRefreshLeaderboardOnly = async () => {
+    if (!tournament) {
+      setMessage({ type: 'error', text: 'No tournament available. Please sync a tournament first.' })
+      return
+    }
+
+    setRefreshingLeaderboard(true)
+    setMessage(null)
+
+    try {
+      const data = await adminApi.refreshLeaderboardSnapshot(tournament.id)
+      const extra = data.scorecards_preserved
+        ? ' Existing scorecard data kept from last snapshot.'
+        : ' No prior scorecards to preserve (first snapshot or empty).'
+      setMessage({
+        type: 'success',
+        text: `${data.message} ${data.leaderboard_player_count} players, round ${data.round_id}.${extra}`,
+      })
+    } catch (error: any) {
+      setMessage({
+        type: 'error',
+        text: error.response?.data?.detail || 'Failed to refresh leaderboard',
+      })
+    } finally {
+      setRefreshingLeaderboard(false)
     }
   }
 
@@ -915,6 +944,26 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
                 className="w-full md:w-auto px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
               >
                 {calculating ? 'Running...' : 'Sync & Calculate'}
+              </button>
+            </div>
+          )}
+
+          {/* Live leaderboard only (one API call) */}
+          {tournament && (
+            <div className="border-b border-gray-200 pb-4">
+              <h3 className="font-medium text-gray-900 mb-2">Refresh tournament leaderboard (live API)</h3>
+              <p className="text-sm text-gray-600 mb-3">
+                Calls Slash Golf <strong>once</strong> for the full field leaderboard and saves a new snapshot so the
+                public <strong>Tournament Leaderboard</strong> page updates. Does <strong>not</strong> start the scheduler,
+                fetch scorecards, or recalculate pool scores. Existing scorecard data from your last snapshot is kept when possible.
+              </p>
+              <button
+                type="button"
+                onClick={handleRefreshLeaderboardOnly}
+                disabled={refreshingLeaderboard}
+                className="w-full md:w-auto px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
+              >
+                {refreshingLeaderboard ? 'Refreshing…' : 'Refresh leaderboard from API'}
               </button>
             </div>
           )}

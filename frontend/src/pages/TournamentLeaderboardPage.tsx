@@ -74,7 +74,7 @@ export function TournamentLeaderboardPage() {
           <p className="text-gray-600 text-sm md:text-base">
             {tournamentInfo.name}
             {isSnapshot && ` • Round ${round_id} Snapshot`}
-            {!isSnapshot && ` • Round ${tournamentInfo.current_round} (Live)`}
+            {!isSnapshot && ` • Round ${tournamentInfo.current_round} (last sync)`}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -90,7 +90,7 @@ export function TournamentLeaderboardPage() {
             }}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-gray-900"
           >
-            <option value="current">Current (Live)</option>
+            <option value="current">Current (last sync)</option>
             {availableRounds.map((round) => (
               <option key={round} value={round}>
                 Round {round} Snapshot

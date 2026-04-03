@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 from app.database import get_db
 from app.models import Tournament, Entry, DailyScore, ScoreSnapshot, Player
 from app.services.score_calculator import ScoreCalculatorService
-from app.services.api_client import SlashGolfAPIClient
 
 router = APIRouter()
 
@@ -401,35 +400,38 @@ async def get_tournament_leaderboard(
     """
     Get the actual tournament leaderboard (golfers, not pool entries).
 
-    This now calls the live Slash Golf `/leaderboard` endpoint for the
-    configured tournament (org_id, tourn_id, year) instead of relying
-    solely on cached ScoreSnapshot data, so it always reflects the
-    latest API leaderboard.
+    Uses the latest ScoreSnapshot only — no live Slash Golf calls. Fresh data
+    appears after admin manual sync or the background scheduler; this avoids
+    API usage from public pages polling the leaderboard.
     """
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     if not tournament:
         raise HTTPException(status_code=404, detail="Tournament not found")
 
-    # Fetch live leaderboard from Slash Golf API using the tournament's
-    # configured identifiers (set during admin setup).
-    api_client = SlashGolfAPIClient()
-    try:
-        leaderboard_data = api_client.get_leaderboard(
-            org_id=tournament.org_id,
-            tourn_id=tournament.tourn_id,
-            year=tournament.year,
-        )
-    except Exception as e:
+    snapshot = (
+        db.query(ScoreSnapshot)
+        .filter(ScoreSnapshot.tournament_id == tournament_id)
+        .order_by(ScoreSnapshot.timestamp.desc())
+        .first()
+    )
+    if not snapshot or not snapshot.leaderboard_data:
         raise HTTPException(
-            status_code=502,
-            detail=f"Failed to fetch live tournament leaderboard: {e}",
+            status_code=404,
+            detail=(
+                "No synced tournament leaderboard yet. Sync from Admin, or enable "
+                "the scheduler so data updates automatically."
+            ),
         )
 
+    leaderboard_data = snapshot.leaderboard_data
     leaderboard_rows = leaderboard_data.get("leaderboardRows", [])
     if not leaderboard_rows:
         raise HTTPException(
             status_code=404,
-            detail="No leaderboard data returned from external API.",
+            detail=(
+                "No leaderboard rows in the latest snapshot. Run a tournament sync "
+                "from Admin."
+            ),
         )
 
     # Filter out withdrawn/disqualified players first
@@ -476,32 +478,21 @@ async def get_tournament_leaderboard(
             "current_hole": current_hole,
         })
     
-    # Derive round and last-updated timestamp from API payload
-    raw_round = leaderboard_data.get("roundId")
-    round_id: Optional[int] = None
-    if isinstance(raw_round, dict) and "$numberInt" in raw_round:
-        try:
-            round_id = int(raw_round["$numberInt"])
-        except ValueError:
-            round_id = None
-    elif isinstance(raw_round, int):
-        round_id = raw_round
+    # Round / time from snapshot (not a live API pull)
+    round_id: Optional[int] = snapshot.round_id
+    if round_id is None:
+        raw_round = leaderboard_data.get("roundId")
+        if isinstance(raw_round, dict) and "$numberInt" in raw_round:
+            try:
+                round_id = int(raw_round["$numberInt"])
+            except ValueError:
+                round_id = None
+        elif isinstance(raw_round, int):
+            round_id = raw_round
 
-    # Timestamp can be in Mongo-style {"$date": {"$numberLong": "..."}}
-    raw_ts = leaderboard_data.get("timestamp") or leaderboard_data.get("lastUpdated")
-    last_updated: datetime
-    if isinstance(raw_ts, dict) and "$date" in raw_ts:
-        date_val = raw_ts["$date"]
-        try:
-            if isinstance(date_val, dict) and "$numberLong" in date_val:
-                ms = int(date_val["$numberLong"])
-            else:
-                ms = int(date_val)
-            last_updated = datetime.fromtimestamp(ms / 1000, tz=timezone.utc)
-        except (TypeError, ValueError):
-            last_updated = datetime.now(timezone.utc)
-    else:
-        last_updated = datetime.now(timezone.utc)
+    last_updated = snapshot.timestamp
+    if last_updated.tzinfo is None:
+        last_updated = last_updated.replace(tzinfo=timezone.utc)
 
     return {
         "tournament": {

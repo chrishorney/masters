@@ -9,6 +9,7 @@ from typing import Optional
 from app.database import get_db
 from app.models import Tournament, ScoreSnapshot
 from app.services.background_jobs import BackgroundJobService
+from app.services.data_sync import DataSyncService
 
 logger = logging.getLogger(__name__)
 
@@ -310,6 +311,41 @@ async def get_job_status(
     else:
         result["debug_info"]["might_be_running"] = False
     
+    return result
+
+
+@router.post("/jobs/refresh-leaderboard")
+async def refresh_leaderboard_snapshot(
+    tournament_id: int = Query(..., description="Tournament ID"),
+    db: Session = Depends(get_db),
+):
+    """
+    Single Slash Golf leaderboard API call: refresh stored snapshot for this tournament.
+
+    Use when the scheduler is off but you want the public tournament leaderboard page
+    updated. Does not sync scorecards or recalculate pool scores (use full sync or
+    Run once for that).
+    """
+    tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    if not tournament:
+        raise HTTPException(status_code=404, detail="Tournament not found")
+
+    sync_service = DataSyncService(db)
+    try:
+        result = sync_service.refresh_leaderboard_snapshot(tournament_id)
+    except Exception as e:
+        logger.error("refresh_leaderboard_snapshot failed: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to fetch leaderboard from Slash Golf: {e}",
+        ) from e
+
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=502,
+            detail=result.get("error", "Leaderboard refresh failed"),
+        )
+
     return result
 
 

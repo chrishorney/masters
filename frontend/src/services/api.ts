@@ -272,6 +272,23 @@ export const adminApi = {
     return response.data
   },
 
+  /** One Slash leaderboard API call: new snapshot for public tournament leaderboard (no score calc) */
+  refreshLeaderboardSnapshot: async (
+    tournamentId: number
+  ): Promise<{
+    success: boolean
+    message: string
+    snapshot_id: number
+    round_id: number
+    leaderboard_player_count: number
+    scorecards_preserved: boolean
+  }> => {
+    const response = await api.post('/admin/jobs/refresh-leaderboard', null, {
+      params: { tournament_id: tournamentId },
+    })
+    return response.data
+  },
+
   /** Get Discord status */
   getDiscordStatus: async (): Promise<{
     enabled: boolean;
