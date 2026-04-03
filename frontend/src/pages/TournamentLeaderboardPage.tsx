@@ -62,6 +62,9 @@ export function TournamentLeaderboardPage() {
 
   const { leaderboard, tournament: tournamentInfo, view_type, round_id, snapshot_timestamp } = leaderboardData
   const isSnapshot = view_type === 'round_snapshot'
+  const showSplitTeeLegend = leaderboard.some(
+    (p) => typeof p.hole_progress === 'string' && p.hole_progress.includes('*')
+  )
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -157,6 +160,15 @@ export function TournamentLeaderboardPage() {
             </tbody>
           </table>
         </div>
+        {showSplitTeeLegend && (
+          <p className="mt-2 text-xs text-gray-500 px-2">
+            <span className="font-medium">*</span> Started on the back nine (e.g. hole 10); &quot;through&quot; is the
+            API&apos;s current hole, not holes remaining.
+          </p>
+        )}
+        <p className="mt-1 text-xs text-gray-500 px-2">
+          <span className="font-medium">F</span> = finished the current round.
+        </p>
       </div>
 
       {/* Last Updated */}
@@ -170,6 +182,31 @@ export function TournamentLeaderboardPage() {
       )}
     </div>
   )
+}
+
+function HoleProgressSuffix({ player }: { player: TournamentLeaderboardPlayer }) {
+  const hp = player.hole_progress
+  if (hp) {
+    if (hp === 'F') {
+      return (
+        <span className="text-gray-500 font-normal ml-1" title="Finished this round">
+          F
+        </span>
+      )
+    }
+    return (
+      <span
+        className="text-gray-500 font-normal ml-1"
+        title={hp.endsWith('*') ? 'Back-nine start (e.g. hole 10 first)' : undefined}
+      >
+        {hp}
+      </span>
+    )
+  }
+  if (player.current_hole != null && player.current_hole >= 1 && player.current_hole <= 18) {
+    return <span className="text-gray-500 font-normal ml-1">through {player.current_hole}</span>
+  }
+  return null
 }
 
 function LeaderboardRow({ player }: { player: TournamentLeaderboardPlayer }) {
@@ -211,9 +248,7 @@ function LeaderboardRow({ player }: { player: TournamentLeaderboardPlayer }) {
       <td className="px-6 py-4 whitespace-nowrap text-right">
         <span className={getScoreDisplay(player.score).startsWith('-') ? 'text-green-600' : getScoreDisplay(player.score).startsWith('+') ? 'text-red-600' : 'text-gray-900'}>
           <span className="font-semibold">{getScoreDisplay(player.score)}</span>
-          {player.current_hole != null && player.current_hole >= 1 && player.current_hole <= 18 && (
-            <span className="text-gray-500 font-normal ml-1">through {player.current_hole}</span>
-          )}
+          <HoleProgressSuffix player={player} />
         </span>
       </td>
     </tr>

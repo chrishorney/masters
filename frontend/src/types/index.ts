@@ -152,6 +152,10 @@ export interface TournamentLeaderboardPlayer {
   player_id: string
   /** Hole the golfer is currently on (1–18), from API currentHole. Only present for live view when API provides it. */
   current_hole?: number | null
+  /**
+   * Display string from API: "F" when round complete, "through N*" for back-nine starts, "through N" otherwise.
+   */
+  hole_progress?: string | null
 }
 
 export interface TournamentLeaderboardResponse {
