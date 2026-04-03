@@ -201,7 +201,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <footer className="bg-white border-t border-gray-200 mt-12">
         <div className="container mx-auto px-4 py-6">
           <div className="text-center text-sm text-gray-500">
-            <p>13th Annual Eldorado Masters Pool</p>
+            <p>15th Annual Eldorado Masters Pool</p>
             <p className="mt-1">© {new Date().getFullYear()}</p>
           </div>
         </div>

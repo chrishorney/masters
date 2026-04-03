@@ -352,3 +352,71 @@ def test_import_rebuys_smartsheet_replace_pairs(db):
     assert "34466" in rebuy_original, f"Expected 34466 in {rebuy_original}"
     assert "99999" in rebuy_players, f"Expected 99999 in {rebuy_players}"
     assert entry.rebuy_type is None
+
+
+def test_validate_rebuys_smartsheet_no_pairs_is_valid(db):
+    """Rows with no Replace/Replace-with pairs should validate (weekend loyalty / no rebuy)."""
+    tournament = Tournament(
+        year=2024,
+        tourn_id="TEST_NO_REBUY_VAL",
+        org_id="1",
+        name="Test Tournament",
+        start_date=date(2024, 4, 11),
+        end_date=date(2024, 4, 14),
+        status="Official",
+        current_round=1,
+    )
+    db.add(tournament)
+    db.commit()
+    db.refresh(tournament)
+
+    participant = Participant(name="Carry Six")
+    db.add(participant)
+    db.commit()
+    db.refresh(participant)
+
+    db.add(
+        Entry(
+            participant_id=participant.id,
+            tournament_id=tournament.id,
+            player1_id="111",
+            player2_id="222",
+            player3_id="333",
+            player4_id="444",
+            player5_id="555",
+            player6_id="666",
+        )
+    )
+    for pid, first, last, full in [
+        ("111", "Alpha", "One", "Alpha One"),
+        ("222", "Bravo", "Two", "Bravo Two"),
+        ("333", "Charlie", "Three", "Charlie Three"),
+        ("444", "Delta", "Four", "Delta Four"),
+        ("555", "Echo", "Five", "Echo Five"),
+        ("666", "Foxtrot", "Six", "Foxtrot Six"),
+    ]:
+        db.add(Player(player_id=pid, first_name=first, last_name=last, full_name=full))
+    db.commit()
+
+    header = (
+        ["Player Name"]
+        + [f"Professional {i}" for i in range(1, 7)]
+        + [x for _ in range(6) for x in ("Replace", "Replace with")]
+    )
+    row = [
+        "Carry Six",
+        "Alpha One",
+        "Bravo Two",
+        "Charlie Three",
+        "Delta Four",
+        "Echo Five",
+        "Foxtrot Six",
+    ] + [""] * 12
+    csv_content = (",".join(header) + "\n" + ",".join(row)).encode("utf-8")
+
+    service = ImportService(db)
+    parsed_rows = service.parse_csv(csv_content)
+    out = service.validate_rebuys_for_import(parsed_rows, tournament.id)
+
+    assert out["valid"] is True
+    assert not any(r.get("row_error") for r in out["row_results"])

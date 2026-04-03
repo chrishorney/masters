@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     # Slash Golf API
     slash_golf_api_key: str
     slash_golf_api_host: str = "live-golf-data.p.rapidapi.com"
+    # Optional cap for admin UI (e.g. RapidAPI monthly quota). Omit or set 0 to hide progress.
+    slash_api_monthly_limit: Optional[int] = None
     
     # JWT
     jwt_secret_key: str

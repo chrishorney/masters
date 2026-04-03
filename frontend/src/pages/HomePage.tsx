@@ -34,7 +34,7 @@ export function HomePage() {
       {/* Hero Section */}
       <div className="text-center mb-12">
         <h1 className="text-3xl md:text-5xl font-bold text-gray-900 mb-4">
-          Welcome to the 13th Annual
+          Welcome to the 15th Annual
         </h1>
         <h2 className="text-2xl md:text-4xl font-bold text-green-600 mb-6">
           Eldorado Masters Pool

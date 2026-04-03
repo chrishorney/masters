@@ -1243,7 +1243,7 @@ A Progressive Web App is a web application that uses modern web technologies to 
   {
     "name": "Eldorado Masters Pool",
     "short_name": "Masters Pool",
-    "description": "13th Annual Eldorado Masters Golf Tournament Pool",
+    "description": "15th Annual Eldorado Masters Golf Tournament Pool",
     "start_url": "/",
     "display": "standalone",
     "background_color": "#ffffff",

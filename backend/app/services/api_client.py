@@ -54,6 +54,13 @@ class SlashGolfAPIClient:
                 remaining = response.headers.get("x-ratelimit-requests-remaining")
                 if remaining:
                     logger.debug(f"API requests remaining: {remaining}")
+
+                # Monthly usage (Central calendar month; DB-only, never blocks API)
+                try:
+                    from app.services.slash_api_usage import record_slash_api_request
+                    record_slash_api_request(endpoint)
+                except Exception:
+                    pass
                 
                 return response.json()
         except httpx.HTTPError as e:

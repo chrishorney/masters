@@ -409,8 +409,8 @@ class ImportService:
                             row_error = f"Rebuy player '{with_name}' not found"
                             break
 
-                if not found_any_pair and not row_error:
-                    row_error = "No replace pairs found for this participant"
+                # No replace pairs = valid (participant keeps all 6 for weekend loyalty bonus).
+                # Matches import_rebuys behavior (row is skipped, not an error).
 
                 row_results.append({
                     "row": row_num,

@@ -7,6 +7,7 @@ import { AdminLogin } from '../components/admin/AdminLogin'
 import { ImportSection } from '../components/admin/ImportSection'
 import { BonusPointsSection } from '../components/admin/BonusPointsSection'
 import { TournamentManagementSection } from '../components/admin/TournamentManagementSection'
+import { SlashApiUsageBanner } from '../components/admin/SlashApiUsageBanner'
 
 export function AdminPage() {
   const { data: tournament, isLoading, error } = useCurrentTournament()
@@ -48,6 +49,8 @@ export function AdminPage() {
               : "Manage tournament data, imports, and bonus points"}
           </p>
         </div>
+
+        <SlashApiUsageBanner />
 
         {/* Tabs */}
         <div className="border-b border-gray-200 mb-6">
@@ -116,6 +119,8 @@ export function AdminPage() {
           </p>
         )}
       </div>
+
+      <SlashApiUsageBanner />
 
       {/* Tabs */}
       <div className="border-b border-gray-200 mb-6">

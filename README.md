@@ -303,7 +303,7 @@ Private project for Eldorado Masters Pool
 
 ## 👥 Contributors
 
-Built for the 13th Annual Eldorado Masters Pool
+Built for the 15th Annual Eldorado Masters Pool
 
 ## 🎉 Acknowledgments
 
