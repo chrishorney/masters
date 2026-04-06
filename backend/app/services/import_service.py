@@ -5,11 +5,12 @@ import unicodedata
 import re
 import difflib
 import zipfile
+from contextlib import contextmanager
 from xml.etree import ElementTree as ET
 from typing import List, Dict, Any, Tuple, Optional
 from sqlalchemy.orm import Session
 
-from app.models import Participant, Entry, Tournament, Player
+from app.models import Participant, Entry, Tournament, Player, ScoreSnapshot
 
 
 class ImportService:
@@ -20,6 +21,9 @@ class ImportService:
         # Populated by parse_csv() so we can use column order when SmartSheet exports
         # repeat header names (e.g. multiple "Replace" columns).
         self._parsed_header_keys: List[str] = []
+        # Set during bulk import/validate so match_player_name does not SELECT * players per cell.
+        self._import_all_players: Optional[List[Player]] = None
+        self._import_leaderboard_rows: Optional[List[Dict[str, Any]]] = None
     
     def normalize_name(self, name: str) -> str:
         """
@@ -46,6 +50,32 @@ class ImportService:
         )
         # Convert to lowercase and strip whitespace
         return ascii_name.lower().strip()
+
+    def _begin_import_match_batch(self, tournament_id: int) -> None:
+        """Load roster + latest tournament leaderboard once (safe for ~120+ rows × 6 names)."""
+        self._import_all_players = list(self.db.query(Player).all())
+        snapshot = (
+            self.db.query(ScoreSnapshot)
+            .filter(ScoreSnapshot.tournament_id == tournament_id)
+            .order_by(ScoreSnapshot.timestamp.desc())
+            .first()
+        )
+        if snapshot and snapshot.leaderboard_data:
+            self._import_leaderboard_rows = snapshot.leaderboard_data.get("leaderboardRows", []) or []
+        else:
+            self._import_leaderboard_rows = []
+
+    def _end_import_match_batch(self) -> None:
+        self._import_all_players = None
+        self._import_leaderboard_rows = None
+
+    @contextmanager
+    def import_match_batch(self, tournament_id: int):
+        self._begin_import_match_batch(tournament_id)
+        try:
+            yield
+        finally:
+            self._end_import_match_batch()
     
     def match_player_name(self, player_name: str, tournament_id: int) -> Optional[str]:
         """
@@ -73,8 +103,11 @@ class ImportService:
             return player.player_id
         
         # Try normalized match (handles special characters)
-        # Get all players and compare normalized names
-        all_players = self.db.query(Player).all()
+        all_players = (
+            self._import_all_players
+            if self._import_all_players is not None
+            else self.db.query(Player).all()
+        )
         for player in all_players:
             normalized_db = self.normalize_name(player.full_name)
             if normalized_db == normalized_input:
@@ -103,13 +136,19 @@ class ImportService:
                     return player.player_id
         
         # Try searching in tournament leaderboard (if available)
-        from app.models import ScoreSnapshot
-        snapshot = self.db.query(ScoreSnapshot).filter(
-            ScoreSnapshot.tournament_id == tournament_id
-        ).order_by(ScoreSnapshot.timestamp.desc()).first()
-        
-        if snapshot:
-            leaderboard_rows = snapshot.leaderboard_data.get("leaderboardRows", [])
+        if self._import_leaderboard_rows is not None:
+            leaderboard_rows = self._import_leaderboard_rows
+        else:
+            snapshot = self.db.query(ScoreSnapshot).filter(
+                ScoreSnapshot.tournament_id == tournament_id
+            ).order_by(ScoreSnapshot.timestamp.desc()).first()
+            leaderboard_rows = (
+                snapshot.leaderboard_data.get("leaderboardRows", [])
+                if snapshot and snapshot.leaderboard_data
+                else []
+            )
+
+        if leaderboard_rows:
             for row in leaderboard_rows:
                 first_name = row.get("firstName", "").strip()
                 last_name = row.get("lastName", "").strip()
@@ -143,24 +182,35 @@ class ImportService:
         """Return list of (full_name, player_id) for fuzzy matching (Player table + tournament leaderboard)."""
         candidates: List[Tuple[str, str]] = []
         seen_ids = set()
-        for p in self.db.query(Player).all():
+        roster = (
+            self._import_all_players
+            if self._import_all_players is not None
+            else self.db.query(Player).all()
+        )
+        for p in roster:
             key = (p.full_name.strip(), p.player_id)
             if p.player_id not in seen_ids:
                 candidates.append(key)
                 seen_ids.add(p.player_id)
-        from app.models import ScoreSnapshot
-        snapshot = self.db.query(ScoreSnapshot).filter(
-            ScoreSnapshot.tournament_id == tournament_id
-        ).order_by(ScoreSnapshot.timestamp.desc()).first()
-        if snapshot:
-            for row in snapshot.leaderboard_data.get("leaderboardRows", []):
-                first = (row.get("firstName") or "").strip()
-                last = (row.get("lastName") or "").strip()
-                full = f"{first} {last}".strip()
-                pid = str(row.get("playerId", ""))
-                if pid and pid not in seen_ids and full:
-                    candidates.append((full, pid))
-                    seen_ids.add(pid)
+        if self._import_leaderboard_rows is not None:
+            lb_rows = self._import_leaderboard_rows
+        else:
+            snapshot = self.db.query(ScoreSnapshot).filter(
+                ScoreSnapshot.tournament_id == tournament_id
+            ).order_by(ScoreSnapshot.timestamp.desc()).first()
+            lb_rows = (
+                snapshot.leaderboard_data.get("leaderboardRows", [])
+                if snapshot and snapshot.leaderboard_data
+                else []
+            )
+        for row in lb_rows:
+            first = (row.get("firstName") or "").strip()
+            last = (row.get("lastName") or "").strip()
+            full = f"{first} {last}".strip()
+            pid = str(row.get("playerId", ""))
+            if pid and pid not in seen_ids and full:
+                candidates.append((full, pid))
+                seen_ids.add(pid)
         return candidates
 
     def suggest_player_name(self, player_name: str, tournament_id: int) -> Optional[Tuple[str, str]]:
@@ -222,34 +272,35 @@ class ImportService:
                 k = next(k for k in keys if k == smart_key or k.startswith(smart_key + "__"))
                 professional_keys.append(k)
 
-        for row_num, row in enumerate(rows, start=2):
-            participant_name = (row.get(participant_key) or "").strip()
-            if not participant_name:
-                row_results.append({"row": row_num, "participant": "", "players": [], "row_error": "Participant Name is required"})
-                continue
-            players: List[Dict[str, Any]] = []
-            row_ok = True
-            for i in range(1, 7):
-                col = f"Player {i} Name"
-                actual_header_key = professional_keys[i - 1]
-                value = (row.get(actual_header_key) or "").strip()
-                if not value:
-                    players.append({"column": col, "value": value, "matched": False, "player_id": None, "suggestion": None})
-                    row_ok = False
+        with self.import_match_batch(tournament_id):
+            for row_num, row in enumerate(rows, start=2):
+                participant_name = (row.get(participant_key) or "").strip()
+                if not participant_name:
+                    row_results.append({"row": row_num, "participant": "", "players": [], "row_error": "Participant Name is required"})
                     continue
-                player_id = self.match_player_name(value, tournament_id)
-                if player_id:
-                    players.append({"column": col, "value": value, "matched": True, "player_id": player_id, "suggestion": None})
-                    continue
-                suggestion = self.suggest_player_name(value, tournament_id)
-                if suggestion:
-                    suggested_name, suggested_id = suggestion
-                    players.append({"column": col, "value": value, "matched": False, "player_id": None, "suggestion": {"name": suggested_name, "player_id": suggested_id}})
-                    all_suggestions.append({"row": row_num, "column": col, "value": value, "suggestion": suggested_name, "player_id": suggested_id})
-                else:
-                    players.append({"column": col, "value": value, "matched": False, "player_id": None, "suggestion": None})
-                    row_ok = False
-            row_results.append({"row": row_num, "participant": participant_name, "players": players, "row_error": None if row_ok else "Unmatched player name(s)"})
+                players: List[Dict[str, Any]] = []
+                row_ok = True
+                for i in range(1, 7):
+                    col = f"Player {i} Name"
+                    actual_header_key = professional_keys[i - 1]
+                    value = (row.get(actual_header_key) or "").strip()
+                    if not value:
+                        players.append({"column": col, "value": value, "matched": False, "player_id": None, "suggestion": None})
+                        row_ok = False
+                        continue
+                    player_id = self.match_player_name(value, tournament_id)
+                    if player_id:
+                        players.append({"column": col, "value": value, "matched": True, "player_id": player_id, "suggestion": None})
+                        continue
+                    suggestion = self.suggest_player_name(value, tournament_id)
+                    if suggestion:
+                        suggested_name, suggested_id = suggestion
+                        players.append({"column": col, "value": value, "matched": False, "player_id": None, "suggestion": {"name": suggested_name, "player_id": suggested_id}})
+                        all_suggestions.append({"row": row_num, "column": col, "value": value, "suggestion": suggested_name, "player_id": suggested_id})
+                    else:
+                        players.append({"column": col, "value": value, "matched": False, "player_id": None, "suggestion": None})
+                        row_ok = False
+                row_results.append({"row": row_num, "participant": participant_name, "players": players, "row_error": None if row_ok else "Unmatched player name(s)"})
         # Can import directly if every row has all 6 players matched (no suggestions needed)
         rows_without_error = [r for r in row_results if not r.get("row_error")]
         can_import_directly = (
@@ -829,103 +880,104 @@ class ImportService:
             "errors": []
         }
         
-        for row_num, row in enumerate(rows, start=2):  # Start at 2 (row 1 is header)
-            try:
-                participant_name = (row.get(participant_key, "") or "").strip()
-                if not participant_name:
-                    results["errors"].append({
-                        "row": row_num,
-                        "error": "Participant Name is required"
-                    })
-                    results["skipped"] += 1
-                    continue
-                
-                # Get or create participant
-                participant = self.db.query(Participant).filter(
-                    Participant.name == participant_name
-                ).first()
-                
-                if not participant:
-                    participant = Participant(name=participant_name)
-                    self.db.add(participant)
-                    self.db.flush()  # Get ID without committing
-                
-                # Match player names to IDs (use applied_suggestions when provided)
-                player_ids = []
-                player_errors = []
-                
-                for i in range(1, 7):
-                    col = f"Player {i} Name"
-                    actual_header_key = player_header_keys[i - 1]
-                    player_name = (row.get(actual_header_key, "") or "").strip()
-                    if not player_name:
-                        player_errors.append(f"Player {i} Name is required")
+        with self.import_match_batch(tournament_id):
+            for row_num, row in enumerate(rows, start=2):  # Start at 2 (row 1 is header)
+                try:
+                    participant_name = (row.get(participant_key, "") or "").strip()
+                    if not participant_name:
+                        results["errors"].append({
+                            "row": row_num,
+                            "error": "Participant Name is required"
+                        })
+                        results["skipped"] += 1
                         continue
-                    player_id = correction_lookup.get((row_num, col))
-                    if not player_id:
-                        player_id = self.match_player_name(player_name, tournament_id)
-                    if not player_id:
-                        player_errors.append(f"Player {i} '{player_name}' not found")
+
+                    # Get or create participant
+                    participant = self.db.query(Participant).filter(
+                        Participant.name == participant_name
+                    ).first()
+
+                    if not participant:
+                        participant = Participant(name=participant_name)
+                        self.db.add(participant)
+                        self.db.flush()  # Get ID without committing
+
+                    # Match player names to IDs (use applied_suggestions when provided)
+                    player_ids = []
+                    player_errors = []
+
+                    for i in range(1, 7):
+                        col = f"Player {i} Name"
+                        actual_header_key = player_header_keys[i - 1]
+                        player_name = (row.get(actual_header_key, "") or "").strip()
+                        if not player_name:
+                            player_errors.append(f"Player {i} Name is required")
+                            continue
+                        player_id = correction_lookup.get((row_num, col))
+                        if not player_id:
+                            player_id = self.match_player_name(player_name, tournament_id)
+                        if not player_id:
+                            player_errors.append(f"Player {i} '{player_name}' not found")
+                            continue
+
+                        player_ids.append(player_id)
+
+                    if player_errors:
+                        results["errors"].append({
+                            "row": row_num,
+                            "participant": participant_name,
+                            "error": "; ".join(player_errors)
+                        })
+                        results["skipped"] += 1
                         continue
-                    
-                    player_ids.append(player_id)
-                
-                if player_errors:
+
+                    if len(player_ids) != 6:
+                        results["errors"].append({
+                            "row": row_num,
+                            "participant": participant_name,
+                            "error": f"Expected 6 players, found {len(player_ids)}"
+                        })
+                        results["skipped"] += 1
+                        continue
+
+                    # Check for duplicate entry (same participant, same tournament, same players)
+                    existing_entry = self.db.query(Entry).filter(
+                        Entry.participant_id == participant.id,
+                        Entry.tournament_id == tournament_id,
+                        Entry.player1_id == player_ids[0],
+                        Entry.player2_id == player_ids[1],
+                        Entry.player3_id == player_ids[2],
+                        Entry.player4_id == player_ids[3],
+                        Entry.player5_id == player_ids[4],
+                        Entry.player6_id == player_ids[5]
+                    ).first()
+
+                    if existing_entry:
+                        results["skipped"] += 1
+                        continue
+
+                    # Create entry
+                    entry = Entry(
+                        participant_id=participant.id,
+                        tournament_id=tournament_id,
+                        player1_id=player_ids[0],
+                        player2_id=player_ids[1],
+                        player3_id=player_ids[2],
+                        player4_id=player_ids[3],
+                        player5_id=player_ids[4],
+                        player6_id=player_ids[5]
+                    )
+                    self.db.add(entry)
+                    results["imported"] += 1
+
+                except Exception as e:
                     results["errors"].append({
                         "row": row_num,
-                        "participant": participant_name,
-                        "error": "; ".join(player_errors)
+                        "error": f"Unexpected error: {str(e)}"
                     })
                     results["skipped"] += 1
-                    continue
-                
-                if len(player_ids) != 6:
-                    results["errors"].append({
-                        "row": row_num,
-                        "participant": participant_name,
-                        "error": f"Expected 6 players, found {len(player_ids)}"
-                    })
-                    results["skipped"] += 1
-                    continue
-                
-                # Check for duplicate entry (same participant, same tournament, same players)
-                existing_entry = self.db.query(Entry).filter(
-                    Entry.participant_id == participant.id,
-                    Entry.tournament_id == tournament_id,
-                    Entry.player1_id == player_ids[0],
-                    Entry.player2_id == player_ids[1],
-                    Entry.player3_id == player_ids[2],
-                    Entry.player4_id == player_ids[3],
-                    Entry.player5_id == player_ids[4],
-                    Entry.player6_id == player_ids[5]
-                ).first()
-                
-                if existing_entry:
-                    results["skipped"] += 1
-                    continue
-                
-                # Create entry
-                entry = Entry(
-                    participant_id=participant.id,
-                    tournament_id=tournament_id,
-                    player1_id=player_ids[0],
-                    player2_id=player_ids[1],
-                    player3_id=player_ids[2],
-                    player4_id=player_ids[3],
-                    player5_id=player_ids[4],
-                    player6_id=player_ids[5]
-                )
-                self.db.add(entry)
-                results["imported"] += 1
-                
-            except Exception as e:
-                results["errors"].append({
-                    "row": row_num,
-                    "error": f"Unexpected error: {str(e)}"
-                })
-                results["skipped"] += 1
-        
-        self.db.commit()
+
+            self.db.commit()
         return results
     
     def import_rebuys(
@@ -962,33 +1014,158 @@ class ImportService:
                     correction_lookup[(int(r), str(c).strip())] = str(pid)
 
         results = {"success": True, "imported": 0, "skipped": 0, "errors": []}
+        self._begin_import_match_batch(tournament_id)
+        try:
 
-        if is_smart_sheet_rebuys:
-            first_row = rows[0] if rows else {}
-            keys = set(first_row.keys())
+            if is_smart_sheet_rebuys:
+                first_row = rows[0] if rows else {}
+                keys = set(first_row.keys())
 
-            def has_key_variant(base: str) -> bool:
-                return any((k == base or k.startswith(base + "__")) for k in keys)
+                def has_key_variant(base: str) -> bool:
+                    return any((k == base or k.startswith(base + "__")) for k in keys)
 
-            participant_key = "Participant Name" if has_key_variant("Participant Name") else "Player Name"
-            pro6_idx = header_keys.index(pro6_key)
-            replace_start_idx = pro6_idx + 1
-            replace_pairs: List[Tuple[str, str]] = []
-            for pair_idx in range(6):
-                a = replace_start_idx + pair_idx * 2
-                b = a + 1
-                if b >= len(header_keys):
-                    break
-                replace_pairs.append((header_keys[a], header_keys[b]))
+                participant_key = "Participant Name" if has_key_variant("Participant Name") else "Player Name"
+                pro6_idx = header_keys.index(pro6_key)
+                replace_start_idx = pro6_idx + 1
+                replace_pairs: List[Tuple[str, str]] = []
+                for pair_idx in range(6):
+                    a = replace_start_idx + pair_idx * 2
+                    b = a + 1
+                    if b >= len(header_keys):
+                        break
+                    replace_pairs.append((header_keys[a], header_keys[b]))
 
-            if not replace_pairs:
-                return {"success": False, "error": "Could not locate replace pairs in SmartSheet rebuy export."}
+                if not replace_pairs:
+                    return {"success": False, "error": "Could not locate replace pairs in SmartSheet rebuy export."}
+
+                for row_num, row in enumerate(rows, start=2):
+                    try:
+                        participant_name = (row.get(participant_key) or "").strip()
+                        if not participant_name:
+                            results["errors"].append({"row": row_num, "error": "Participant Name is required"})
+                            results["skipped"] += 1
+                            continue
+
+                        participant = self.db.query(Participant).filter(Participant.name == participant_name).first()
+                        if not participant:
+                            results["errors"].append({
+                                "row": row_num,
+                                "error": f"Participant '{participant_name}' not found. Import entries first."
+                            })
+                            results["skipped"] += 1
+                            continue
+
+                        entry = self.db.query(Entry).filter(
+                            Entry.participant_id == participant.id,
+                            Entry.tournament_id == tournament_id
+                        ).first()
+
+                        if not entry:
+                            results["errors"].append({
+                                "row": row_num,
+                                "participant": participant_name,
+                                "error": f"No entry found for participant in tournament {tournament_id}"
+                            })
+                            results["skipped"] += 1
+                            continue
+
+                        player_positions = [
+                            entry.player1_id, entry.player2_id, entry.player3_id,
+                            entry.player4_id, entry.player5_id, entry.player6_id
+                        ]
+
+                        if entry.rebuy_player_ids is None:
+                            entry.rebuy_player_ids = []
+                        if entry.rebuy_original_player_ids is None:
+                            entry.rebuy_original_player_ids = []
+
+                        any_imported_this_row = False
+                        for pair_idx, (orig_key, with_key) in enumerate(replace_pairs):
+                            orig_name = (row.get(orig_key) or "").strip()
+                            with_name = (row.get(with_key) or "").strip()
+
+                            if not orig_name and not with_name:
+                                continue
+
+                            if not orig_name:
+                                results["errors"].append({
+                                    "row": row_num,
+                                    "participant": participant_name,
+                                    "error": f"Missing Replace Original for replace pair {pair_idx + 1}"
+                                })
+                                continue
+
+                            orig_col_identifier = f"Replace Original {pair_idx + 1}"
+                            with_col_identifier = f"Replace With {pair_idx + 1}"
+
+                            original_player_id = correction_lookup.get((row_num, orig_col_identifier))
+                            if not original_player_id:
+                                original_player_id = self.match_player_name(orig_name, tournament_id)
+
+                            if not original_player_id or original_player_id not in player_positions:
+                                results["errors"].append({
+                                    "row": row_num,
+                                    "participant": participant_name,
+                                    "error": f"Original player '{orig_name}' not found in entry"
+                                })
+                                continue
+
+                            replacement_player_id = correction_lookup.get((row_num, with_col_identifier))
+                            if not replacement_player_id:
+                                replacement_player_id = self.match_player_name(with_name, tournament_id)
+
+                            if not replacement_player_id:
+                                results["errors"].append({
+                                    "row": row_num,
+                                    "participant": participant_name,
+                                    "error": f"Rebuy player '{with_name}' not found"
+                                })
+                                continue
+
+                            if original_player_id in entry.rebuy_original_player_ids:
+                                continue
+
+                            entry.rebuy_original_player_ids.append(original_player_id)
+                            entry.rebuy_player_ids.append(replacement_player_id)
+
+                            any_imported_this_row = True
+
+                        if any_imported_this_row:
+                            from sqlalchemy.orm.attributes import flag_modified
+                            flag_modified(entry, "rebuy_original_player_ids")
+                            flag_modified(entry, "rebuy_player_ids")
+                            results["imported"] += 1
+                        else:
+                            results["skipped"] += 1
+
+                    except Exception as e:
+                        results["errors"].append({"row": row_num, "error": f"Unexpected error: {str(e)}"})
+                        results["skipped"] += 1
+
+                self.db.commit()
+                return results
+
+            # Normalized legacy mode (Participant Name, Original Player Name, Rebuy Player Name)
+            is_valid, error = self.validate_rebuys_columns(rows)
+            if not is_valid:
+                return {"success": False, "error": error}
 
             for row_num, row in enumerate(rows, start=2):
                 try:
-                    participant_name = (row.get(participant_key) or "").strip()
+                    participant_name = (row.get("Participant Name") or "").strip()
+                    original_player_name = (row.get("Original Player Name") or "").strip()
+                    rebuy_player_name = (row.get("Rebuy Player Name") or "").strip()
+
                     if not participant_name:
                         results["errors"].append({"row": row_num, "error": "Participant Name is required"})
+                        results["skipped"] += 1
+                        continue
+                    if not original_player_name:
+                        results["errors"].append({"row": row_num, "error": "Original Player Name is required"})
+                        results["skipped"] += 1
+                        continue
+                    if not rebuy_player_name:
+                        results["errors"].append({"row": row_num, "error": "Rebuy Player Name is required"})
                         results["skipped"] += 1
                         continue
 
@@ -1020,69 +1197,49 @@ class ImportService:
                         entry.player4_id, entry.player5_id, entry.player6_id
                     ]
 
+                    original_player_id = correction_lookup.get((row_num, "Original Player Name"))
+                    if not original_player_id:
+                        original_player_id = self.match_player_name(original_player_name, tournament_id)
+
+                    if not original_player_id or original_player_id not in player_positions:
+                        results["errors"].append({
+                            "row": row_num,
+                            "participant": participant_name,
+                            "error": f"Original player '{original_player_name}' not found in entry"
+                        })
+                        results["skipped"] += 1
+                        continue
+
+                    rebuy_player_id = correction_lookup.get((row_num, "Rebuy Player Name"))
+                    if not rebuy_player_id:
+                        rebuy_player_id = self.match_player_name(rebuy_player_name, tournament_id)
+
+                    if not rebuy_player_id:
+                        results["errors"].append({
+                            "row": row_num,
+                            "participant": participant_name,
+                            "error": f"Rebuy player '{rebuy_player_name}' not found"
+                        })
+                        results["skipped"] += 1
+                        continue
+
                     if entry.rebuy_player_ids is None:
                         entry.rebuy_player_ids = []
                     if entry.rebuy_original_player_ids is None:
                         entry.rebuy_original_player_ids = []
 
-                    any_imported_this_row = False
-                    for pair_idx, (orig_key, with_key) in enumerate(replace_pairs):
-                        orig_name = (row.get(orig_key) or "").strip()
-                        with_name = (row.get(with_key) or "").strip()
-
-                        if not orig_name and not with_name:
-                            continue
-
-                        if not orig_name:
-                            results["errors"].append({
-                                "row": row_num,
-                                "participant": participant_name,
-                                "error": f"Missing Replace Original for replace pair {pair_idx + 1}"
-                            })
-                            continue
-
-                        orig_col_identifier = f"Replace Original {pair_idx + 1}"
-                        with_col_identifier = f"Replace With {pair_idx + 1}"
-
-                        original_player_id = correction_lookup.get((row_num, orig_col_identifier))
-                        if not original_player_id:
-                            original_player_id = self.match_player_name(orig_name, tournament_id)
-
-                        if not original_player_id or original_player_id not in player_positions:
-                            results["errors"].append({
-                                "row": row_num,
-                                "participant": participant_name,
-                                "error": f"Original player '{orig_name}' not found in entry"
-                            })
-                            continue
-
-                        replacement_player_id = correction_lookup.get((row_num, with_col_identifier))
-                        if not replacement_player_id:
-                            replacement_player_id = self.match_player_name(with_name, tournament_id)
-
-                        if not replacement_player_id:
-                            results["errors"].append({
-                                "row": row_num,
-                                "participant": participant_name,
-                                "error": f"Rebuy player '{with_name}' not found"
-                            })
-                            continue
-
-                        if original_player_id in entry.rebuy_original_player_ids:
-                            continue
-
-                        entry.rebuy_original_player_ids.append(original_player_id)
-                        entry.rebuy_player_ids.append(replacement_player_id)
-
-                        any_imported_this_row = True
-
-                    if any_imported_this_row:
-                        from sqlalchemy.orm.attributes import flag_modified
-                        flag_modified(entry, "rebuy_original_player_ids")
-                        flag_modified(entry, "rebuy_player_ids")
-                        results["imported"] += 1
-                    else:
+                    if original_player_id in entry.rebuy_original_player_ids:
                         results["skipped"] += 1
+                        continue
+
+                    entry.rebuy_original_player_ids.append(original_player_id)
+                    entry.rebuy_player_ids.append(rebuy_player_id)
+
+                    from sqlalchemy.orm.attributes import flag_modified
+                    flag_modified(entry, "rebuy_original_player_ids")
+                    flag_modified(entry, "rebuy_player_ids")
+
+                    results["imported"] += 1
 
                 except Exception as e:
                     results["errors"].append({"row": row_num, "error": f"Unexpected error: {str(e)}"})
@@ -1090,106 +1247,5 @@ class ImportService:
 
             self.db.commit()
             return results
-
-        # Normalized legacy mode (Participant Name, Original Player Name, Rebuy Player Name)
-        is_valid, error = self.validate_rebuys_columns(rows)
-        if not is_valid:
-            return {"success": False, "error": error}
-
-        for row_num, row in enumerate(rows, start=2):
-            try:
-                participant_name = (row.get("Participant Name") or "").strip()
-                original_player_name = (row.get("Original Player Name") or "").strip()
-                rebuy_player_name = (row.get("Rebuy Player Name") or "").strip()
-
-                if not participant_name:
-                    results["errors"].append({"row": row_num, "error": "Participant Name is required"})
-                    results["skipped"] += 1
-                    continue
-                if not original_player_name:
-                    results["errors"].append({"row": row_num, "error": "Original Player Name is required"})
-                    results["skipped"] += 1
-                    continue
-                if not rebuy_player_name:
-                    results["errors"].append({"row": row_num, "error": "Rebuy Player Name is required"})
-                    results["skipped"] += 1
-                    continue
-
-                participant = self.db.query(Participant).filter(Participant.name == participant_name).first()
-                if not participant:
-                    results["errors"].append({
-                        "row": row_num,
-                        "error": f"Participant '{participant_name}' not found. Import entries first."
-                    })
-                    results["skipped"] += 1
-                    continue
-
-                entry = self.db.query(Entry).filter(
-                    Entry.participant_id == participant.id,
-                    Entry.tournament_id == tournament_id
-                ).first()
-
-                if not entry:
-                    results["errors"].append({
-                        "row": row_num,
-                        "participant": participant_name,
-                        "error": f"No entry found for participant in tournament {tournament_id}"
-                    })
-                    results["skipped"] += 1
-                    continue
-
-                player_positions = [
-                    entry.player1_id, entry.player2_id, entry.player3_id,
-                    entry.player4_id, entry.player5_id, entry.player6_id
-                ]
-
-                original_player_id = correction_lookup.get((row_num, "Original Player Name"))
-                if not original_player_id:
-                    original_player_id = self.match_player_name(original_player_name, tournament_id)
-
-                if not original_player_id or original_player_id not in player_positions:
-                    results["errors"].append({
-                        "row": row_num,
-                        "participant": participant_name,
-                        "error": f"Original player '{original_player_name}' not found in entry"
-                    })
-                    results["skipped"] += 1
-                    continue
-
-                rebuy_player_id = correction_lookup.get((row_num, "Rebuy Player Name"))
-                if not rebuy_player_id:
-                    rebuy_player_id = self.match_player_name(rebuy_player_name, tournament_id)
-
-                if not rebuy_player_id:
-                    results["errors"].append({
-                        "row": row_num,
-                        "participant": participant_name,
-                        "error": f"Rebuy player '{rebuy_player_name}' not found"
-                    })
-                    results["skipped"] += 1
-                    continue
-
-                if entry.rebuy_player_ids is None:
-                    entry.rebuy_player_ids = []
-                if entry.rebuy_original_player_ids is None:
-                    entry.rebuy_original_player_ids = []
-
-                if original_player_id in entry.rebuy_original_player_ids:
-                    results["skipped"] += 1
-                    continue
-
-                entry.rebuy_original_player_ids.append(original_player_id)
-                entry.rebuy_player_ids.append(rebuy_player_id)
-
-                from sqlalchemy.orm.attributes import flag_modified
-                flag_modified(entry, "rebuy_original_player_ids")
-                flag_modified(entry, "rebuy_player_ids")
-
-                results["imported"] += 1
-
-            except Exception as e:
-                results["errors"].append({"row": row_num, "error": f"Unexpected error: {str(e)}"})
-                results["skipped"] += 1
-
-        self.db.commit()
-        return results
+        finally:
+            self._end_import_match_batch()
