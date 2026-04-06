@@ -1,7 +1,7 @@
 """Data synchronization service - syncs API data to database."""
 import logging
 import json
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -283,6 +283,8 @@ class DataSyncService:
             )
             self.db.add(tournament)
             logger.info(f"Created tournament: {tournament.name} ({tournament.year}) - Round {parsed_round}")
+
+        tournament.last_synced_at = datetime.now(timezone.utc)
         
         self.db.commit()
         self.db.refresh(tournament)

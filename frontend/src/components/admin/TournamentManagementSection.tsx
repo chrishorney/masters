@@ -665,7 +665,9 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
             <div className="border-b border-gray-200 pb-4">
               <h3 className="font-medium text-gray-900 mb-2">Sync Tournament Data</h3>
               <p className="text-sm text-gray-600 mb-3">
-                Fetch latest leaderboard and scorecard data from Slash Golf API. You can sync the current tournament or enter different tournament parameters to sync a different tournament.
+                The schedule dropdown only chooses which tournament ID to sync—it does not switch the site by itself. Click{' '}
+                <strong>Sync Tournament Data</strong> after changing ID/year. When sync succeeds, that tournament becomes
+                the site &quot;current&quot; tournament (most recently synced).
               </p>
               
               {/* Manual Tournament Input Form */}

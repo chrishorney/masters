@@ -1,5 +1,5 @@
 """Tournament model."""
-from sqlalchemy import Column, Integer, String, Date, Boolean, JSON
+from sqlalchemy import Column, Integer, String, Date, DateTime, JSON
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -17,6 +17,8 @@ class Tournament(Base):
     end_date = Column(Date, nullable=False)
     status = Column(String)  # "Official", "In Progress", etc.
     current_round = Column(Integer, default=1)
+    # Set on full tournament sync; drives /tournament/current (most recently synced wins).
+    last_synced_at = Column(DateTime(timezone=True), nullable=True)
     
     # Cached API data
     api_data = Column(JSON)  # Store full tournament data from API

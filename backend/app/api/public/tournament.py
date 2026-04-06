@@ -2,7 +2,9 @@
 import logging
 import time
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import desc
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.expression import nullslast
 from typing import Optional
 
 from app.database import get_db
@@ -119,12 +121,13 @@ async def get_current_tournament(
     db: Session = Depends(get_db)
 ):
     """Get current tournament information."""
-    # Get the most recently created tournament.
-    # This avoids cases where older tournaments sort "ahead" of newly-synced ones
-    # (e.g. when syncing a different `tourn_id` but the UI keeps showing a previous code).
-    tournament = db.query(Tournament).order_by(
-        Tournament.id.desc()
-    ).first()
+    # Prefer the tournament last updated by a full admin "Sync" (last_synced_at).
+    # Fallback among never-synced rows: highest id (legacy behavior).
+    tournament = (
+        db.query(Tournament)
+        .order_by(nullslast(desc(Tournament.last_synced_at)), desc(Tournament.id))
+        .first()
+    )
     
     if not tournament:
         raise HTTPException(status_code=404, detail="No tournament found")
