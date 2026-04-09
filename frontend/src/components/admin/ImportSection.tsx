@@ -9,6 +9,45 @@ interface ImportSectionProps {
 
 export type SuggestionItem = { row: number; column: string; value: string; suggestion: string; player_id: string }
 
+function formatImportError(err: any): string {
+  if (!err) return 'Unknown import error'
+  if (typeof err.error === 'string' && err.error.trim().length > 0) return err.error
+  if (typeof err.message === 'string' && err.message.trim().length > 0) return err.message
+  return 'Unknown import error'
+}
+
+function buildValidationRowErrors(rowResults: any[] | undefined): Array<{ row: number; participant?: string; error: string }> {
+  if (!rowResults || rowResults.length === 0) return []
+  const out: Array<{ row: number; participant?: string; error: string }> = []
+
+  for (const row of rowResults) {
+    if (!row?.row_error) continue
+    const unresolvedPlayers = Array.isArray(row.players)
+      ? row.players.filter((p: any) => p && !p.matched && !p.suggestion)
+      : []
+
+    if (unresolvedPlayers.length > 0) {
+      const details = unresolvedPlayers
+        .map((p: any) => `${p.column || 'Unknown column'} '${p.value || ''}'`)
+        .join(', ')
+      out.push({
+        row: Number(row.row) || 0,
+        participant: row.participant || undefined,
+        error: `No match found for: ${details}`,
+      })
+      continue
+    }
+
+    out.push({
+      row: Number(row.row) || 0,
+      participant: row.participant || undefined,
+      error: row.row_error,
+    })
+  }
+
+  return out
+}
+
 export function ImportSection({ tournamentId }: ImportSectionProps) {
   const [importType, setImportType] = useState<'entries' | 'rebuys'>('entries')
   const [file, setFile] = useState<File | null>(null)
@@ -75,10 +114,11 @@ export function ImportSection({ tournamentId }: ImportSectionProps) {
         } else if (validation.can_import_with_corrections && validation.suggestions && validation.suggestions.length > 0) {
           setSuggestions(validation.suggestions)
         } else if (validation.error || (validation.row_results && validation.row_results.some((r: any) => r.row_error))) {
+          const detailedErrors = buildValidationRowErrors(validation.row_results)
           setResult({
             success: false,
             error: validation.error || 'Some player names could not be matched. Fix the CSV or check for typos.',
-            errors: validation.row_results?.filter((r: any) => r.row_error).map((r: any) => ({ row: r.row, error: r.row_error, participant: r.participant })),
+            errors: detailedErrors,
           })
         } else {
           const data = await runImport()
@@ -92,10 +132,11 @@ export function ImportSection({ tournamentId }: ImportSectionProps) {
         } else if (validation.can_import_with_corrections && validation.suggestions && validation.suggestions.length > 0) {
           setSuggestions(validation.suggestions)
         } else if (validation.error || (validation.row_results && validation.row_results.some((r: any) => r.row_error))) {
+          const detailedErrors = buildValidationRowErrors(validation.row_results)
           setResult({
             success: false,
             error: validation.error || 'Some player names could not be matched. Fix the CSV or check for typos.',
-            errors: validation.row_results?.filter((r: any) => r.row_error).map((r: any) => ({ row: r.row, error: r.row_error, participant: r.participant })),
+            errors: detailedErrors,
           })
         } else {
           const data = await runImport()
@@ -298,23 +339,31 @@ export function ImportSection({ tournamentId }: ImportSectionProps) {
                 </div>
               </div>
 
-              {result.errors && result.errors.length > 0 && (
-                <div className="mt-4">
-                  <h4 className="font-medium text-gray-900 mb-2">Errors:</h4>
-                  <div className="max-h-48 overflow-y-auto space-y-1">
-                    {result.errors.map((err: any, idx: number) => (
-                      <div key={idx} className="text-sm text-red-700 bg-red-50 p-2 rounded">
-                        Row {err.row}: {err.error}
-                        {err.participant && ` (${err.participant})`}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           ) : (
             <div className="text-red-600">
               <p>{result.error}</p>
+            </div>
+          )}
+
+          {result.errors && result.errors.length > 0 && (
+            <div className="mt-4">
+              <h4 className="font-medium text-gray-900 mb-2">Rows that could not be imported:</h4>
+              <div className="max-h-64 overflow-y-auto space-y-1">
+                {result.errors.map((rawErr: any, idx: number) => {
+                  const err = {
+                    row: Number(rawErr?.row) || 0,
+                    participant: rawErr?.participant,
+                    error: formatImportError(rawErr),
+                  }
+                  return (
+                    <div key={idx} className="text-sm text-red-700 bg-red-50 p-2 rounded">
+                      Row {err.row}: {err.error}
+                      {err.participant && ` (${err.participant})`}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )}
         </div>
