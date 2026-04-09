@@ -111,7 +111,7 @@ def _score_sort_key(row: dict[str, Any]) -> tuple[int, int]:
 
 
 @router.post("/scores/calculate")
-async def calculate_scores(
+def calculate_scores(
     tournament_id: int = Query(..., description="Tournament ID"),
     round_id: Optional[int] = Query(None, description="Specific round (default: current round)"),
     fetch_missing_scorecards: bool = Query(False, description="Fetch missing scorecards before calculating (uses API calls)"),
@@ -248,7 +248,7 @@ async def calculate_scores(
 
 
 @router.post("/scores/calculate-all")
-async def calculate_all_rounds(
+def calculate_all_rounds(
     tournament_id: int = Query(..., description="Tournament ID"),
     db: Session = Depends(get_db)
 ):
@@ -272,7 +272,7 @@ async def calculate_all_rounds(
 
 
 @router.get("/scores/leaderboard")
-async def get_leaderboard(
+def get_leaderboard(
     tournament_id: int = Query(..., description="Tournament ID"),
     db: Session = Depends(get_db)
 ):
@@ -380,7 +380,7 @@ async def get_leaderboard(
 
 
 @router.get("/scores/entries-by-player")
-async def get_entries_by_player(
+def get_entries_by_player(
     tournament_id: int = Query(..., description="Tournament ID"),
     player_id: str = Query(..., description="Player ID (golfer in the field)"),
     db: Session = Depends(get_db)
@@ -415,7 +415,7 @@ async def get_entries_by_player(
 
 
 @router.get("/scores/tournament-leaderboard")
-async def get_tournament_leaderboard(
+def get_tournament_leaderboard(
     tournament_id: int = Query(..., description="Tournament ID"),
     db: Session = Depends(get_db)
 ):
@@ -537,7 +537,7 @@ async def get_tournament_leaderboard(
 
 
 @router.get("/scores/tournament-leaderboard/round/{round_id}")
-async def get_round_tournament_leaderboard(
+def get_round_tournament_leaderboard(
     round_id: int,
     tournament_id: int = Query(..., description="Tournament ID"),
     db: Session = Depends(get_db)

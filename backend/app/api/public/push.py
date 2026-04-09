@@ -13,7 +13,7 @@ router = APIRouter()
 
 
 @router.post("/push/subscribe")
-async def subscribe(
+def subscribe(
     subscription: Dict[str, Any],
     db: Session = Depends(get_db)
 ):
@@ -71,7 +71,7 @@ async def subscribe(
 
 
 @router.post("/push/unsubscribe")
-async def unsubscribe(
+def unsubscribe(
     subscription: Dict[str, Any],
     db: Session = Depends(get_db)
 ):
@@ -100,7 +100,7 @@ async def unsubscribe(
 
 
 @router.get("/push/public-key")
-async def get_public_key():
+def get_public_key():
     """Get VAPID public key for frontend."""
     push_service = get_push_service()
     
@@ -164,7 +164,7 @@ async def get_public_key():
 
 
 @router.get("/push/status")
-async def get_push_status():
+def get_push_status():
     """Get push notification service status."""
     push_service = get_push_service()
     

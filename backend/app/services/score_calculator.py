@@ -30,14 +30,16 @@ class ScoreCalculatorService:
     def calculate_scores_for_tournament(
         self,
         tournament_id: int,
-        round_id: Optional[int] = None
+        round_id: Optional[int] = None,
+        entry_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
-        Calculate scores for all entries in a tournament.
+        Calculate scores for all entries in a tournament (or one entry if entry_id is set).
         
         Args:
             tournament_id: Tournament ID
             round_id: Specific round to calculate (None = current round)
+            entry_id: If set, only recalculate this entry (e.g. after roster edits).
             
         Returns:
             Dictionary with calculation results
@@ -125,10 +127,11 @@ class ScoreCalculatorService:
                 f"Total players with scorecards: {len(merged_scorecard_data)}"
             )
         
-        # Get all entries for this tournament
-        entries = self.db.query(Entry).filter(
-            Entry.tournament_id == tournament_id
-        ).all()
+        # Get entries for this tournament (optionally a single entry for targeted recalc)
+        q = self.db.query(Entry).filter(Entry.tournament_id == tournament_id)
+        if entry_id is not None:
+            q = q.filter(Entry.id == entry_id)
+        entries = q.all()
         
         # Check which entry players are missing scorecard data
         entry_player_ids = set()

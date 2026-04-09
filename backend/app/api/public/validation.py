@@ -10,7 +10,7 @@ router = APIRouter()
 
 
 @router.get("/validation/api-raw")
-async def get_raw_api_data(
+def get_raw_api_data(
     tournament_id: int = None,
     db: Session = Depends(get_db)
 ):
@@ -45,7 +45,7 @@ async def get_raw_api_data(
 
 
 @router.get("/validation/sync-status")
-async def get_sync_status(
+def get_sync_status(
     tournament_id: int = None,
     db: Session = Depends(get_db)
 ):

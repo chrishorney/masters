@@ -7,12 +7,15 @@ import { AdminLogin } from '../components/admin/AdminLogin'
 import { ImportSection } from '../components/admin/ImportSection'
 import { BonusPointsSection } from '../components/admin/BonusPointsSection'
 import { TournamentManagementSection } from '../components/admin/TournamentManagementSection'
+import { EntriesManagementSection } from '../components/admin/EntriesManagementSection'
 import { SlashApiUsageBanner } from '../components/admin/SlashApiUsageBanner'
+
+type AdminTab = 'import' | 'bonus' | 'tournament' | 'entries'
 
 export function AdminPage() {
   const { data: tournament, isLoading, error } = useCurrentTournament()
   const { isAuthenticated, isChecking, checkAuth } = useAdminAuth()
-  const [activeTab, setActiveTab] = useState<'import' | 'bonus' | 'tournament'>('tournament')
+  const [activeTab, setActiveTab] = useState<AdminTab>('tournament')
 
   // Show login if not authenticated
   if (isChecking) {
@@ -87,6 +90,16 @@ export function AdminPage() {
                 >
                   Bonus Points
                 </button>
+                <button
+                  onClick={() => setActiveTab('entries')}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'entries'
+                      ? 'border-green-500 text-green-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  Entries
+                </button>
               </>
             )}
           </nav>
@@ -102,6 +115,9 @@ export function AdminPage() {
           )}
           {activeTab === 'bonus' && tournament && (
             <BonusPointsSection tournamentId={tournament.id} />
+          )}
+          {activeTab === 'entries' && tournament && (
+            <EntriesManagementSection tournamentId={tournament.id} />
           )}
         </div>
       </div>
@@ -147,6 +163,16 @@ export function AdminPage() {
             Bonus Points
           </button>
           <button
+            onClick={() => setActiveTab('entries')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
+              activeTab === 'entries'
+                ? 'border-green-500 text-green-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Entries
+          </button>
+          <button
             onClick={() => setActiveTab('tournament')}
             className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
               activeTab === 'tournament'
@@ -162,11 +188,12 @@ export function AdminPage() {
         <div className="md:hidden">
           <select
             value={activeTab}
-            onChange={(e) => setActiveTab(e.target.value as 'import' | 'bonus' | 'tournament')}
+            onChange={(e) => setActiveTab(e.target.value as AdminTab)}
             className="w-full py-3 px-4 border border-gray-300 rounded-lg bg-white text-gray-900 font-medium focus:ring-2 focus:ring-green-500 focus:border-green-500"
           >
             <option value="import">SmartSheet Imports</option>
             <option value="bonus">Bonus Points</option>
+            <option value="entries">Entries</option>
             <option value="tournament">Tournament Management</option>
           </select>
         </div>
@@ -196,6 +223,16 @@ export function AdminPage() {
         )}
         {activeTab === 'tournament' && (
           <TournamentManagementSection tournament={tournament || undefined} />
+        )}
+        {activeTab === 'entries' && tournament && (
+          <EntriesManagementSection tournamentId={tournament.id} />
+        )}
+        {activeTab === 'entries' && !tournament && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+            <p className="text-yellow-800">
+              Please create or sync a tournament first before managing entries.
+            </p>
+          </div>
         )}
       </div>
     </div>

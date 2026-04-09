@@ -88,7 +88,7 @@ async def get_discord_widget():
 
 
 @router.get("/tournament/list")
-async def list_tournaments(
+def list_tournaments(
     db: Session = Depends(get_db)
 ):
     """List all tournaments in the database."""
@@ -117,7 +117,7 @@ async def list_tournaments(
 
 
 @router.get("/tournament/current")
-async def get_current_tournament(
+def get_current_tournament(
     db: Session = Depends(get_db)
 ):
     """Get current tournament information."""
@@ -151,7 +151,7 @@ async def get_current_tournament(
 
 
 @router.get("/tournament/schedule")
-async def get_tournament_schedule(
+def get_tournament_schedule(
     year: int,
     org_id: Optional[str] = None,
 ):
@@ -174,7 +174,7 @@ async def get_tournament_schedule(
 
 
 @router.get("/tournament/{tournament_id}")
-async def get_tournament(
+def get_tournament(
     tournament_id: int,
     db: Session = Depends(get_db)
 ):
@@ -203,7 +203,7 @@ async def get_tournament(
 
 
 @router.post("/tournament/sync")
-async def sync_tournament(
+def sync_tournament(
     org_id: Optional[str] = None,
     tourn_id: Optional[str] = None,
     year: Optional[int] = None,
@@ -258,7 +258,7 @@ async def sync_tournament(
 
 
 @router.post("/tournament/sync-round")
-async def sync_round(
+def sync_round(
     tournament_id: int,
     round_id: int,
     db: Session = Depends(get_db)

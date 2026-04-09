@@ -67,6 +67,32 @@ class ScoringService:
         # already triggered a Discord bonus notification in this service
         # instance, so we don't spam multiple messages for the same shot.
         self._sent_discord_bonuses: Set[Tuple[int, int, str, int, str]] = set()
+
+    def effective_lineup_player_ids(self, entry: Entry, round_id: int) -> List[Optional[str]]:
+        """
+        Six roster slots for scoring: main roster with rebuy substitution for R3+.
+        None means an empty slot (admin removed a golfer).
+        """
+        main = [
+            entry.player1_id,
+            entry.player2_id,
+            entry.player3_id,
+            entry.player4_id,
+            entry.player5_id,
+            entry.player6_id,
+        ]
+        if round_id >= 3 and entry.rebuy_player_ids and entry.rebuy_original_player_ids:
+            rebuy_map = {}
+            for orig_id, rebuy_id in zip(entry.rebuy_original_player_ids, entry.rebuy_player_ids):
+                rebuy_map[str(orig_id)] = str(rebuy_id)
+            out: List[Optional[str]] = []
+            for pid in main:
+                if not pid:
+                    out.append(None)
+                else:
+                    out.append(rebuy_map.get(str(pid), str(pid)))
+            return out
+        return [str(p) if p else None for p in main]
     
     def calculate_position_points(
         self,
@@ -233,26 +259,7 @@ class ScoringService:
         Returns:
             Dictionary with points breakdown
         """
-        player_ids = [
-            entry.player1_id,
-            entry.player2_id,
-            entry.player3_id,
-            entry.player4_id,
-            entry.player5_id,
-            entry.player6_id,
-        ]
-        
-        # Handle rebuys - use rebuy players for rounds 3-4 if applicable
-        # For rounds 1-2, always use original players
-        # For rounds 3-4, use rebuy players if they exist
-        if round_id >= 3 and entry.rebuy_player_ids and entry.rebuy_original_player_ids:
-            # Create mapping of original to rebuy
-            rebuy_map = {}
-            for orig_id, rebuy_id in zip(entry.rebuy_original_player_ids, entry.rebuy_player_ids):
-                rebuy_map[str(orig_id)] = str(rebuy_id)
-            
-            # Replace original players with rebuy players
-            player_ids = [rebuy_map.get(str(pid), str(pid)) for pid in player_ids]
+        player_ids = self.effective_lineup_player_ids(entry, round_id)
         
         points_breakdown = {}
         total_points = 0.0
@@ -269,6 +276,15 @@ class ScoringService:
                     break
         
         for i, player_id in enumerate(player_ids, 1):
+            if not player_id:
+                points_breakdown[f"player{i}"] = {
+                    "player_id": None,
+                    "position": None,
+                    "status": None,
+                    "points": 0.0,
+                }
+                continue
+
             position = self.get_player_position(leaderboard_data, player_id)
             status = self.get_player_status(leaderboard_data, player_id)
             
@@ -281,7 +297,7 @@ class ScoringService:
                 cut_status = self.get_player_status_from_previous_round(
                     tournament.id,
                     str(player_id),
-                    round_id
+                    round_id,
                 )
                 if cut_status and cut_status in ["cut", "wd", "dq"]:
                     # Player was cut/withdrawn/disqualified in Round 2
@@ -302,9 +318,11 @@ class ScoringService:
                         )
             
             # Skip if player didn't play this round (for rebuys)
-            if round_id >= 3 and player_id in entry.rebuy_player_ids:
+            rebuy_list = entry.rebuy_player_ids or []
+            rebuy_orig = entry.rebuy_original_player_ids or []
+            if round_id >= 3 and player_id in rebuy_list:
                 # Check if original player should still count
-                original_idx = entry.rebuy_original_player_ids.index(player_id) if player_id in entry.rebuy_original_player_ids else -1
+                original_idx = rebuy_orig.index(player_id) if player_id in rebuy_orig else -1
                 if original_idx >= 0:
                     original_player_id = [
                         entry.player1_id, entry.player2_id, entry.player3_id,
@@ -349,24 +367,8 @@ class ScoringService:
             List of bonus point dictionaries
         """
         bonuses = []
-        player_ids = [
-            entry.player1_id,
-            entry.player2_id,
-            entry.player3_id,
-            entry.player4_id,
-            entry.player5_id,
-            entry.player6_id,
-        ]
-        
-        # Handle rebuys for rounds 3-4
-        if round_id >= 3 and entry.rebuy_player_ids and entry.rebuy_original_player_ids:
-            # Create mapping of original to rebuy
-            rebuy_map = {}
-            for orig_id, rebuy_id in zip(entry.rebuy_original_player_ids, entry.rebuy_player_ids):
-                rebuy_map[str(orig_id)] = str(rebuy_id)
-            
-            # Replace original players with rebuy players
-            player_ids = [rebuy_map.get(str(pid), str(pid)) for pid in player_ids]
+        player_ids = self.effective_lineup_player_ids(entry, round_id)
+        lineup_for_manual = {str(pid) for pid in player_ids if pid}
         
         # Get manually added bonus points (GIR, Fairways) from database
         from app.models import BonusPoint
@@ -380,7 +382,7 @@ class ScoringService:
         for manual_bonus in manual_bonuses:
             # Check if this player is in the entry's lineup (original or rebuy)
             player_id_str = str(manual_bonus.player_id)
-            if player_id_str in [str(pid) for pid in player_ids]:
+            if player_id_str in lineup_for_manual:
                 bonuses.append({
                     "player_id": player_id_str,
                     "bonus_type": manual_bonus.bonus_type,
@@ -438,6 +440,8 @@ class ScoringService:
         
         # Check each player for bonuses
         for player_id in player_ids:
+            if not player_id:
+                continue
             player_id_str = str(player_id)
             
             # Low score of day

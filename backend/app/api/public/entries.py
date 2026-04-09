@@ -9,7 +9,7 @@ router = APIRouter()
 
 
 @router.get("/entry/{entry_id}")
-async def get_entry_details(
+def get_entry_details(
     entry_id: int,
     db: Session = Depends(get_db)
 ):
@@ -40,6 +40,8 @@ async def get_entry_details(
     
     players = {}
     for player_id in player_ids:
+        if not player_id:
+            continue
         player = db.query(Player).filter(Player.player_id == player_id).first()
         if player:
             players[player_id] = {

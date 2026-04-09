@@ -11,7 +11,7 @@ router = APIRouter()
 
 
 @router.get("/ranking-history/tournament/{tournament_id}")
-async def get_tournament_ranking_history(
+def get_tournament_ranking_history(
     tournament_id: int,
     round_id: Optional[int] = Query(None, description="Filter by round (optional)"),
     entry_id: Optional[int] = Query(None, description="Filter by entry (optional)"),
@@ -75,7 +75,7 @@ async def get_tournament_ranking_history(
 
 
 @router.get("/ranking-history/entry/{entry_id}")
-async def get_entry_ranking_history(
+def get_entry_ranking_history(
     entry_id: int,
     tournament_id: Optional[int] = Query(None, description="Filter by tournament (optional)"),
     db: Session = Depends(get_db)
@@ -133,7 +133,7 @@ async def get_entry_ranking_history(
 
 
 @router.get("/ranking-history/analytics/{tournament_id}")
-async def get_ranking_analytics(
+def get_ranking_analytics(
     tournament_id: int,
     db: Session = Depends(get_db)
 ):

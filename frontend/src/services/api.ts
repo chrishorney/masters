@@ -10,8 +10,12 @@ import type {
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 const API_PREFIX = '/api'
 
+/** Default timeout so a hung API cannot leave the UI on the loading screen forever. */
+const DEFAULT_TIMEOUT_MS = 30_000
+
 const api = axios.create({
   baseURL: `${API_URL}${API_PREFIX}`,
+  timeout: DEFAULT_TIMEOUT_MS,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -161,6 +165,96 @@ export const adminApi = {
   /** Get tournament players */
   getTournamentPlayers: async (tournamentId: number): Promise<{ players: Player[] }> => {
     const response = await api.get(`/admin/players/tournament/${tournamentId}`)
+    return response.data
+  },
+
+  /** List pool entries for tournament (participant + roster slots) */
+  listEntries: async (
+    tournamentId: number
+  ): Promise<{
+    entries: Array<{
+      id: number
+      participant_id: number
+      participant_name: string
+      participant_email: string | null
+      tournament_id: number
+      player1_id: string | null
+      player2_id: string | null
+      player3_id: string | null
+      player4_id: string | null
+      player5_id: string | null
+      player6_id: string | null
+      rebuy_player_ids: string[]
+      rebuy_original_player_ids: string[]
+    }>
+  }> => {
+    const response = await api.get(`/admin/tournaments/${tournamentId}/entries`)
+    return response.data
+  },
+
+  /** Search pool participants by name/email */
+  listParticipants: async (
+    q?: string
+  ): Promise<{ participants: Array<{ id: number; name: string; email: string | null; paid: boolean }> }> => {
+    const response = await api.get('/admin/participants', { params: q ? { q } : {} })
+    return response.data
+  },
+
+  /** Create a participant (pool person) */
+  createParticipant: async (body: {
+    name: string
+    email?: string | null
+    paid?: boolean
+  }): Promise<{ id: number; name: string; email: string | null; paid: boolean }> => {
+    const response = await api.post('/admin/participants', body)
+    return response.data
+  },
+
+  /** Create an entry with six roster slots (null = empty; at least one golfer required) */
+  createEntry: async (
+    tournamentId: number,
+    body: {
+      participant_id?: number
+      participant?: { name: string; email?: string | null; paid?: boolean }
+      player1_id?: string | null
+      player2_id?: string | null
+      player3_id?: string | null
+      player4_id?: string | null
+      player5_id?: string | null
+      player6_id?: string | null
+    }
+  ): Promise<{ id: number; participant_id: number; tournament_id: number }> => {
+    const response = await api.post(`/admin/tournaments/${tournamentId}/entries`, body)
+    return response.data
+  },
+
+  /** Set one roster slot (1–6); player_id null clears the slot */
+  updateEntrySlot: async (
+    tournamentId: number,
+    entryId: number,
+    slot: number,
+    playerId: string | null
+  ): Promise<{ id: number }> => {
+    const response = await api.patch(`/admin/tournaments/${tournamentId}/entries/${entryId}/slots/${slot}`, {
+      player_id: playerId,
+    })
+    return response.data
+  },
+
+  /** Remove a golfer from an entry (clears slot / rebuy, deletes their points for this entry, recalculates) */
+  removePlayerFromEntry: async (
+    tournamentId: number,
+    entryId: number,
+    playerId: string
+  ): Promise<{
+    success: boolean
+    bonus_rows_deleted?: number
+    rounds_recalculated?: number
+    errors?: string[]
+  }> => {
+    const response = await api.delete(
+      `/admin/tournaments/${tournamentId}/entries/${entryId}/players/${encodeURIComponent(playerId)}`
+    )
     return response.data
   },
 

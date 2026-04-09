@@ -13,13 +13,13 @@ class Entry(Base):
     participant_id = Column(Integer, ForeignKey("participants.id"), nullable=False)
     tournament_id = Column(Integer, ForeignKey("tournaments.id"), nullable=False)
     
-    # Original 6 players (player IDs from API)
-    player1_id = Column(String, nullable=False)
-    player2_id = Column(String, nullable=False)
-    player3_id = Column(String, nullable=False)
-    player4_id = Column(String, nullable=False)
-    player5_id = Column(String, nullable=False)
-    player6_id = Column(String, nullable=False)
+    # Original 6 players (player IDs from API). Nullable after admin removes a golfer from a slot.
+    player1_id = Column(String, nullable=True)
+    player2_id = Column(String, nullable=True)
+    player3_id = Column(String, nullable=True)
+    player4_id = Column(String, nullable=True)
+    player5_id = Column(String, nullable=True)
+    player6_id = Column(String, nullable=True)
     
     # Re-buy information
     rebuy_player_ids = Column(JSON, default=list)  # List of player IDs for rebuys
