@@ -134,7 +134,23 @@ class ImportService:
                 db_last = self.normalize_name(player.last_name)
                 if db_first == normalized_first and db_last == normalized_last:
                     return player.player_id
-        
+        elif len(name_parts) == 1:
+            # Single token input (e.g. "Scheffler" or "Scottie"):
+            # only auto-match when we get exactly one unique candidate to avoid bad guesses.
+            token = self.normalize_name(name_parts[0])
+            single_token_hits: List[str] = []
+            for full_name, pid in self._get_candidate_players(tournament_id):
+                parts = full_name.split()
+                if not parts:
+                    continue
+                first = self.normalize_name(parts[0])
+                last = self.normalize_name(parts[-1])
+                if token == first or token == last:
+                    single_token_hits.append(pid)
+            unique_hits = list(dict.fromkeys(single_token_hits))
+            if len(unique_hits) == 1:
+                return unique_hits[0]
+
         # Try searching in tournament leaderboard (if available)
         if self._import_leaderboard_rows is not None:
             leaderboard_rows = self._import_leaderboard_rows
@@ -226,6 +242,23 @@ class ImportService:
         candidates = self._get_candidate_players(tournament_id)
         if not candidates:
             return None
+        # Single-token fuzzy: prefer closest first/last name match.
+        single_token = player_name.strip().split()
+        if len(single_token) == 1:
+            token = self.normalize_name(single_token[0])
+            keyed: List[Tuple[str, str, str]] = []  # (candidate_token, full_name, player_id)
+            for full, pid in candidates:
+                parts = full.split()
+                if not parts:
+                    continue
+                keyed.append((self.normalize_name(parts[0]), full, pid))
+                keyed.append((self.normalize_name(parts[-1]), full, pid))
+            token_space = [k[0] for k in keyed]
+            token_matches = difflib.get_close_matches(token, token_space, n=1, cutoff=0.85)
+            if token_matches:
+                idx = token_space.index(token_matches[0])
+                return keyed[idx][1], keyed[idx][2]
+
         names = [c[0] for c in candidates]
         normalized_input = self.normalize_name(player_name)
         normalized_names = [self.normalize_name(n) for n in names]
@@ -234,6 +267,12 @@ class ImportService:
             return None
         idx = normalized_names.index(matches[0])
         return candidates[idx]  # (full_name, player_id)
+
+    def get_tournament_player_options(self, tournament_id: int) -> List[Dict[str, str]]:
+        """Dropdown options for manual import assignment (all known golfers for this tournament)."""
+        options = [{"player_id": pid, "name": full_name} for (full_name, pid) in self._get_candidate_players(tournament_id)]
+        options.sort(key=lambda x: self.normalize_name(x["name"]))
+        return options
 
     def validate_entries_for_import(
         self, rows: List[Dict[str, str]], tournament_id: int
@@ -317,6 +356,7 @@ class ImportService:
             "error": None,
             "row_results": row_results,
             "suggestions": all_suggestions,
+            "tournament_player_options": self.get_tournament_player_options(tournament_id),
             "can_import_directly": can_import_directly,
             "can_import_with_corrections": can_import_with_corrections,
         }

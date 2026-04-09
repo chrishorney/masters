@@ -8,6 +8,14 @@ interface ImportSectionProps {
 }
 
 export type SuggestionItem = { row: number; column: string; value: string; suggestion: string; player_id: string }
+type TournamentPlayerOption = { player_id: string; name: string }
+type PendingResolution = {
+  row: number
+  participant?: string
+  column: string
+  value: string
+  suggested_player_id?: string
+}
 
 function formatImportError(err: any): string {
   if (!err) return 'Unknown import error'
@@ -56,17 +64,28 @@ export function ImportSection({ tournamentId }: ImportSectionProps) {
   const [result, setResult] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
   const [suggestions, setSuggestions] = useState<SuggestionItem[]>([])
+  const [tournamentPlayerOptions, setTournamentPlayerOptions] = useState<TournamentPlayerOption[]>([])
+  const [pendingResolutions, setPendingResolutions] = useState<PendingResolution[]>([])
+  const [manualAssignments, setManualAssignments] = useState<Record<string, string>>({})
+
+  const keyFor = (row: number, column: string) => `${row}::${column}`
+  const clearMatchingState = () => {
+    setSuggestions([])
+    setTournamentPlayerOptions([])
+    setPendingResolutions([])
+    setManualAssignments({})
+  }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0])
       setResult(null)
       setError(null)
-      setSuggestions([])
+      clearMatchingState()
     }
   }
 
-  const runImport = async (appliedSuggestions?: SuggestionItem[]) => {
+  const runImport = async (appliedSuggestions?: Array<{ row: number; column: string; player_id: string }>) => {
     if (!file) return
     const formData = new FormData()
     formData.append('file', file)
@@ -99,7 +118,7 @@ export function ImportSection({ tournamentId }: ImportSectionProps) {
     setImporting(true)
     setError(null)
     setResult(null)
-    setSuggestions([])
+    clearMatchingState()
 
     try {
       const formData = new FormData()
@@ -108,11 +127,32 @@ export function ImportSection({ tournamentId }: ImportSectionProps) {
 
       if (importType === 'entries') {
         const validation = await adminApi.validateEntriesImport(formData)
-        if (validation.can_import_directly && (!validation.suggestions || validation.suggestions.length === 0)) {
+        const allUnmatched = (validation.row_results || []).flatMap((r: any) => {
+          if (!Array.isArray(r.players)) return []
+          return r.players
+            .filter((p: any) => p && !p.matched)
+            .map((p: any) => ({
+              row: Number(r.row) || 0,
+              participant: r.participant || undefined,
+              column: p.column,
+              value: p.value || '',
+              suggested_player_id: p.suggestion?.player_id,
+            }))
+        })
+        if (validation.can_import_directly && allUnmatched.length === 0) {
           const data = await runImport()
           setResult(data)
-        } else if (validation.can_import_with_corrections && validation.suggestions && validation.suggestions.length > 0) {
-          setSuggestions(validation.suggestions)
+        } else if (allUnmatched.length > 0) {
+          const options = validation.tournament_player_options || []
+          setTournamentPlayerOptions(options)
+          setPendingResolutions(allUnmatched)
+          const initialAssignments: Record<string, string> = {}
+          for (const item of allUnmatched) {
+            if (item.suggested_player_id) initialAssignments[keyFor(item.row, item.column)] = item.suggested_player_id
+          }
+          setManualAssignments(initialAssignments)
+          // Keep old suggestion list for quick visual context
+          setSuggestions(validation.suggestions || [])
         } else if (validation.error || (validation.row_results && validation.row_results.some((r: any) => r.row_error))) {
           const detailedErrors = buildValidationRowErrors(validation.row_results)
           setResult({
@@ -173,13 +213,24 @@ export function ImportSection({ tournamentId }: ImportSectionProps) {
   }
 
   const handleApplySuggestionsAndImport = async () => {
-    if (!file || suggestions.length === 0) return
+    if (!file) return
     setImporting(true)
     setError(null)
     try {
-      const data = await runImport(suggestions)
+      const assignments = pendingResolutions.map((p) => ({
+        row: p.row,
+        column: p.column,
+        player_id: manualAssignments[keyFor(p.row, p.column)] || '',
+      }))
+      const missing = assignments.filter((a) => !a.player_id)
+      if (missing.length > 0) {
+        setImporting(false)
+        setError(`Please choose a golfer for all unresolved names (${missing.length} remaining).`)
+        return
+      }
+      const data = await runImport(assignments)
       setResult(data)
-      setSuggestions([])
+      clearMatchingState()
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Import failed.')
     } finally {
@@ -270,22 +321,55 @@ export function ImportSection({ tournamentId }: ImportSectionProps) {
       </div>
 
       {/* Spelling suggestions (entries and rebuys) */}
-      {suggestions.length > 0 && (
+      {(pendingResolutions.length > 0 || suggestions.length > 0) && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 md:p-6">
-          <h3 className="text-lg font-semibold text-amber-900 mb-2">Possible typos found</h3>
+          <h3 className="text-lg font-semibold text-amber-900 mb-2">Resolve unmatched names</h3>
           <p className="text-sm text-amber-800 mb-4">
-            We found player names that didn&apos;t match exactly. Use the suggested spellings to import without editing the CSV.
+            We found names that didn&apos;t match exactly. Review each row and choose the correct golfer.
           </p>
-          <ul className="space-y-2 mb-4 max-h-48 overflow-y-auto">
-            {suggestions.map((s, idx) => (
-              <li key={idx} className="text-sm text-amber-900 flex items-center gap-2">
-                <span className="font-medium">Row {s.row}, {s.column}:</span>
-                <span className="line-through">{s.value}</span>
-                <span>→</span>
-                <span className="font-semibold text-green-800">{s.suggestion}</span>
-              </li>
-            ))}
-          </ul>
+          {pendingResolutions.length > 0 ? (
+            <div className="space-y-3 mb-4 max-h-72 overflow-y-auto">
+              {pendingResolutions.map((r, idx) => {
+                const k = keyFor(r.row, r.column)
+                return (
+                  <div key={`${k}-${idx}`} className="bg-white border border-amber-200 rounded p-3 text-sm">
+                    <div className="text-amber-900 mb-2">
+                      <span className="font-medium">Row {r.row}, {r.column}</span>
+                      {r.participant ? ` (${r.participant})` : ''}: <span className="line-through">{r.value || '[blank]'}</span>
+                    </div>
+                    <select
+                      value={manualAssignments[k] || ''}
+                      onChange={(e) =>
+                        setManualAssignments((prev) => ({
+                          ...prev,
+                          [k]: e.target.value,
+                        }))
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900"
+                    >
+                      <option value="">Select golfer...</option>
+                      {tournamentPlayerOptions.map((opt) => (
+                        <option key={opt.player_id} value={opt.player_id}>
+                          {opt.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <ul className="space-y-2 mb-4 max-h-48 overflow-y-auto">
+              {suggestions.map((s, idx) => (
+                <li key={idx} className="text-sm text-amber-900 flex items-center gap-2">
+                  <span className="font-medium">Row {s.row}, {s.column}:</span>
+                  <span className="line-through">{s.value}</span>
+                  <span>→</span>
+                  <span className="font-semibold text-green-800">{s.suggestion}</span>
+                </li>
+              ))}
+            </ul>
+          )}
           <div className="flex flex-wrap gap-3">
             <button
               type="button"
@@ -293,11 +377,11 @@ export function ImportSection({ tournamentId }: ImportSectionProps) {
               disabled={importing}
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
             >
-              {importing ? 'Importing...' : 'Apply suggestions and import'}
+              {importing ? 'Importing...' : 'Apply selections and import'}
             </button>
             <button
               type="button"
-              onClick={() => setSuggestions([])}
+              onClick={clearMatchingState}
               className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
             >
               Cancel

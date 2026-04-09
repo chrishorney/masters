@@ -180,6 +180,7 @@ export const adminApi = {
     error?: string
     row_results?: Array<{ row: number; participant: string; players: Array<{ column: string; value: string; matched: boolean; player_id: string | null; suggestion: { name: string; player_id: string } | null }>; row_error: string | null }>
     suggestions?: Array<{ row: number; column: string; value: string; suggestion: string; player_id: string }>
+    tournament_player_options?: Array<{ player_id: string; name: string }>
     can_import_directly?: boolean
     can_import_with_corrections?: boolean
   }> => {
