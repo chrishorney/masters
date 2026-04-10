@@ -3,6 +3,16 @@ import { useState, useEffect } from 'react'
 import { adminApi } from '../../services/api'
 import api from '../../services/api'
 
+/** Manual bonus kinds (must match backend MANUAL_BONUS_TYPES). */
+const MANUAL_BONUS_TYPE_OPTIONS = [
+  { value: 'gir_leader' as const, label: 'GIR Leader (1 pt)' },
+  { value: 'fairways_leader' as const, label: 'Fairways leader (1 pt)' },
+  {
+    value: 'low_score_manual' as const,
+    label: 'Low score of the day (manual, 1 pt)',
+  },
+]
+
 interface BonusPointsSectionProps {
   tournamentId: number
 }
@@ -21,7 +31,7 @@ export function BonusPointsSection({ tournamentId }: BonusPointsSectionProps) {
   const [roundId, setRoundId] = useState<number>(1)
   const [playerSearch, setPlayerSearch] = useState('')
   const [bonusType, setBonusType] = useState<
-    'gir_leader' | 'fairways_leader' | 'low_score_manual'
+    (typeof MANUAL_BONUS_TYPE_OPTIONS)[number]['value']
   >('gir_leader')
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [selectedPlayer, setSelectedPlayer] = useState<any>(null)
@@ -138,7 +148,7 @@ export function BonusPointsSection({ tournamentId }: BonusPointsSectionProps) {
   }
 
   /** Manual bonus types: preserved when scores recalculate; use when API stats are missing or wrong. */
-  const manualBonusTypes = ['gir_leader', 'fairways_leader', 'low_score_manual']
+  const manualBonusTypes = MANUAL_BONUS_TYPE_OPTIONS.map((o) => o.value)
   const manualBonusPoints = bonusPointsList.filter(bp => 
     manualBonusTypes.includes(bp.bonus_type)
   )
@@ -186,16 +196,21 @@ export function BonusPointsSection({ tournamentId }: BonusPointsSectionProps) {
             <select
               value={bonusType}
               onChange={(e) =>
-                setBonusType(
-                  e.target.value as 'gir_leader' | 'fairways_leader' | 'low_score_manual'
-                )
+                setBonusType(e.target.value as (typeof MANUAL_BONUS_TYPE_OPTIONS)[number]['value'])
               }
               className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500"
+              aria-label="Manual bonus type"
             >
-              <option value="gir_leader">GIR Leader (1 pt)</option>
-              <option value="fairways_leader">Fairways leader (1 pt)</option>
-              <option value="low_score_manual">Low score of the day — manual (1 pt)</option>
+              {MANUAL_BONUS_TYPE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
             </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Includes <strong>Low score of the day</strong> when you need to set it manually (e.g. auto
+              scoring missed it). Hard refresh (Ctrl+Shift+R / Cmd+Shift+R) if this list looks outdated.
+            </p>
           </div>
 
           {/* Player Search */}

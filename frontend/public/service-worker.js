@@ -1,8 +1,8 @@
 // Service Worker for Eldorado Masters Pool PWA
-// Version: 1.0.0
+// Bump CACHE_NAME / RUNTIME_CACHE when shipping UI changes so clients drop stale JS bundles.
 
-const CACHE_NAME = 'masters-pool-v1';
-const RUNTIME_CACHE = 'masters-pool-runtime-v1';
+const CACHE_NAME = 'masters-pool-v2';
+const RUNTIME_CACHE = 'masters-pool-runtime-v2';
 
 // Assets to cache on install
 const PRECACHE_URLS = [
@@ -105,28 +105,39 @@ self.addEventListener('fetch', (event) => {
           });
         })
     );
+  } else if (url.pathname.startsWith('/assets/')) {
+    // Vite hashed JS/CSS: network first so admin UI updates ship immediately; offline falls back to cache
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response && response.status === 200 && response.type === 'basic') {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request))
+    );
   } else {
-    // Static assets: Cache first, fallback to network
+    // Other static (fonts, images): cache first, fallback to network
     event.respondWith(
       caches.match(request)
         .then((cachedResponse) => {
           if (cachedResponse) {
             return cachedResponse;
           }
-          
+
           return fetch(request).then((response) => {
-            // Don't cache non-successful responses
             if (!response || response.status !== 200 || response.type !== 'basic') {
               return response;
             }
-            
-            // Clone the response
+
             const responseToCache = response.clone();
-            
+
             caches.open(CACHE_NAME).then((cache) => {
               cache.put(request, responseToCache);
             });
-            
+
             return response;
           });
         })
