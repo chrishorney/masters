@@ -370,6 +370,105 @@ class ScoreCalculatorService:
             )
         
         return snapshots_created
+
+    def _notify_push_new_leader_async(
+        self,
+        entry_name: str,
+        total_points: float,
+        round_id: int,
+        tournament_name: str,
+    ):
+        """Send web push when the leaderboard leader changes (fire-and-forget)."""
+
+        async def notify():
+            try:
+                from app.services.push_notifications import get_push_service
+                from app.models import PushSubscription
+
+                push_service = get_push_service()
+                if not push_service.enabled:
+                    return
+
+                subscriptions = self.db.query(PushSubscription).filter(
+                    PushSubscription.active == True
+                ).all()
+                if not subscriptions:
+                    return
+
+                title = "👑 New leader!"
+                body = (
+                    f"{entry_name} leads with {total_points:.1f} pts — "
+                    f"{tournament_name}, R{round_id}"
+                )
+                for sub in subscriptions:
+                    push_service.send_notification(
+                        subscription=sub.subscription_data,
+                        title=title,
+                        body=body,
+                        url="/leaderboard",
+                    )
+            except Exception as e:
+                logger.warning(f"Push new-leader notification failed (non-critical): {e}")
+
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(notify())
+            else:
+                loop.run_until_complete(notify())
+        except Exception as e:
+            logger.debug(f"Could not schedule new-leader push: {e}")
+
+    def _notify_push_big_move_async(
+        self,
+        entry_name: str,
+        old_position: int,
+        new_position: int,
+        total_points: float,
+        round_id: int,
+    ):
+        """Send web push for a large leaderboard move (5+ positions, fire-and-forget)."""
+
+        async def notify():
+            try:
+                from app.services.push_notifications import get_push_service
+                from app.models import PushSubscription
+
+                push_service = get_push_service()
+                if not push_service.enabled:
+                    return
+
+                subscriptions = self.db.query(PushSubscription).filter(
+                    PushSubscription.active == True
+                ).all()
+                if not subscriptions:
+                    return
+
+                position_change = old_position - new_position
+                direction = "up" if position_change > 0 else "down"
+                title = f"📈 Big move {direction}!"
+                body = (
+                    f"{entry_name}: #{old_position} → #{new_position} "
+                    f"({total_points:.1f} pts, R{round_id})"
+                )
+                for sub in subscriptions:
+                    push_service.send_notification(
+                        subscription=sub.subscription_data,
+                        title=title,
+                        body=body,
+                        url="/leaderboard",
+                    )
+            except Exception as e:
+                logger.warning(f"Push big-move notification failed (non-critical): {e}")
+
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(notify())
+            else:
+                loop.run_until_complete(notify())
+        except Exception as e:
+            logger.debug(f"Could not schedule big-move push: {e}")
     
     def _notify_discord_position_changes_async(
         self,

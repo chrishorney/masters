@@ -90,16 +90,14 @@ class PushNotificationService:
                 "icon": icon or "/icon-192x192.png"
             }
             
-            # Convert hex string private key to bytes if needed
+            # pywebpush expects a str (PEM path, PEM body, or VAPID hex from settings).
+            # Passing bytes causes: AttributeError: 'bytes' object has no attribute 'encode'
             private_key = self.vapid_private_key
-            if isinstance(private_key, str):
-                try:
-                    # Try to decode as hex
-                    private_key = bytes.fromhex(private_key)
-                except ValueError:
-                    # If not hex, assume it's already in the right format
-                    pass
-            
+            if isinstance(private_key, bytes):
+                private_key = private_key.decode("utf-8", errors="replace")
+            else:
+                private_key = (private_key or "").strip()
+
             webpush(
                 subscription_info=subscription,
                 data=json.dumps(payload),
