@@ -107,6 +107,25 @@ def test_add_fairways_bonus_point(db, test_tournament, test_entry, test_snapshot
     assert data["bonus_type"] == "fairways_leader"
 
 
+def test_add_low_score_manual_bonus_point(db, test_tournament, test_entry, test_snapshot):
+    """Test adding a manual low-score-of-the-day bonus (distinct from auto low_score)."""
+    response = client.post(
+        "/api/admin/bonus-points/add",
+        json={
+            "tournament_id": test_tournament.id,
+            "round_id": 1,
+            "player_id": "50525",
+            "bonus_type": "low_score_manual",
+            "points": 1.0,
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["bonus_type"] == "low_score_manual"
+    assert data["bonus_points_created"] >= 1
+
+
 def test_list_bonus_points(db, test_tournament, test_entry):
     """Test listing bonus points."""
     # First add one

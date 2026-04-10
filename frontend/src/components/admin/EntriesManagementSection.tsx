@@ -185,6 +185,7 @@ export function EntriesManagementSection({ tournamentId }: { tournamentId: numbe
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
+  const [downloading, setDownloading] = useState(false)
 
   const [newMode, setNewMode] = useState<'new' | 'existing'>('new')
   const [newName, setNewName] = useState('')
@@ -264,6 +265,25 @@ export function EntriesManagementSection({ tournamentId }: { tournamentId: numbe
     }
   }
 
+  const handleDownloadWorkbook = async () => {
+    setDownloading(true)
+    setError(null)
+    try {
+      const blob = await adminApi.downloadScoringWorkbook(tournamentId)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'eldorado_scoring_export.xlsx'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err: unknown) {
+      const ax = err as { response?: { data?: { detail?: string } }; message?: string }
+      setError(ax.response?.data?.detail || ax.message || 'Download failed')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   const handleCreateEntry = async (e: React.FormEvent) => {
     e.preventDefault()
     setBusy('create')
@@ -315,6 +335,26 @@ export function EntriesManagementSection({ tournamentId }: { tournamentId: numbe
 
   return (
     <div className="space-y-8">
+      <div className="bg-white rounded-lg shadow border border-gray-100 p-6">
+        <h2 className="text-xl font-semibold text-gray-900 mb-2">Export scoring (Excel)</h2>
+        <p className="text-sm text-gray-600 mb-3">
+          Download a two-sheet workbook: (1) every pool entry with each roster golfer&apos;s total points on
+          that entry—base position points plus bonuses tied to that golfer, plus team-only bonuses and the
+          entry total; (2) a line-by-line ledger for every golfer with each base and bonus line.
+        </p>
+        <button
+          type="button"
+          onClick={handleDownloadWorkbook}
+          disabled={downloading}
+          className="bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-900 disabled:opacity-50"
+        >
+          {downloading ? 'Preparing…' : 'Download .xlsx'}
+        </button>
+        <p className="text-xs text-gray-500 mt-2">
+          Open in Excel or Google Sheets. For CSV, use Save As → CSV from each sheet.
+        </p>
+      </div>
+
       <div className="bg-white rounded-lg shadow border border-gray-100 p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-2">Add entry manually</h2>
         <p className="text-sm text-gray-600 mb-4">

@@ -100,6 +100,7 @@ export function TournamentManagementSection({ tournament }: TournamentManagement
       double_eagle: 'Double eagle',
       hole_in_one: 'Hole-in-one',
       low_score: 'Low score (round)',
+      low_score_manual: 'Low score of day (manual)',
       gir_leader: 'GIR leader',
       fairways_leader: 'Fairways leader',
       all_make_cut: 'Weekend loyalty (no rebuys)',

@@ -17,6 +17,12 @@ from app.services.data_sync import parse_mongodb_value
 
 logger = logging.getLogger(__name__)
 
+# Bonus types stored in DB that must survive score recalculation (not wiped by auto bonus logic).
+# Includes GIR/fairways leaders and optional manual low-score-of-the-day when auto award is wrong/missing.
+MANUAL_BONUS_TYPES = frozenset(
+    {"gir_leader", "fairways_leader", "low_score_manual"}
+)
+
 
 class ScoringService:
     """Service for calculating scores based on tournament rules."""
@@ -375,7 +381,7 @@ class ScoringService:
         manual_bonuses = self.db.query(BonusPoint).filter(
             BonusPoint.entry_id == entry.id,
             BonusPoint.round_id == round_id,
-            BonusPoint.bonus_type.in_(["gir_leader", "fairways_leader"])
+            BonusPoint.bonus_type.in_(list(MANUAL_BONUS_TYPES)),
         ).all()
         
         # Add manual bonuses to the list
@@ -618,18 +624,18 @@ class ScoringService:
             self.db.commit()
             self.db.refresh(existing_score)
             
-            # Update bonus points records (but preserve manual ones like GIR/fairways)
+            # Update bonus points records (but preserve manual ones like GIR/fairways/manual low score)
             # Delete auto-calculated bonuses, keep manual ones
             from sqlalchemy import not_
             self.db.query(BonusPoint).filter(
                 BonusPoint.entry_id == entry.id,
                 BonusPoint.round_id == round_id,
-                not_(BonusPoint.bonus_type.in_(["gir_leader", "fairways_leader"]))  # Keep manual bonuses
+                not_(BonusPoint.bonus_type.in_(list(MANUAL_BONUS_TYPES))),
             ).delete()
             
             # Add auto-calculated bonuses (not manual ones)
             for bonus in bonuses:
-                if bonus["bonus_type"] not in ["gir_leader", "fairways_leader"]:
+                if bonus["bonus_type"] not in MANUAL_BONUS_TYPES:
                     # Check if it doesn't already exist (check by hole for eagle/albatross/hole-in-one)
                     query = self.db.query(BonusPoint).filter(
                         BonusPoint.entry_id == entry.id,
@@ -705,7 +711,7 @@ class ScoringService:
             
             # Create bonus point records (only auto-calculated ones, manual ones already exist)
             for bonus in bonuses:
-                if bonus["bonus_type"] not in ["gir_leader", "fairways_leader"]:
+                if bonus["bonus_type"] not in MANUAL_BONUS_TYPES:
                     # Check if it doesn't already exist (check by hole for eagle/albatross/hole-in-one)
                     query = self.db.query(BonusPoint).filter(
                         BonusPoint.entry_id == entry.id,

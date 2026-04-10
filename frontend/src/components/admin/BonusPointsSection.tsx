@@ -20,7 +20,9 @@ interface BonusPoint {
 export function BonusPointsSection({ tournamentId }: BonusPointsSectionProps) {
   const [roundId, setRoundId] = useState<number>(1)
   const [playerSearch, setPlayerSearch] = useState('')
-  const [bonusType, setBonusType] = useState<'gir_leader' | 'fairways_leader'>('gir_leader')
+  const [bonusType, setBonusType] = useState<
+    'gir_leader' | 'fairways_leader' | 'low_score_manual'
+  >('gir_leader')
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [selectedPlayer, setSelectedPlayer] = useState<any>(null)
   const [adding, setAdding] = useState(false)
@@ -128,14 +130,15 @@ export function BonusPointsSection({ tournamentId }: BonusPointsSectionProps) {
 
   const getBonusTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
-      'gir_leader': 'GIR Leader',
-      'fairways_leader': 'Fairways Leader',
+      gir_leader: 'GIR Leader',
+      fairways_leader: 'Fairways Leader',
+      low_score_manual: 'Low score of the day (manual)',
     }
     return labels[type] || type
   }
 
-  // Only show manual bonus types (GIR and Fairways)
-  const manualBonusTypes = ['gir_leader', 'fairways_leader']
+  /** Manual bonus types: preserved when scores recalculate; use when API stats are missing or wrong. */
+  const manualBonusTypes = ['gir_leader', 'fairways_leader', 'low_score_manual']
   const manualBonusPoints = bonusPointsList.filter(bp => 
     manualBonusTypes.includes(bp.bonus_type)
   )
@@ -182,11 +185,16 @@ export function BonusPointsSection({ tournamentId }: BonusPointsSectionProps) {
             </label>
             <select
               value={bonusType}
-              onChange={(e) => setBonusType(e.target.value as 'gir_leader' | 'fairways_leader')}
+              onChange={(e) =>
+                setBonusType(
+                  e.target.value as 'gir_leader' | 'fairways_leader' | 'low_score_manual'
+                )
+              }
               className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500"
             >
-              <option value="gir_leader">GIR Leader</option>
-              <option value="fairways_leader">Fairways Leader</option>
+              <option value="gir_leader">GIR Leader (1 pt)</option>
+              <option value="fairways_leader">Fairways leader (1 pt)</option>
+              <option value="low_score_manual">Low score of the day — manual (1 pt)</option>
             </select>
           </div>
 
@@ -301,7 +309,7 @@ export function BonusPointsSection({ tournamentId }: BonusPointsSectionProps) {
           <div className="text-center py-8 text-gray-500">
             No manual bonus points assigned yet.
             <div className="text-xs text-gray-400 mt-2">
-              (Only GIR Leader and Fairways Leader bonus points are shown here)
+              (Manual GIR, fairways, and manual low-score bonuses are listed here)
             </div>
           </div>
         ) : (
@@ -389,11 +397,14 @@ export function BonusPointsSection({ tournamentId }: BonusPointsSectionProps) {
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <h4 className="font-medium text-blue-900 mb-2">About Manual Bonus Points</h4>
         <div className="text-sm text-blue-800 space-y-1">
-          <p>• GIR (Greens in Regulation) and Fairways Hit leaders are not available in the API</p>
-          <p>• These must be added manually after each round</p>
-          <p>• The bonus will automatically be applied to all entries that have the selected player</p>
-          <p>• Scores will be automatically recalculated after adding or deleting a bonus</p>
-          <p>• Use the "Assigned Bonus Points" section above to view and manage existing bonuses</p>
+          <p>• GIR and fairways leaders are not in the API — add them manually after each round</p>
+          <p>
+            • Use <strong>Low score of the day (manual)</strong> if the automatic low-score award is wrong or
+            missing (same 1 pt as auto; stored separately so it is not wiped on recalc)
+          </p>
+          <p>• The bonus applies to every entry that has the selected player (including rebuys in R3–4)</p>
+          <p>• Scores recalculate after add/delete</p>
+          <p>• Use “Assigned Bonus Points” below to review or remove</p>
         </div>
       </div>
     </div>

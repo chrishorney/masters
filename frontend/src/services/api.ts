@@ -258,6 +258,17 @@ export const adminApi = {
     return response.data
   },
 
+  /**
+   * Excel workbook: sheet 1 = entries with per-golfer points; sheet 2 = full point ledger (base + bonuses).
+   */
+  downloadScoringWorkbook: async (tournamentId: number): Promise<Blob> => {
+    const response = await api.get('/admin/export/scoring-workbook', {
+      params: { tournament_id: tournamentId },
+      responseType: 'blob',
+    })
+    return response.data
+  },
+
   /** Preview import (get tournament players) */
   previewImport: async (tournamentId: number, limit = 10): Promise<{ players: Player[] }> => {
     const response = await api.get('/admin/import/preview', {

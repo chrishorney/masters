@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from app.database import get_db
 from app.models import BonusPoint, Entry, Tournament
-from app.services.scoring import ScoringService
+from app.services.scoring import ScoringService, MANUAL_BONUS_TYPES
 
 router = APIRouter()
 
@@ -16,7 +16,7 @@ class BonusPointCreate(BaseModel):
     tournament_id: int
     round_id: int
     player_id: str
-    bonus_type: str  # "gir_leader" or "fairways_leader"
+    bonus_type: str  # gir_leader, fairways_leader, low_score_manual, ...
     points: float = 1.0
 
 
@@ -45,9 +45,9 @@ async def add_bonus_point(
     if not tournament:
         raise HTTPException(status_code=404, detail="Tournament not found")
     
-    # Validate bonus type
-    valid_types = ["gir_leader", "fairways_leader"]
-    if bonus.bonus_type not in valid_types:
+    # Validate bonus type (manual-only types preserved on recalc; see MANUAL_BONUS_TYPES)
+    valid_types = sorted(MANUAL_BONUS_TYPES)
+    if bonus.bonus_type not in MANUAL_BONUS_TYPES:
         raise HTTPException(
             status_code=400,
             detail=f"Invalid bonus type. Must be one of: {', '.join(valid_types)}"

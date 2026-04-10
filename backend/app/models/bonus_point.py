@@ -13,7 +13,7 @@ class BonusPoint(Base):
     entry_id = Column(Integer, ForeignKey("entries.id"), nullable=False)
     round_id = Column(Integer, nullable=False, index=True)
     bonus_type = Column(String, nullable=False, index=True)
-    # Types: "gir_leader", "fairways_leader", "low_score", "eagle", 
+    # Types: "gir_leader", "fairways_leader", "low_score_manual" (manual), "low_score" (auto), "eagle", 
     #       "double_eagle", "hole_in_one", "all_make_cut"
     points = Column(Float, nullable=False)
     player_id = Column(String, nullable=True)  # Which player earned it (if applicable)

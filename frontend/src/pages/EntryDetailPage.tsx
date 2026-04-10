@@ -48,7 +48,8 @@ export function EntryDetailPage() {
     const labels: Record<string, string> = {
       'gir_leader': 'GIR Leader',
       'fairways_leader': 'Fairways Leader',
-      'low_score': 'Low Score of Day',
+      'low_score': 'Low Score of Day (auto)',
+      'low_score_manual': 'Low Score of Day (manual)',
       'eagle': 'Eagle',
       'double_eagle': 'Double Eagle',
       'hole_in_one': 'Hole-in-One',
