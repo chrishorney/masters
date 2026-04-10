@@ -148,9 +148,11 @@ export function BonusPointsSection({ tournamentId }: BonusPointsSectionProps) {
   }
 
   /** Manual bonus types: preserved when scores recalculate; use when API stats are missing or wrong. */
-  const manualBonusTypes = MANUAL_BONUS_TYPE_OPTIONS.map((o) => o.value)
-  const manualBonusPoints = bonusPointsList.filter(bp => 
-    manualBonusTypes.includes(bp.bonus_type)
+  const manualBonusTypeSet = new Set<string>(
+    MANUAL_BONUS_TYPE_OPTIONS.map((o) => o.value)
+  )
+  const manualBonusPoints = bonusPointsList.filter((bp) =>
+    manualBonusTypeSet.has(bp.bonus_type)
   )
 
   // Group bonus points by round (only manual ones)

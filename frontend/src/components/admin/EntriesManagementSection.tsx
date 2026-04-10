@@ -42,6 +42,7 @@ function PlayerPicker({
   disabled,
   onPick,
   compact,
+  showHint = true,
 }: {
   players: TournamentPlayer[]
   value: string | null
