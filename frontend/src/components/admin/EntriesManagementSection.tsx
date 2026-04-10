@@ -1,5 +1,5 @@
 /** Manual entry roster management (add entries, edit slots, remove golfers). */
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { adminApi } from '../../services/api'
 import { LoadingSpinner } from '../LoadingSpinner'
 
@@ -26,62 +26,152 @@ type EntryRow = {
   rebuy_original_player_ids: string[]
 }
 
-function SlotSelect({
+function displayName(p: TournamentPlayer): string {
+  return (
+    p.full_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || p.player_id
+  )
+}
+
+/**
+ * Single searchable picker: type to narrow the list, then click a golfer to select.
+ * (Typing alone does not count — avoids the old “filter + empty dropdown” confusion.)
+ */
+function PlayerPicker({
   players,
   value,
   disabled,
   onPick,
+  compact,
 }: {
   players: TournamentPlayer[]
   value: string | null
   disabled?: boolean
   onPick: (playerId: string | null) => void
+  /** Smaller padding in the roster table */
+  compact?: boolean
+  /** Show “click to select” hint (add-entry form only; hidden in dense table) */
+  showHint?: boolean
 }) {
-  const [filter, setFilter] = useState('')
-  const filtered = useMemo(() => {
-    const f = filter.trim().toLowerCase()
-    let list = players
-    if (f) {
-      list = players.filter(
+  const [query, setQuery] = useState('')
+  const [editing, setEditing] = useState(!value)
+
+  const selected = value ? players.find((p) => p.player_id === value) : undefined
+
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return players.slice(0, 15)
+    return players
+      .filter(
         (p) =>
-          (p.full_name || '').toLowerCase().includes(f) ||
-          p.player_id.toLowerCase().includes(f)
+          displayName(p).toLowerCase().includes(q) || p.player_id.toLowerCase().includes(q)
       )
+      .slice(0, 15)
+  }, [players, query])
+
+  const prevValue = useRef(value)
+  useEffect(() => {
+    if (prevValue.current !== value) {
+      prevValue.current = value
+      if (value) setEditing(false)
+      else setEditing(true)
     }
-    const slice = list.slice(0, 60)
-    if (value && !slice.some((p) => p.player_id === value)) {
-      const cur = players.find((p) => p.player_id === value)
-      if (cur) slice.unshift(cur)
-    }
-    return slice
-  }, [players, filter, value])
+  }, [value])
+
+  if (disabled) {
+    return (
+      <span className="text-sm text-gray-500">
+        {selected ? displayName(selected) : value || '—'}
+      </span>
+    )
+  }
+
+  if (value && selected && !editing) {
+    return (
+      <div className={`flex flex-col gap-1 min-w-[9rem] ${compact ? '' : ''}`}>
+        <div className="flex items-center gap-1 flex-wrap">
+          <span className="text-sm font-medium text-gray-900 truncate max-w-[11rem]" title={displayName(selected)}>
+            {displayName(selected)}
+          </span>
+          <button
+            type="button"
+            className="text-xs text-gray-500 hover:text-red-600 shrink-0"
+            onClick={() => {
+              onPick(null)
+              setQuery('')
+              setEditing(true)
+            }}
+          >
+            Clear
+          </button>
+          <button
+            type="button"
+            className="text-xs text-green-700 hover:underline shrink-0"
+            onClick={() => {
+              setEditing(true)
+              setQuery('')
+            }}
+          >
+            Change
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Unknown id (e.g. not in current leaderboard cache) — still show id
+  if (value && !selected) {
+    return (
+      <div className="flex flex-col gap-1">
+        <span className="text-xs text-amber-800">ID: {value}</span>
+        <button type="button" className="text-xs text-red-600" onClick={() => onPick(null)}>
+          Clear
+        </button>
+      </div>
+    )
+  }
 
   return (
-    <div className="flex flex-col gap-1 min-w-[10rem]">
+    <div className="flex flex-col gap-1 min-w-[10rem] max-w-[14rem]">
       <input
         type="text"
-        placeholder="Filter…"
-        value={filter}
-        onChange={(e) => setFilter(e.target.value)}
-        className="text-xs border border-gray-200 rounded px-2 py-1"
-        disabled={disabled}
+        placeholder="Type name, then click golfer"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        className={`text-sm border border-gray-300 rounded-lg px-2 py-1.5 w-full ${
+          compact ? 'py-1 text-xs' : ''
+        }`}
+        autoComplete="off"
+        aria-label="Search golfer"
       />
-      <select
-        className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 bg-white"
-        value={value || ''}
-        disabled={disabled}
-        onChange={(e) => {
-          const v = e.target.value
-          onPick(v === '' ? null : v)
-        }}
+      <ul
+        className="max-h-40 overflow-y-auto border border-gray-200 rounded-md bg-white shadow-sm text-sm"
+        role="listbox"
       >
-        <option value="">— Empty —</option>
-        {filtered.map((p) => (
-          <option key={p.player_id} value={p.player_id}>
-            {p.full_name || `${p.first_name || ''} ${p.last_name || ''}`.trim()}
-          </option>
-        ))}
-      </select>
+        {matches.length === 0 ? (
+          <li className="px-2 py-2 text-gray-500 text-xs">No match — keep typing</li>
+        ) : (
+          matches.map((p) => (
+            <li key={p.player_id}>
+              <button
+                type="button"
+                className="w-full text-left px-2 py-1.5 hover:bg-green-50 text-gray-900 text-xs"
+                onClick={() => {
+                  onPick(p.player_id)
+                  setQuery('')
+                  setEditing(false)
+                }}
+              >
+                {displayName(p)}
+              </button>
+            </li>
+          ))
+        )}
+      </ul>
+      {showHint !== false && (
+        <p className="text-[10px] text-gray-500 leading-tight">
+          Click a name in the list to select — typing only filters the list.
+        </p>
+      )}
     </div>
   )
 }
@@ -228,9 +318,9 @@ export function EntriesManagementSection({ tournamentId }: { tournamentId: numbe
       <div className="bg-white rounded-lg shadow border border-gray-100 p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-2">Add entry manually</h2>
         <p className="text-sm text-gray-600 mb-4">
-          Pick a participant (new or existing), then assign golfers from the tournament field. At least one
-          golfer is required. Empty slots are allowed after the migration; sync must have loaded players into
-          the field so names appear in the dropdowns.
+          Pick a participant (new or existing), then for each slot type part of a name and{' '}
+          <strong>click the golfer in the list</strong> to select them (typing alone does not count). At least
+          one golfer is required. Empty slots are OK. Names come from the last synced tournament leaderboard.
         </p>
 
         <form onSubmit={handleCreateEntry} className="space-y-4">
@@ -299,7 +389,7 @@ export function EntriesManagementSection({ tournamentId }: { tournamentId: numbe
             {[0, 1, 2, 3, 4, 5].map((i) => (
               <div key={i}>
                 <div className="text-sm font-medium text-gray-700 mb-1">Player {i + 1}</div>
-                <SlotSelect
+                <PlayerPicker
                   players={players}
                   value={newSlots[i]}
                   disabled={busy === 'create'}
@@ -360,9 +450,11 @@ export function EntriesManagementSection({ tournamentId }: { tournamentId: numbe
                   return (
                     <td key={slot} className="px-2 py-2">
                       <div className="flex flex-col gap-1">
-                        <SlotSelect
+                        <PlayerPicker
                           players={players}
                           value={pid}
+                          compact
+                          showHint={false}
                           disabled={busy !== null}
                           onPick={(next) => {
                             if (next !== pid) handleSlotChange(row.id, slot, next)
